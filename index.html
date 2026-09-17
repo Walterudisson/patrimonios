@@ -9,7 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Leitor de Código de Barras -->
   <script src="https://unpkg.com/html5-qrcode"></script>
-  <!-- Motor de OCR (Tesseract.js) para leitura de texto nas plaquetas -->
+  <!-- Motor de OCR (Tesseract.js) -->
   <script src="https://unpkg.com/tesseract.js@v5.1.0/dist/tesseract.min.js"></script>
 
   <style>
@@ -297,7 +297,7 @@
     </main>
   </div>
 
-  <!-- MODAL DE EDIÇÃO DE USUÁRIO COM RESTRIÇÃO HIERÁRQUICA -->
+  <!-- MODAL DE EDIÇÃO DE USUÁRIO -->
   <div id="modal-edicao-usuario" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
     <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-5 rounded-2xl shadow-2xl space-y-4">
       <div class="flex justify-between items-center border-b border-slate-700 pb-2">
@@ -359,7 +359,7 @@
     let itemAtualSelecionado = null;
     let modoBootstrapAdmin = false;
 
-    // CARROSSEL DE DICAS (TEMPO DOBRADO: 18 SEGUNDOS)
+    // CARROSSEL DE DICAS (18 SEGUNDOS)
     const dicasLista = [
       { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR' para reconhecer o texto automaticamente." },
       { titulo: "📱 Ângulos Difíceis e Brilho", texto: "Aproxime a câmera e evite reflexos excessivos sobre a película metálica para garantir uma leitura rápida e precisa do patrimônio." },
@@ -389,7 +389,6 @@
       atualizarCarrossel();
     });
 
-    // Rotação automática a cada 18 segundos (dobro do anterior)
     setInterval(() => {
       dicaIndiceAtual = (dicaIndiceAtual + 1) % dicasLista.length;
       atualizarCarrossel();
@@ -639,14 +638,10 @@
       } catch (err) { alert("Erro ao cadastrar: " + err.message); }
     });
 
-    // LISTAGEM DE USUÁRIOS COM RESTRIÇÃO HIERÁRQUICA
     function renderizarListaUsuarios() {
       const container = document.getElementById('lista-usuarios-container');
       if (!container || !usuarioLogado) return;
 
-      // Filtra de acordo com a hierarquia:
-      // - Admin vê todos.
-      // - Gestor vê a si próprio e os conferentes (não vê outros gestores nem admins).
       const conferidosLista = bancoUsuarios.filter(u => {
         if (usuarioLogado.perfil === 'admin') return true;
         if (usuarioLogado.perfil === 'gestor') {
@@ -681,9 +676,7 @@
       const user = bancoUsuarios.find(u => u.uid === uid);
       if (!user) return;
 
-      // Validação de segurança hierárquica no cliente
       if (usuarioLogado.perfil === 'gestor') {
-        // Gestor só pode editar a si mesmo ou conferentes
         if (user.uid !== usuarioLogado.uid && user.perfil !== 'conferente') {
           return alert("Acesso restrito: Gestores não podem alterar dados de outros gestores ou administradores.");
         }
@@ -697,7 +690,7 @@
       const campoPerfilEdit = document.getElementById('edit-campo-perfil-container');
       
       if (usuarioLogado.perfil === 'gestor') {
-        campoPerfilEdit.classList.add('hidden'); // Gestor não altera perfil de ninguém
+        campoPerfilEdit.classList.add('hidden');
       } else {
         campoPerfilEdit.classList.remove('hidden');
         perfilSelect.value = user.perfil || 'conferente';
@@ -723,7 +716,6 @@
 
       if (!targetUser) return;
 
-      // Validação backend/cliente de hierarquia
       if (usuarioLogado.perfil === 'gestor') {
         if (targetUser.uid !== usuarioLogado.uid && targetUser.perfil !== 'conferente') {
           return alert("Operação negada por hierarquia de permissões.");
@@ -781,7 +773,7 @@
     });
 
     // ----------------------------------------------------
-    // MOTOR DE CÂMERA, BARRAS E OCR AUTOMÁTICO
+    // MOTOR DE CÂMERA UNIVERSAL E SEGURO (COMPATÍVEL COM BRAVE/CHROME/SAFARI)
     // ----------------------------------------------------
     document.getElementById('btn-toggle-cam').addEventListener('click', async () => {
       const btnCam = document.getElementById('btn-toggle-cam');
@@ -802,8 +794,8 @@
         }
 
         const config = {
-          fps: 20,
-          qrbox: { width: 320, height: 160 },
+          fps: 15,
+          qrbox: { width: 300, height: 150 },
           formatsToSupport: [
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.CODE_39,
@@ -813,8 +805,9 @@
         };
 
         try {
+          // Inicialização limpa e segura (compatível com navegadores protegidos como Brave)
           await html5QrcodeScanner.start(
-            { facingMode: "environment", advanced: [{ focusMode: "continuous" }] },
+            { facingMode: "environment" },
             config,
             (decodedText) => { preencherEConsultarPlaqueta(decodedText); },
             (errorMessage) => {}
@@ -824,9 +817,10 @@
           btnCam.innerText = "Desligar Câmera";
           document.getElementById('btn-capturar-frame').classList.remove('hidden');
         } catch (err1) {
+          console.log("Erro na câmera traseira, tentando fallback universal...", err1);
           try {
             await html5QrcodeScanner.start(
-              { facingMode: "environment" },
+              { facingMode: "user" },
               config,
               (decodedText) => { preencherEConsultarPlaqueta(decodedText); },
               (err) => {}
@@ -835,14 +829,14 @@
             btnCam.innerText = "Desligar Câmera";
             document.getElementById('btn-capturar-frame').classList.remove('hidden');
           } catch (err2) {
-            alert("Não foi possível acessar a câmera. Verifique as permissões.");
+            alert("Não foi possível acessar a câmera. Verifique se o navegador tem permissão nas configurações do sistema/celular.");
             btnCam.innerText = "Ligar Câmera";
           }
         }
       }
     });
 
-    // LEITURA OCR VIA TESSERACT.JS (Extrai texto numérico da plaqueta impressa)
+    // LEITURA OCR VIA TESSERACT.JS
     document.getElementById('btn-capturar-frame').addEventListener('click', async () => {
       if (!cameraAtiva || !html5QrcodeScanner) return;
       
@@ -862,7 +856,6 @@
         const ctx = canvas.getContext('2d');
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-        // Executa o reconhecimento OCR na imagem capturada
         const result = await Tesseract.recognize(canvas, 'por+eng', {
           logger: m => {}
         });
