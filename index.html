@@ -17,7 +17,7 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
-  <!-- HEADER E NAVEGAÇÃO -->
+  <!-- HEADER -->
   <header class="bg-slate-800 border-b border-slate-700 p-4 sticky top-0 z-50">
     <div class="max-w-md mx-auto flex justify-between items-center">
       <h1 class="text-lg font-bold text-blue-400 flex items-center gap-2">📦 Patrimônio CM</h1>
@@ -32,25 +32,34 @@
 
     <!-- ABA 1: LEITURA E REGISTRO -->
     <section id="sec-scanner" class="space-y-4">
-      <!-- Câmera do Leitor -->
-      <div class="bg-slate-800 rounded-xl p-3 border border-slate-700 shadow-lg">
-        <div class="flex justify-between items-center mb-2">
+      
+      <!-- Câmera com Botão de Captura Incorporado -->
+      <div class="bg-slate-800 rounded-xl p-3 border border-slate-700 shadow-lg space-y-2">
+        <div class="flex justify-between items-center">
           <span class="text-xs font-semibold text-slate-400">LEITOR DE CÓDIGO DE BARRAS</span>
-          <button id="btn-toggle-cam" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded">Iniciar Câmera</button>
+          <button id="btn-toggle-cam" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1 rounded-lg">Ligar Câmera</button>
         </div>
-        <div id="reader" class="w-full bg-black rounded-lg overflow-hidden min-h-[160px] flex items-center justify-center text-slate-500 text-xs">
+        
+        <div id="reader" class="w-full bg-black rounded-lg overflow-hidden min-h-[180px] flex items-center justify-center text-slate-500 text-xs relative">
           Câmera pausada
         </div>
+
+        <!-- Botão Manual de Captura -->
+        <button id="btn-capturar-frame" class="hidden w-full bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-2 rounded-lg text-xs border border-blue-500/30">
+          📸 Capturar e Ler Quadro Atual
+        </button>
       </div>
 
-      <!-- Formulário de Busca e Registro -->
+      <!-- Formulário com Autocompletar -->
       <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
-        <div>
+        <div class="relative">
           <label class="text-xs text-slate-400 font-semibold block mb-1">NÚMERO DA PLAQUETA / PATRIMÔNIO</label>
           <div class="flex gap-2">
-            <input type="text" id="input-plaqueta" placeholder="Ex: 100003161247" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+            <input type="text" id="input-plaqueta" autocomplete="off" placeholder="Digite ou leia a etiqueta..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
             <button id="btn-buscar" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg text-sm">Buscar</button>
           </div>
+          <!-- Lista de Sugestões (Autocompletar) -->
+          <div id="suggestions-box" class="hidden absolute left-0 right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 max-h-48 overflow-y-auto"></div>
         </div>
 
         <!-- Detalhes do Item Encontrado -->
@@ -60,11 +69,10 @@
             <span id="det-status" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-700 text-slate-300">PENDENTE</span>
           </div>
           <div><strong class="text-slate-400">Descrição:</strong> <span id="det-descricao" class="text-slate-200">---</span></div>
-          <div><strong class="text-slate-400">Divisão / Proprietário:</strong> <span id="det-divisao" class="text-slate-300">---</span></div>
-          <div><strong class="text-slate-400">Situação:</strong> <span id="det-situacao" class="text-slate-300">---</span></div>
+          <div><strong class="text-slate-400">Divisão:</strong> <span id="det-divisao" class="text-slate-300">---</span></div>
         </div>
 
-        <!-- Campos para Lançamento -->
+        <!-- Campos de Lançamento -->
         <div class="space-y-2 pt-2 border-t border-slate-700/50">
           <div>
             <label class="text-xs text-slate-400 font-semibold block mb-1">LOCALIZAÇÃO ATUAL DO BEM *</label>
@@ -72,18 +80,17 @@
           </div>
           <div>
             <label class="text-xs text-slate-400 font-semibold block mb-1">OBSERVAÇÕES</label>
-            <textarea id="input-observacao" rows="2" placeholder="Ex: Item em bom estado / Etiqueta danificada" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"></textarea>
+            <textarea id="input-observacao" rows="2" placeholder="Ex: Item em bom estado" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"></textarea>
           </div>
           <button id="btn-salvar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-            ✅ Marcar como LOCALIZADO no Firestore
+            ✅ Marcar como LOCALIZADO
           </button>
         </div>
       </div>
     </section>
 
-    <!-- ABA 2: DIVISÕES E PAINEL EM TEMPO REAL -->
+    <!-- ABA 2: LISTA E DIVISÕES -->
     <section id="sec-lista" class="hidden space-y-4">
-      <!-- Indicadores -->
       <div class="grid grid-cols-3 gap-2">
         <div class="bg-slate-800 p-2.5 rounded-xl border border-slate-700 text-center">
           <div id="cnt-total" class="text-base font-bold text-white">0</div>
@@ -99,10 +106,9 @@
         </div>
       </div>
 
-      <!-- Filtros -->
       <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
         <div class="flex gap-2">
-          <input type="text" id="filtro-busca" placeholder="🔍 Buscar plaqueta ou descrição..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+          <input type="text" id="filtro-busca" placeholder="🔍 Buscar plaqueta..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
           <select id="filtro-status" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white">
             <option value="todos">Todos Status</option>
             <option value="localizados">🟢 Localizados</option>
@@ -114,12 +120,8 @@
             <option value="todas">Todas as Divisões</option>
           </select>
         </div>
-        <button id="btn-exportar-csv" class="w-full bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-1.5 rounded-lg text-xs">
-          📥 Exportar Relatório CSV
-        </button>
       </div>
 
-      <!-- Accordions de Divisões -->
       <div id="container-accordions" class="space-y-3"></div>
     </section>
 
@@ -129,7 +131,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, doc, getDoc, updateDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // CONFIGURAÇÃO OFICIAL DO SEU PROJETO FIREBASE
     const firebaseConfig = {
       apiKey: "AIzaSyCVMSES7nwZkZZdQpemDZIb8ypd40bUtvs",
       authDomain: "patrimonioscm.firebaseapp.com",
@@ -147,7 +148,7 @@
     let cameraAtiva = false;
     let itemAtualSelecionado = null;
 
-    // ESCUTADOR EM TEMPO REAL DO FIRESTORE
+    // ESCUTA EM TEMPO REAL
     onSnapshot(collection(db, "patrimonios"), (snapshot) => {
       bancoPatrimonio = [];
       snapshot.forEach(docSnap => {
@@ -162,58 +163,140 @@
       return String(str).replace(/\D/g, '');
     }
 
-    // ALTERNAR ABAS
-    document.getElementById('tab-btn-scanner').addEventListener('click', () => alternarAba('scanner'));
-    document.getElementById('tab-btn-lista').addEventListener('click', () => alternarAba('lista'));
+    function preencherEConsultarPlaqueta(codigoLido) {
+      const codLimpo = limparPlaqueta(codigoLido);
+      const input = document.getElementById('input-plaqueta');
+      
+      // Preenche o campo visualmente
+      input.value = codLimpo;
+      
+      if (navigator.vibrate) navigator.vibrate(100);
 
-    function alternarAba(aba) {
-      document.getElementById('sec-scanner').classList.toggle('hidden', aba !== 'scanner');
-      document.getElementById('sec-lista').classList.toggle('hidden', aba !== 'lista');
-      document.getElementById('tab-btn-scanner').className = aba === 'scanner' ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white' : 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 text-slate-300';
-      document.getElementById('tab-btn-lista').className = aba === 'lista' ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white' : 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 text-slate-300';
+      // Busca o item no banco
+      buscarEExibirItem(codLimpo);
     }
 
-    // BUSCA NO FIRESTORE
+    // AUTOCOMPLETAR AO DIGITAR MANUAMENTE
+    const inputPlaqueta = document.getElementById('input-plaqueta');
+    const suggestionsBox = document.getElementById('suggestions-box');
+
+    inputPlaqueta.addEventListener('input', (e) => {
+      const valor = limparPlaqueta(e.target.value);
+      if (!valor || bancoPatrimonio.length === 0) {
+        suggestionsBox.classList.add('hidden');
+        return;
+      }
+
+      const correspondencias = bancoPatrimonio
+        .filter(i => i.plaqueta.includes(valor))
+        .slice(0, 5);
+
+      if (correspondencias.length > 0) {
+        suggestionsBox.innerHTML = correspondencias.map(i => `
+          <div class="p-2 hover:bg-slate-700 cursor-pointer text-xs border-b border-slate-700/50 flex justify-between" data-plaqueta="${i.plaqueta}">
+            <span class="font-bold text-blue-400">${i.plaqueta}</span>
+            <span class="text-slate-400 truncate max-w-[180px]">${i.descricao}</span>
+          </div>
+        `).join('');
+        suggestionsBox.classList.remove('hidden');
+      } else {
+        suggestionsBox.classList.add('hidden');
+      }
+    });
+
+    suggestionsBox.addEventListener('click', (e) => {
+      const item = e.target.closest('[data-plaqueta]');
+      if (item) {
+        const plaqueta = item.getAttribute('data-plaqueta');
+        preencherEConsultarPlaqueta(plaqueta);
+        suggestionsBox.classList.add('hidden');
+      }
+    });
+
+    // CÂMERA E LEITOR
+    document.getElementById('btn-toggle-cam').addEventListener('click', () => {
+      if (cameraAtiva) {
+        if (html5QrcodeScanner) html5QrcodeScanner.stop();
+        cameraAtiva = false;
+        document.getElementById('reader').innerText = "Câmera pausada";
+        document.getElementById('btn-toggle-cam').innerText = "Ligar Câmera";
+        document.getElementById('btn-capturar-frame').classList.add('hidden');
+      } else {
+        html5QrcodeScanner = new Html5Qrcode("reader");
+        html5QrcodeScanner.start(
+          { facingMode: "environment" },
+          { fps: 15, qrbox: { width: 260, height: 130 } },
+          (decodedText) => {
+            preencherEConsultarPlaqueta(decodedText);
+          }
+        ).then(() => {
+          cameraAtiva = true;
+          document.getElementById('btn-toggle-cam').innerText = "Desligar Câmera";
+          document.getElementById('btn-capturar-frame').classList.remove('hidden');
+        }).catch(() => alert("Permissão de câmera negada ou indisponível."));
+      }
+    });
+
+    // BOTÃO MANUAL DE CAPTURA
+    document.getElementById('btn-capturar-frame').addEventListener('click', () => {
+      if (!cameraAtiva) return;
+      // Força a leitura instantânea do quadro atual do vídeo
+      html5QrcodeScanner.scanFile()
+        .then(decodedText => preencherEConsultarPlaqueta(decodedText))
+        .catch(() => alert("Nenhum código de barras claro identificado neste quadro. Tente aproximar a câmera."));
+    });
+
+    // BUSCA DE PATRIMÔNIO
     document.getElementById('btn-buscar').addEventListener('click', () => {
-      const cod = limparPlaqueta(document.getElementById('input-plaqueta').value);
+      const cod = limparPlaqueta(inputPlaqueta.value);
       buscarEExibirItem(cod);
     });
 
     async function buscarEExibirItem(plaquetaCod) {
-      if (!plaquetaCod) return alert("Informe um número de plaqueta válido.");
+      if (!plaquetaCod) return;
 
-      const docRef = doc(db, "patrimonios", plaquetaCod);
-      const docSnap = await getDoc(docRef);
+      const itemLocal = bancoPatrimonio.find(i => i.plaqueta === plaquetaCod);
 
-      if (docSnap.exists()) {
-        itemAtualSelecionado = { id: docSnap.id, ...docSnap.data() };
-        
-        document.getElementById('item-details').classList.remove('hidden');
-        document.getElementById('det-plaqueta').innerText = `Plaqueta: ${itemAtualSelecionado.plaqueta}`;
-        document.getElementById('det-descricao').innerText = itemAtualSelecionado.descricao;
-        document.getElementById('det-divisao').innerText = itemAtualSelecionado.divisao;
-        document.getElementById('det-situacao').innerText = itemAtualSelecionado.situacao || 'Em Uso';
-
-        const badgeStatus = document.getElementById('det-status');
-        if (itemAtualSelecionado.localizado) {
-          badgeStatus.innerText = "🟢 LOCALIZADO";
-          badgeStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-900 text-emerald-300 border border-emerald-500/30";
-        } else {
-          badgeStatus.innerText = "🔴 PENDENTE";
-          badgeStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-900 text-amber-300 border border-amber-500/30";
-        }
-
-        document.getElementById('input-localizacao').value = itemAtualSelecionado.localizacaoAtual || '';
-        document.getElementById('input-observacao').value = itemAtualSelecionado.observacaoAtual || '';
+      if (itemLocal) {
+        itemAtualSelecionado = itemLocal;
+        exibirDetalhes(itemLocal);
       } else {
-        document.getElementById('item-details').classList.add('hidden');
-        alert(`Plaqueta ${plaquetaCod} não cadastrada no Firestore.`);
+        // Tenta buscar diretamente no Firestore caso a sincronização ainda esteja ocorrendo
+        const docRef = doc(db, "patrimonios", plaquetaCod);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          itemAtualSelecionado = { id: docSnap.id, ...docSnap.data() };
+          exibirDetalhes(itemAtualSelecionado);
+        } else {
+          document.getElementById('item-details').classList.add('hidden');
+          alert(`Plaqueta ${plaquetaCod} não encontrada no banco de dados.`);
+        }
       }
     }
 
-    // SALVAR LOCALIZAÇÃO
+    function exibirDetalhes(item) {
+      document.getElementById('item-details').classList.remove('hidden');
+      document.getElementById('det-plaqueta').innerText = `Plaqueta: ${item.plaqueta}`;
+      document.getElementById('det-descricao').innerText = item.descricao;
+      document.getElementById('det-divisao').innerText = item.divisao;
+
+      const badgeStatus = document.getElementById('det-status');
+      if (item.localizado) {
+        badgeStatus.innerText = "🟢 LOCALIZADO";
+        badgeStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-900 text-emerald-300 border border-emerald-500/30";
+      } else {
+        badgeStatus.innerText = "🔴 PENDENTE";
+        badgeStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-900 text-amber-300 border border-amber-500/30";
+      }
+
+      document.getElementById('input-localizacao').value = item.localizacaoAtual || '';
+      document.getElementById('input-observacao').value = item.observacaoAtual || '';
+    }
+
+    // REGISTRO NO FIRESTORE
     document.getElementById('btn-salvar').addEventListener('click', async () => {
-      if (!itemAtualSelecionado) return alert("Busque e selecione um patrimônio válido primeiro.");
+      if (!itemAtualSelecionado) return alert("Selecione um patrimônio válido primeiro.");
       const loc = document.getElementById('input-localizacao').value.trim();
       if (!loc) return alert("Preencha o campo de Localização Atual.");
 
@@ -225,40 +308,24 @@
         dataLocalizacao: new Date().toLocaleString('pt-BR')
       });
 
-      alert(`Patrimônio ${itemAtualSelecionado.plaqueta} marcado como LOCALIZADO com sucesso!`);
-      document.getElementById('input-plaqueta').value = '';
+      alert(`Patrimônio ${itemAtualSelecionado.plaqueta} marcado como LOCALIZADO!`);
+      inputPlaqueta.value = '';
       document.getElementById('input-localizacao').value = '';
       document.getElementById('input-observacao').value = '';
       document.getElementById('item-details').classList.add('hidden');
       itemAtualSelecionado = null;
     });
 
-    // CÂMERA DO CELULAR
-    document.getElementById('btn-toggle-cam').addEventListener('click', () => {
-      if (cameraAtiva) {
-        if (html5QrcodeScanner) html5QrcodeScanner.stop();
-        cameraAtiva = false;
-        document.getElementById('reader').innerText = "Câmera pausada";
-        document.getElementById('btn-toggle-cam').innerText = "Iniciar Câmera";
-      } else {
-        html5QrcodeScanner = new Html5Qrcode("reader");
-        html5QrcodeScanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 250, height: 120 } },
-          (decodedText) => {
-            const codLimpo = limparPlaqueta(decodedText);
-            if (codLimpo) {
-              document.getElementById('input-plaqueta').value = codLimpo;
-              buscarEExibirItem(codLimpo);
-              if (navigator.vibrate) navigator.vibrate(150);
-            }
-          }
-        ).then(() => {
-          cameraAtiva = true;
-          document.getElementById('btn-toggle-cam').innerText = "Pausar Câmera";
-        });
-      }
-    });
+    // DEMAIS FUNÇÕES DE INTERFACE (ABAS E RENDERIZAÇÃO)
+    document.getElementById('tab-btn-scanner').addEventListener('click', () => alternarAba('scanner'));
+    document.getElementById('tab-btn-lista').addEventListener('click', () => alternarAba('lista'));
+
+    function alternarAba(aba) {
+      document.getElementById('sec-scanner').classList.toggle('hidden', aba !== 'scanner');
+      document.getElementById('sec-lista').classList.toggle('hidden', aba !== 'lista');
+      document.getElementById('tab-btn-scanner').className = aba === 'scanner' ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white' : 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 text-slate-300';
+      document.getElementById('tab-btn-lista').className = aba === 'lista' ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white' : 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 text-slate-300';
+    }
 
     function popularSelectDivisoes() {
       const selectDivisao = document.getElementById('filtro-divisao');
@@ -272,7 +339,6 @@
       }
     }
 
-    // RENDERIZAR RECOLHÍVEIS (ACCORDIONS)
     function renderizarRelaçãoBD() {
       const container = document.getElementById('container-accordions');
       const termo = document.getElementById('filtro-busca').value.toLowerCase();
@@ -336,23 +402,6 @@
     document.getElementById('filtro-busca').addEventListener('input', renderizarRelaçãoBD);
     document.getElementById('filtro-status').addEventListener('change', renderizarRelaçãoBD);
     document.getElementById('filtro-divisao').addEventListener('change', renderizarRelaçãoBD);
-
-    // EXPORTAR RELATÓRIO EM CSV
-    document.getElementById('btn-exportar-csv').addEventListener('click', () => {
-      if (bancoPatrimonio.length === 0) return alert("Nenhum registro para exportar.");
-      let csv = 'Plaqueta;Divisao;Descricao;Status;Localizacao Atual;Observacao;Data Localizacao\n';
-      bancoPatrimonio.forEach(i => {
-        csv += `"${i.plaqueta}";"${i.divisao}";"${i.descricao.replace(/"/g, '""')}";"${i.localizado ? 'LOCALIZADO' : 'PENDENTE'}";"${i.localizacaoAtual || ''}";"${i.observacaoAtual || ''}";"${i.dataLocalizacao || ''}"\n`;
-      });
-      const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `relatorio_patrimonio_${new Date().toISOString().slice(0,10)}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    });
   </script>
 </body>
 </html>
