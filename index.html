@@ -9,6 +9,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Leitor de Código de Barras -->
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- Motor de OCR (Tesseract.js) para leitura de texto nas plaquetas -->
+  <script src="https://unpkg.com/tesseract.js@v5.1.0/dist/tesseract.min.js"></script>
 
   <style>
     .accordion-content { transition: max-height 0.3s ease-out; overflow: hidden; }
@@ -92,7 +94,7 @@
 
     <main class="flex-1 max-w-md w-full mx-auto p-4 space-y-4">
 
-      <!-- ABA 0: DASHBOARD COM CARROSSEL DE DICAS ORGANIZADO -->
+      <!-- ABA 0: DASHBOARD COM CARROSSEL (18 SEGUNDOS) -->
       <section id="sec-dashboard" class="space-y-4">
         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3 shadow-lg">
           <div class="flex justify-between items-center border-b border-slate-700 pb-2">
@@ -126,7 +128,7 @@
           </div>
         </div>
 
-        <!-- CARROSSEL DE DICAS (LAYOUT ORGANIZADO MOBILE-FIRST) -->
+        <!-- CARROSSEL DE DICAS -->
         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-2.5 shadow-md">
           <div class="flex justify-between items-center border-b border-slate-700/50 pb-2">
             <span class="font-bold text-blue-400 text-xs">💡 Dicas do Sistema</span>
@@ -144,21 +146,21 @@
         </div>
       </section>
 
-      <!-- ABA 1: LEITURA E REGISTRO -->
+      <!-- ABA 1: LEITURA, CÓDIGO DE BARRAS E OCR -->
       <section id="sec-scanner" class="hidden space-y-4">
         <div class="bg-slate-800 rounded-xl p-3 border border-slate-700 shadow-lg space-y-2">
           <div class="flex justify-between items-center">
-            <span class="text-xs font-semibold text-slate-400">LEITOR DE CÓDIGO DE BARRAS</span>
+            <span class="text-xs font-semibold text-slate-400">LEITOR DE BARRAS & OCR</span>
             <button id="btn-toggle-cam" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1 rounded-lg">Ligar Câmera</button>
           </div>
-          <!-- Contêiner do Leitor com Linha Laser Fixa -->
           <div id="reader-container" class="relative w-full bg-black rounded-lg overflow-hidden min-h-[220px] flex items-center justify-center text-slate-500 text-xs">
             <div class="scanner-laser"></div>
             <div id="reader" class="w-full h-full">Câmera pausada</div>
           </div>
-          <button id="btn-capturar-frame" class="hidden w-full bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-2 rounded-lg text-xs border border-blue-500/30">
-            📸 Capturar e Otimizar Quadro (Para Ângulos e Brilho)
+          <button id="btn-capturar-frame" class="hidden w-full bg-purple-700 hover:bg-purple-600 text-white font-bold py-2 rounded-lg text-xs border border-purple-500/30 flex items-center justify-center gap-1">
+            🔍 Ler via OCR (Numeração Impressa)
           </button>
+          <div id="ocr-status" class="hidden text-[11px] text-purple-300 text-center font-semibold animate-pulse">Processando OCR na imagem... Aguarde</div>
         </div>
 
         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
@@ -221,7 +223,7 @@
         <div id="container-transferencias" class="space-y-3"></div>
       </section>
 
-      <!-- ABA 3: GESTÃO DE USUÁRIOS (CADASTRO + LISTAGEM E EDIÇÃO) -->
+      <!-- ABA 3: GESTÃO DE USUÁRIOS E HIERARQUIA -->
       <section id="sec-usuarios" class="hidden space-y-4">
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
           <h2 id="titulo-cad-usuario" class="text-xs font-bold text-blue-400 uppercase">👥 Cadastrar Novo Conferente</h2>
@@ -256,9 +258,9 @@
           </form>
         </div>
 
-        <!-- LISTAGEM DE USUÁRIOS CADASTRADOS -->
+        <!-- LISTAGEM DE USUÁRIOS E CONTROLE HIERÁRQUICO -->
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
-          <h2 class="text-xs font-bold text-slate-300 uppercase">📋 Usuários Cadastrados no Sistema</h2>
+          <h2 class="text-xs font-bold text-slate-300 uppercase">📋 Usuários Cadastrados (Controle Hierárquico)</h2>
           <div id="lista-usuarios-container" class="space-y-2 max-h-72 overflow-y-auto pr-1"></div>
         </div>
       </section>
@@ -295,11 +297,11 @@
     </main>
   </div>
 
-  <!-- MODAL DE EDIÇÃO DE USUÁRIO -->
+  <!-- MODAL DE EDIÇÃO DE USUÁRIO COM RESTRIÇÃO HIERÁRQUICA -->
   <div id="modal-edicao-usuario" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
     <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-5 rounded-2xl shadow-2xl space-y-4">
       <div class="flex justify-between items-center border-b border-slate-700 pb-2">
-        <h3 class="text-xs font-bold text-blue-400 uppercase">✏️ Editar Usuário</h3>
+        <h3 class="text-xs font-bold text-blue-400 uppercase">✏️ Editar Dados e Permissões</h3>
         <button id="btn-fechar-modal" class="text-slate-400 hover:text-white text-sm font-bold">✕</button>
       </div>
       <form id="form-editar-usuario" class="space-y-3">
@@ -357,12 +359,12 @@
     let itemAtualSelecionado = null;
     let modoBootstrapAdmin = false;
 
-    // CARROSSEL DE DICAS FORMATADO
+    // CARROSSEL DE DICAS (TEMPO DOBRADO: 18 SEGUNDOS)
     const dicasLista = [
-      { titulo: "📱 Leitura em Ângulos e Brilho", texto: "Se a etiqueta estiver inclinada ou com reflexo metálico, aproxime a câmera e utilize o botão 'Capturar e Otimizar Quadro' para realçar o contraste automaticamente." },
-      { titulo: "⚠️ Divergências de Setor", texto: "Encontrou um bem de outra sala? Faça a leitura normalmente no seu setor. O sistema criará um alerta automático para o Gestor aprovar a transferência." },
-      { titulo: "📊 Acompanhamento Rápido", texto: "Monitore o andamento da sua divisão direto na aba 'Relação'. Os itens conferidos mudam para verde instantaneamente para todos." },
-      { titulo: "🔄 Gestão de Fila", texto: "Gestores e Admins devem verificar a aba 'Fila' periodicamente para validar os bens encontrados em locais diferentes da origem." }
+      { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR' para reconhecer o texto automaticamente." },
+      { titulo: "📱 Ângulos Difíceis e Brilho", texto: "Aproxime a câmera e evite reflexos excessivos sobre a película metálica para garantir uma leitura rápida e precisa do patrimônio." },
+      { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem de outra sala? Conduza a conferência normalmente. O sistema abrirá um alerta para aprovação do Gestor responsável." },
+      { titulo: "🔄 Gestão Hierárquica", texto: "Administradores gerenciam todo o sistema. Gestores podem atualizar seus dados e cadastrar ou editar os conferentes sob sua alçada." }
     ];
     let dicaIndiceAtual = 0;
 
@@ -387,10 +389,11 @@
       atualizarCarrossel();
     });
 
+    // Rotação automática a cada 18 segundos (dobro do anterior)
     setInterval(() => {
       dicaIndiceAtual = (dicaIndiceAtual + 1) % dicasLista.length;
       atualizarCarrossel();
-    }, 9000);
+    }, 18000);
 
     async function verificarSeExisteAdmin() {
       try {
@@ -494,7 +497,6 @@
     }
 
     function iniciarOuvintes() {
-      // Ouvinte de Patrimônios
       onSnapshot(collection(db, "patrimonios"), (snapshot) => {
         bancoPatrimonio = [];
         snapshot.forEach(docSnap => bancoPatrimonio.push({ id: docSnap.id, ...docSnap.data() }));
@@ -504,7 +506,6 @@
         renderizarFilaTransferencias();
       });
 
-      // Ouvinte de Usuários para a listagem gerencial
       onSnapshot(collection(db, "usuarios"), (snapshot) => {
         bancoUsuarios = [];
         snapshot.forEach(docSnap => bancoUsuarios.push({ uid: docSnap.id, ...docSnap.data() }));
@@ -618,7 +619,6 @@
       } else { badgeFila.classList.add('hidden'); }
     }
 
-    // CADASTRO DE USUÁRIOS
     document.getElementById('form-cad-usuario').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
@@ -639,36 +639,54 @@
       } catch (err) { alert("Erro ao cadastrar: " + err.message); }
     });
 
-    // RENDERIZAR LISTA DE USUÁRIOS E GERENCIAR EDIÇÃO
+    // LISTAGEM DE USUÁRIOS COM RESTRIÇÃO HIERÁRQUICA
     function renderizarListaUsuarios() {
       const container = document.getElementById('lista-usuarios-container');
-      if (!container) return;
+      if (!container || !usuarioLogado) return;
 
-      if (bancoUsuarios.length === 0) {
-        container.innerHTML = `<div class="text-xs text-slate-400 text-center py-2">Nenhum usuário cadastrado.</div>`;
+      // Filtra de acordo com a hierarquia:
+      // - Admin vê todos.
+      // - Gestor vê a si próprio e os conferentes (não vê outros gestores nem admins).
+      const conferidosLista = bancoUsuarios.filter(u => {
+        if (usuarioLogado.perfil === 'admin') return true;
+        if (usuarioLogado.perfil === 'gestor') {
+          return u.uid === usuarioLogado.uid || u.perfil === 'conferente';
+        }
+        return false;
+      });
+
+      if (conferidosLista.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-400 text-center py-2">Nenhum usuário gerenciável.</div>`;
         return;
       }
 
-      container.innerHTML = bancoUsuarios.map(u => `
-        <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-700/60 flex justify-between items-center text-xs">
-          <div class="space-y-0.5">
-            <div class="font-bold text-white">${u.nome} <span class="text-[10px] text-blue-400 uppercase font-semibold">(${u.perfil})</span></div>
-            <div class="text-[10px] text-slate-400">${u.email}</div>
-            <div class="text-[10px] text-emerald-400">Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}</div>
+      container.innerHTML = conferidosLista.map(u => {
+        const ehProprio = u.uid === usuarioLogado.uid;
+        return `
+          <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-700/60 flex justify-between items-center text-xs">
+            <div class="space-y-0.5">
+              <div class="font-bold text-white">${u.nome} ${ehProprio ? '(Você)' : ''} <span class="text-[10px] text-blue-400 uppercase font-semibold">(${u.perfil})</span></div>
+              <div class="text-[10px] text-slate-400">${u.email}</div>
+              <div class="text-[10px] text-emerald-400">Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}</div>
+            </div>
+            <button onclick="abrirModalEdicao('${u.uid}')" class="bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white px-2.5 py-1 rounded text-[11px] font-bold transition-colors">
+              ✏️ Editar
+            </button>
           </div>
-          <button onclick="abrirModalEdicao('${u.uid}')" class="bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white px-2.5 py-1 rounded text-[11px] font-bold transition-colors">
-            ✏️ Editar
-          </button>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     window.abrirModalEdicao = function(uid) {
       const user = bancoUsuarios.find(u => u.uid === uid);
       if (!user) return;
 
-      if (usuarioLogado.perfil === 'gestor' && user.perfil !== 'conferente') {
-        return alert("Gestores só podem editar conferentes.");
+      // Validação de segurança hierárquica no cliente
+      if (usuarioLogado.perfil === 'gestor') {
+        // Gestor só pode editar a si mesmo ou conferentes
+        if (user.uid !== usuarioLogado.uid && user.perfil !== 'conferente') {
+          return alert("Acesso restrito: Gestores não podem alterar dados de outros gestores ou administradores.");
+        }
       }
 
       document.getElementById('edit-uid').value = user.uid;
@@ -679,7 +697,7 @@
       const campoPerfilEdit = document.getElementById('edit-campo-perfil-container');
       
       if (usuarioLogado.perfil === 'gestor') {
-        campoPerfilEdit.classList.add('hidden');
+        campoPerfilEdit.classList.add('hidden'); // Gestor não altera perfil de ninguém
       } else {
         campoPerfilEdit.classList.remove('hidden');
         perfilSelect.value = user.perfil || 'conferente';
@@ -701,15 +719,30 @@
       e.preventDefault();
       const uid = document.getElementById('edit-uid').value;
       const nome = document.getElementById('edit-nome').value.trim();
-      const perfil = usuarioLogado.perfil === 'gestor' ? 'conferente' : document.getElementById('edit-perfil').value;
+      const targetUser = bancoUsuarios.find(u => u.uid === uid);
+
+      if (!targetUser) return;
+
+      // Validação backend/cliente de hierarquia
+      if (usuarioLogado.perfil === 'gestor') {
+        if (targetUser.uid !== usuarioLogado.uid && targetUser.perfil !== 'conferente') {
+          return alert("Operação negada por hierarquia de permissões.");
+        }
+      }
+
+      let perfilNovo = targetUser.perfil;
+      if (usuarioLogado.perfil === 'admin') {
+        perfilNovo = document.getElementById('edit-perfil').value;
+      }
+
       const checkboxes = document.querySelectorAll('input[name="edit-divisao-check"]:checked');
       const divisoes = Array.from(checkboxes).map(cb => cb.value);
 
       try {
         await updateDoc(doc(db, "usuarios", uid), {
-          nome, perfil, divisoesAtribuidas: divisoes
+          nome, perfil: perfilNovo, divisoesAtribuidas: divisoes
         });
-        alert("Usuário atualizado com sucesso!");
+        alert("Dados do usuário atualizados com sucesso!");
         document.getElementById('modal-edicao-usuario').classList.add('hidden');
       } catch (err) {
         alert("Erro ao atualizar usuário: " + err.message);
@@ -748,7 +781,7 @@
     });
 
     // ----------------------------------------------------
-    // MOTOR DE CÂMERA COM SUPORTE A MACRO E FILTRAGEM DE CONTRASTE
+    // MOTOR DE CÂMERA, BARRAS E OCR AUTOMÁTICO
     // ----------------------------------------------------
     document.getElementById('btn-toggle-cam').addEventListener('click', async () => {
       const btnCam = document.getElementById('btn-toggle-cam');
@@ -769,7 +802,7 @@
         }
 
         const config = {
-          fps: 25,
+          fps: 20,
           qrbox: { width: 320, height: 160 },
           formatsToSupport: [
             Html5QrcodeSupportedFormats.CODE_128,
@@ -780,7 +813,6 @@
         };
 
         try {
-          // Tenta focar automaticamente no modo macro/traseiro para ler etiquetas de perto ou em ângulo
           await html5QrcodeScanner.start(
             { facingMode: "environment", advanced: [{ focusMode: "continuous" }] },
             config,
@@ -803,51 +835,51 @@
             btnCam.innerText = "Desligar Câmera";
             document.getElementById('btn-capturar-frame').classList.remove('hidden');
           } catch (err2) {
-            alert("Não foi possível acessar a câmera. Verifique as permissões de hardware.");
+            alert("Não foi possível acessar a câmera. Verifique as permissões.");
             btnCam.innerText = "Ligar Câmera";
           }
         }
       }
     });
 
-    // CAPTURA COM FILTRO DE CONTRASTE (RESOLVE REFLEXOS E ÂNGULOS DIFÍCEIS)
+    // LEITURA OCR VIA TESSERACT.JS (Extrai texto numérico da plaqueta impressa)
     document.getElementById('btn-capturar-frame').addEventListener('click', async () => {
       if (!cameraAtiva || !html5QrcodeScanner) return;
       
+      const ocrStatus = document.getElementById('ocr-status');
+      ocrStatus.classList.remove('hidden');
+
       try {
         const videoElement = document.querySelector('#reader video');
-        if (!videoElement) return alert("Vídeo da câmera indisponível.");
+        if (!videoElement) {
+          ocrStatus.classList.add('hidden');
+          return alert("Vídeo da câmera indisponível.");
+        }
 
         const canvas = document.createElement('canvas');
         canvas.width = videoElement.videoWidth;
         canvas.height = videoElement.videoHeight;
         const ctx = canvas.getContext('2d');
-        
-        // Desenha o quadro atual
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-        // Processa os pixels aumentando o contraste e convertendo em escala de cinza para neutralizar o brilho metálico
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
-        const contrast = 1.5; // Fator de contraste
-        const intercept = 128 * (1 - contrast);
-        
-        for (let i = 0; i < data.length; i += 4) {
-          let gray = data[i] * 0.3 + data[i+1] * 0.59 + data[i+2] * 0.11;
-          gray = gray * contrast + intercept;
-          data[i] = data[i+1] = data[i+2] = (gray < 0) ? 0 : (gray > 255) ? 255 : gray;
-        }
-        ctx.putImageData(imgData, 0, 0);
+        // Executa o reconhecimento OCR na imagem capturada
+        const result = await Tesseract.recognize(canvas, 'por+eng', {
+          logger: m => {}
+        });
 
-        html5QrcodeScanner.scanFileV2(canvas.toDataURL(), true)
-          .then(decodedText => {
-            preencherEConsultarPlaqueta(decodedText);
-          })
-          .catch(() => {
-            alert("Não foi possível extrair a leitura. Tente se aproximar ligeiramente para eliminar reflexos de luz e centralizar o código.");
-          });
+        ocrStatus.classList.add('hidden');
+        const textoExtraido = result.data.text;
+        const numeroLimpo = limparPlaqueta(textoExtraido);
+
+        if (numeroLimpo.length >= 5) {
+          preencherEConsultarPlaqueta(numeroLimpo);
+          alert(`OCR Detectou o número: ${numeroLimpo}`);
+        } else {
+          alert(`OCR tentou a leitura mas não encontrou números claros. Tente aproximar a câmera da plaqueta e evitar reflexos.`);
+        }
       } catch (e) {
-        alert("Erro ao processar o quadro otimizado.");
+        ocrStatus.classList.add('hidden');
+        alert("Erro ao processar o OCR na imagem.");
       }
     });
 
