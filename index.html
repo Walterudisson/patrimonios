@@ -13,7 +13,6 @@
   <style>
     .accordion-content { transition: max-height 0.3s ease-out; overflow: hidden; }
     .accordion-content.collapsed { max-height: 0 !important; }
-    /* Linha laser de mira fixa sobre o leitor */
     .scanner-laser {
       position: absolute;
       top: 50%; left: 5%; right: 5%;
@@ -93,7 +92,7 @@
 
     <main class="flex-1 max-w-md w-full mx-auto p-4 space-y-4">
 
-      <!-- ABA 0: DASHBOARD COM CARROSSEL DE DICAS -->
+      <!-- ABA 0: DASHBOARD COM CARROSSEL DE DICAS ORGANIZADO -->
       <section id="sec-dashboard" class="space-y-4">
         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3 shadow-lg">
           <div class="flex justify-between items-center border-b border-slate-700 pb-2">
@@ -127,19 +126,20 @@
           </div>
         </div>
 
-        <!-- CARROSSEL DE DICAS INTERATIVO -->
-        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3 relative">
-          <div class="flex justify-between items-center">
-            <h3 class="font-bold text-blue-400 text-xs flex items-center gap-1">💡 Dicas do Sistema</h3>
-            <div class="flex items-center gap-1.5">
+        <!-- CARROSSEL DE DICAS (LAYOUT ORGANIZADO MOBILE-FIRST) -->
+        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-2.5 shadow-md">
+          <div class="flex justify-between items-center border-b border-slate-700/50 pb-2">
+            <span class="font-bold text-blue-400 text-xs">💡 Dicas do Sistema</span>
+            <div class="flex items-center gap-2">
               <button id="carrossel-prev" class="bg-slate-700 hover:bg-slate-600 text-white w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center">‹</button>
               <span id="carrossel-indicador" class="text-[10px] text-slate-400 font-semibold">1/4</span>
               <button id="carrossel-next" class="bg-slate-700 hover:bg-slate-600 text-white w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center">›</button>
             </div>
           </div>
           
-          <div id="carrossel-conteudo" class="text-xs text-slate-300 min-h-[50px] flex items-center">
-            Carregando dicas...
+          <div class="space-y-1">
+            <div id="carrossel-titulo" class="text-xs font-bold text-amber-300">---</div>
+            <div id="carrossel-texto" class="text-xs text-slate-300 leading-relaxed">---</div>
           </div>
         </div>
       </section>
@@ -157,7 +157,7 @@
             <div id="reader" class="w-full h-full">Câmera pausada</div>
           </div>
           <button id="btn-capturar-frame" class="hidden w-full bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-2 rounded-lg text-xs border border-blue-500/30">
-            📸 Capturar e Analisar Quadro
+            📸 Capturar e Otimizar Quadro (Para Ângulos e Brilho)
           </button>
         </div>
 
@@ -221,9 +221,9 @@
         <div id="container-transferencias" class="space-y-3"></div>
       </section>
 
-      <!-- ABA 3: GESTÃO DE USUÁRIOS -->
+      <!-- ABA 3: GESTÃO DE USUÁRIOS (CADASTRO + LISTAGEM E EDIÇÃO) -->
       <section id="sec-usuarios" class="hidden space-y-4">
-        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
           <h2 id="titulo-cad-usuario" class="text-xs font-bold text-blue-400 uppercase">👥 Cadastrar Novo Conferente</h2>
           <form id="form-cad-usuario" class="space-y-3">
             <div>
@@ -248,13 +248,18 @@
             </div>
             <div>
               <label class="text-[11px] text-slate-400 block mb-1">Divisões Atribuídas (Marque as permitidas)</label>
-              <div id="cad-divisoes-checkboxes" class="max-h-36 overflow-y-auto bg-slate-900 p-2 rounded border border-slate-700 space-y-1 text-xs">
-              </div>
+              <div id="cad-divisoes-checkboxes" class="max-h-36 overflow-y-auto bg-slate-900 p-2 rounded border border-slate-700 space-y-1 text-xs"></div>
             </div>
             <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs">
               💾 Cadastrar Usuário no Sistema
             </button>
           </form>
+        </div>
+
+        <!-- LISTAGEM DE USUÁRIOS CADASTRADOS -->
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
+          <h2 class="text-xs font-bold text-slate-300 uppercase">📋 Usuários Cadastrados no Sistema</h2>
+          <div id="lista-usuarios-container" class="space-y-2 max-h-72 overflow-y-auto pr-1"></div>
         </div>
       </section>
 
@@ -290,6 +295,42 @@
     </main>
   </div>
 
+  <!-- MODAL DE EDIÇÃO DE USUÁRIO -->
+  <div id="modal-edicao-usuario" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-5 rounded-2xl shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+        <h3 class="text-xs font-bold text-blue-400 uppercase">✏️ Editar Usuário</h3>
+        <button id="btn-fechar-modal" class="text-slate-400 hover:text-white text-sm font-bold">✕</button>
+      </div>
+      <form id="form-editar-usuario" class="space-y-3">
+        <input type="hidden" id="edit-uid">
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">Nome Completo</label>
+          <input type="text" id="edit-nome" required class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">E-mail (Somente leitura)</label>
+          <input type="email" id="edit-email" disabled class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-1.5 text-xs text-slate-500 cursor-not-allowed">
+        </div>
+        <div id="edit-campo-perfil-container">
+          <label class="text-[11px] text-slate-400 block mb-1">Perfil de Acesso</label>
+          <select id="edit-perfil" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
+            <option value="conferente">Conferente</option>
+            <option value="gestor">Gestor</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">Divisões Atribuídas</label>
+          <div id="edit-divisoes-checkboxes" class="max-h-36 overflow-y-auto bg-slate-900 p-2 rounded border border-slate-700 space-y-1 text-xs"></div>
+        </div>
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs">
+          💾 Salvar Alterações
+        </button>
+      </form>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -310,25 +351,28 @@
 
     let usuarioLogado = null;
     let bancoPatrimonio = [];
+    let bancoUsuarios = [];
     let html5QrcodeScanner = null;
     let cameraAtiva = false;
     let itemAtualSelecionado = null;
     let modoBootstrapAdmin = false;
 
-    // LÓGICA DO CARROSSEL DE DICAS
+    // CARROSSEL DE DICAS FORMATADO
     const dicasLista = [
-      "💡 <strong>Dica de Leitura em Ângulos Difíciles:</strong> Se a etiqueta estiver inclinada ou em local de difícil acesso, aproxime a câmera mantendo o código de barras horizontal ou utilize o botão 'Capturar Quadro' para forçar a decodificação da imagem.",
-      "💡 <strong>Itens em Outros Setores:</strong> Achou um bem de outra sala? Conduza a conferência normalmente no seu setor atual. O sistema abrirá automaticamente uma solicitação para aprovação do Gestor.",
-      "💡 <strong>Acompanhamento em Tempo Real:</strong> Verifique o progresso da sua divisão na aba 'Relação'. Os itens conferidos mudam para verde instantaneamente para todo o painel.",
-      "💡 <strong>Gestão de Transferências:</strong> Gestores e Admins devem ficar atentos à aba 'Fila' para validar os bens encontrados em locais diferentes da origem cadastrada."
+      { titulo: "📱 Leitura em Ângulos e Brilho", texto: "Se a etiqueta estiver inclinada ou com reflexo metálico, aproxime a câmera e utilize o botão 'Capturar e Otimizar Quadro' para realçar o contraste automaticamente." },
+      { titulo: "⚠️ Divergências de Setor", texto: "Encontrou um bem de outra sala? Faça a leitura normalmente no seu setor. O sistema criará um alerta automático para o Gestor aprovar a transferência." },
+      { titulo: "📊 Acompanhamento Rápido", texto: "Monitore o andamento da sua divisão direto na aba 'Relação'. Os itens conferidos mudam para verde instantaneamente para todos." },
+      { titulo: "🔄 Gestão de Fila", texto: "Gestores e Admins devem verificar a aba 'Fila' periodicamente para validar os bens encontrados em locais diferentes da origem." }
     ];
     let dicaIndiceAtual = 0;
 
     function atualizarCarrossel() {
-      const contenedor = document.getElementById('carrossel-conteudo');
+      const tituloEl = document.getElementById('carrossel-titulo');
+      const textoEl = document.getElementById('carrossel-texto');
       const indicador = document.getElementById('carrossel-indicador');
-      if (contenedor && indicador) {
-        contenedor.innerHTML = dicasLista[dicaIndiceAtual];
+      if (tituloEl && textoEl && indicador) {
+        tituloEl.innerText = dicasLista[dicaIndiceAtual].titulo;
+        textoEl.innerText = dicasLista[dicaIndiceAtual].texto;
         indicador.innerText = `${dicaIndiceAtual + 1}/${dicasLista.length}`;
       }
     }
@@ -343,11 +387,10 @@
       atualizarCarrossel();
     });
 
-    // Inicia carrossel automático a cada 8 segundos
     setInterval(() => {
       dicaIndiceAtual = (dicaIndiceAtual + 1) % dicasLista.length;
       atualizarCarrossel();
-    }, 8000);
+    }, 9000);
 
     async function verificarSeExisteAdmin() {
       try {
@@ -414,7 +457,7 @@
         document.getElementById('view-login').classList.add('hidden');
         document.getElementById('view-app').classList.remove('hidden');
         atualizarCabecalhoUsuario();
-        iniciarOuvintePatrimonios();
+        iniciarOuvintes();
         atualizarCarrossel();
       } else {
         if (cameraAtiva && html5QrcodeScanner) {
@@ -450,7 +493,8 @@
       }
     }
 
-    function iniciarOuvintePatrimonios() {
+    function iniciarOuvintes() {
+      // Ouvinte de Patrimônios
       onSnapshot(collection(db, "patrimonios"), (snapshot) => {
         bancoPatrimonio = [];
         snapshot.forEach(docSnap => bancoPatrimonio.push({ id: docSnap.id, ...docSnap.data() }));
@@ -458,6 +502,13 @@
         atualizarDashboard();
         renderizarRelaçãoBD();
         renderizarFilaTransferencias();
+      });
+
+      // Ouvinte de Usuários para a listagem gerencial
+      onSnapshot(collection(db, "usuarios"), (snapshot) => {
+        bancoUsuarios = [];
+        snapshot.forEach(docSnap => bancoUsuarios.push({ uid: docSnap.id, ...docSnap.data() }));
+        renderizarListaUsuarios();
       });
     }
 
@@ -476,6 +527,7 @@
       const selectLocalizacao = document.getElementById('select-localizacao');
       const selectFiltro = document.getElementById('filtro-divisao');
       const checkContainer = document.getElementById('cad-divisoes-checkboxes');
+      const editCheckContainer = document.getElementById('edit-divisoes-checkboxes');
 
       if (bancoPatrimonio.length > 0) {
         const divSet = [...new Set(bancoPatrimonio.map(i => i.divisaoOrigem || i.divisao))].sort();
@@ -498,14 +550,20 @@
           });
         }
 
-        if (checkContainer && checkContainer.children.length === 0) {
-          checkContainer.innerHTML = divSet.map(d => `
-            <label class="flex items-center gap-2 cursor-pointer text-slate-300">
-              <input type="checkbox" name="divisao-check" value="${d}" class="rounded bg-slate-800 border-slate-700">
-              <span>${d}</span>
-            </label>
-          `).join('');
-        }
+        const htmlCheckboxes = divSet.map(d => `
+          <label class="flex items-center gap-2 cursor-pointer text-slate-300">
+            <input type="checkbox" name="divisao-check" value="${d}" class="rounded bg-slate-800 border-slate-700">
+            <span>${d}</span>
+          </label>
+        `).join('');
+
+        if (checkContainer && checkContainer.children.length === 0) checkContainer.innerHTML = htmlCheckboxes;
+        if (editCheckContainer && editCheckContainer.children.length === 0) editCheckContainer.innerHTML = divSet.map(d => `
+          <label class="flex items-center gap-2 cursor-pointer text-slate-300">
+            <input type="checkbox" name="edit-divisao-check" value="${d}" class="rounded bg-slate-800 border-slate-700">
+            <span>${d}</span>
+          </label>
+        `).join('');
       }
     }
 
@@ -560,6 +618,7 @@
       } else { badgeFila.classList.add('hidden'); }
     }
 
+    // CADASTRO DE USUÁRIOS
     document.getElementById('form-cad-usuario').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
@@ -576,7 +635,85 @@
         await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil, divisoesAtribuidas: divisoes });
         alert(`Usuário ${nome} (${perfil}) cadastrado com sucesso!`);
         document.getElementById('form-cad-usuario').reset();
+        document.querySelectorAll('input[name="divisao-check"]').forEach(cb => cb.checked = false);
       } catch (err) { alert("Erro ao cadastrar: " + err.message); }
+    });
+
+    // RENDERIZAR LISTA DE USUÁRIOS E GERENCIAR EDIÇÃO
+    function renderizarListaUsuarios() {
+      const container = document.getElementById('lista-usuarios-container');
+      if (!container) return;
+
+      if (bancoUsuarios.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-400 text-center py-2">Nenhum usuário cadastrado.</div>`;
+        return;
+      }
+
+      container.innerHTML = bancoUsuarios.map(u => `
+        <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-700/60 flex justify-between items-center text-xs">
+          <div class="space-y-0.5">
+            <div class="font-bold text-white">${u.nome} <span class="text-[10px] text-blue-400 uppercase font-semibold">(${u.perfil})</span></div>
+            <div class="text-[10px] text-slate-400">${u.email}</div>
+            <div class="text-[10px] text-emerald-400">Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}</div>
+          </div>
+          <button onclick="abrirModalEdicao('${u.uid}')" class="bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white px-2.5 py-1 rounded text-[11px] font-bold transition-colors">
+            ✏️ Editar
+          </button>
+        </div>
+      `).join('');
+    }
+
+    window.abrirModalEdicao = function(uid) {
+      const user = bancoUsuarios.find(u => u.uid === uid);
+      if (!user) return;
+
+      if (usuarioLogado.perfil === 'gestor' && user.perfil !== 'conferente') {
+        return alert("Gestores só podem editar conferentes.");
+      }
+
+      document.getElementById('edit-uid').value = user.uid;
+      document.getElementById('edit-nome').value = user.nome || '';
+      document.getElementById('edit-email').value = user.email || '';
+      
+      const perfilSelect = document.getElementById('edit-perfil');
+      const campoPerfilEdit = document.getElementById('edit-campo-perfil-container');
+      
+      if (usuarioLogado.perfil === 'gestor') {
+        campoPerfilEdit.classList.add('hidden');
+      } else {
+        campoPerfilEdit.classList.remove('hidden');
+        perfilSelect.value = user.perfil || 'conferente';
+      }
+
+      const atribuidas = user.divisaoAtribuidas || user.divisoesAtribuidas || [];
+      document.querySelectorAll('input[name="edit-divisao-check"]').forEach(cb => {
+        cb.checked = atribuidas.includes(cb.value);
+      });
+
+      document.getElementById('modal-edicao-usuario').classList.remove('hidden');
+    }
+
+    document.getElementById('btn-fechar-modal').addEventListener('click', () => {
+      document.getElementById('modal-edicao-usuario').classList.add('hidden');
+    });
+
+    document.getElementById('form-editar-usuario').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const uid = document.getElementById('edit-uid').value;
+      const nome = document.getElementById('edit-nome').value.trim();
+      const perfil = usuarioLogado.perfil === 'gestor' ? 'conferente' : document.getElementById('edit-perfil').value;
+      const checkboxes = document.querySelectorAll('input[name="edit-divisao-check"]:checked');
+      const divisoes = Array.from(checkboxes).map(cb => cb.value);
+
+      try {
+        await updateDoc(doc(db, "usuarios", uid), {
+          nome, perfil, divisoesAtribuidas: divisoes
+        });
+        alert("Usuário atualizado com sucesso!");
+        document.getElementById('modal-edicao-usuario').classList.add('hidden');
+      } catch (err) {
+        alert("Erro ao atualizar usuário: " + err.message);
+      }
     });
 
     function preencherEConsultarPlaqueta(codigoLido) {
@@ -611,7 +748,7 @@
     });
 
     // ----------------------------------------------------
-    // MOTOR DE CÂMERA OTIMIZADO PARA MÚLTIPLOS ÂNGULOS E CAPTURA DE QUADRO
+    // MOTOR DE CÂMERA COM SUPORTE A MACRO E FILTRAGEM DE CONTRASTE
     // ----------------------------------------------------
     document.getElementById('btn-toggle-cam').addEventListener('click', async () => {
       const btnCam = document.getElementById('btn-toggle-cam');
@@ -631,9 +768,8 @@
           html5QrcodeScanner = new Html5Qrcode("reader");
         }
 
-        // Configuração de alta flexibilidade para suportar leituras em ângulo e Code 128 / Code 39
         const config = {
-          fps: 20,
+          fps: 25,
           qrbox: { width: 320, height: 160 },
           formatsToSupport: [
             Html5QrcodeSupportedFormats.CODE_128,
@@ -644,8 +780,9 @@
         };
 
         try {
+          // Tenta focar automaticamente no modo macro/traseiro para ler etiquetas de perto ou em ângulo
           await html5QrcodeScanner.start(
-            { facingMode: "environment" },
+            { facingMode: "environment", advanced: [{ focusMode: "continuous" }] },
             config,
             (decodedText) => { preencherEConsultarPlaqueta(decodedText); },
             (errorMessage) => {}
@@ -657,7 +794,7 @@
         } catch (err1) {
           try {
             await html5QrcodeScanner.start(
-              { facingMode: "user" },
+              { facingMode: "environment" },
               config,
               (decodedText) => { preencherEConsultarPlaqueta(decodedText); },
               (err) => {}
@@ -673,35 +810,44 @@
       }
     });
 
-    // Função melhorada para forçar leitura de quadro estático (útil para locais escuros ou ângulos difíceis)
+    // CAPTURA COM FILTRO DE CONTRASTE (RESOLVE REFLEXOS E ÂNGULOS DIFÍCEIS)
     document.getElementById('btn-capturar-frame').addEventListener('click', async () => {
       if (!cameraAtiva || !html5QrcodeScanner) return;
       
       try {
-        // Tenta escanear o stream de vídeo atual utilizando o elemento interno
         const videoElement = document.querySelector('#reader video');
-        if (!videoElement) {
-          return alert("Vídeo da câmera não encontrado para captura.");
-        }
+        if (!videoElement) return alert("Vídeo da câmera indisponível.");
 
-        // Cria canvas temporário para processar o frame congelado
         const canvas = document.createElement('canvas');
         canvas.width = videoElement.videoWidth;
         canvas.height = videoElement.videoHeight;
         const ctx = canvas.getContext('2d');
+        
+        // Desenha o quadro atual
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-        // Dispara o decodificador do html5-qrcode no canvas estático
+        // Processa os pixels aumentando o contraste e convertendo em escala de cinza para neutralizar o brilho metálico
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        const contrast = 1.5; // Fator de contraste
+        const intercept = 128 * (1 - contrast);
+        
+        for (let i = 0; i < data.length; i += 4) {
+          let gray = data[i] * 0.3 + data[i+1] * 0.59 + data[i+2] * 0.11;
+          gray = gray * contrast + intercept;
+          data[i] = data[i+1] = data[i+2] = (gray < 0) ? 0 : (gray > 255) ? 255 : gray;
+        }
+        ctx.putImageData(imgData, 0, 0);
+
         html5QrcodeScanner.scanFileV2(canvas.toDataURL(), true)
           .then(decodedText => {
             preencherEConsultarPlaqueta(decodedText);
           })
           .catch(() => {
-            // Se o scanFileV2 falhar diretamente, tentamos ler pelo método alternativo da lib ou orientamos
-            alert("Não foi possível extrair o código do quadro atual. Tente alinhar a etiqueta diretamente com a linha vermelha e segurar firme.");
+            alert("Não foi possível extrair a leitura. Tente se aproximar ligeiramente para eliminar reflexos de luz e centralizar o código.");
           });
       } catch (e) {
-        alert("Aproxime a etiqueta e evite reflexos excessivos sobre o código de barras.");
+        alert("Erro ao processar o quadro otimizado.");
       }
     });
 
