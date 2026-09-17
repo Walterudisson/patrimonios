@@ -13,7 +13,6 @@
   <style>
     .accordion-content { transition: max-height 0.3s ease-out; overflow: hidden; }
     .accordion-content.collapsed { max-height: 0 !important; }
-    /* Linha laser de mira no leitor */
     .scanner-laser {
       position: absolute;
       top: 50%; left: 10%; right: 10%;
@@ -128,7 +127,7 @@
 
         <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700 text-xs text-slate-300 space-y-2">
           <h3 class="font-bold text-blue-400 flex items-center gap-1">💡 Dica para Melhor Leitura</h3>
-          <p>• Aponte a câmera mantendo a etiqueta de preferência na horizontal, alinhada com o traço vermelho de mira.</p>
+          <p>• Aponte a câmera mantendo a etiqueta na horizontal, alinhada com o traço vermelho de mira.</p>
           <p>• Afaste o celular levemente (15 a 25 cm) se o código estiver desfocado.</p>
         </div>
       </section>
@@ -141,7 +140,7 @@
             <button id="btn-toggle-cam" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1 rounded-lg">Ligar Câmera</button>
           </div>
           <!-- Contêiner do Leitor com Linha Laser de Mira -->
-          <div id="reader" class="w-full bg-black rounded-lg overflow-hidden min-h-[200px] flex items-center justify-center text-slate-500 text-xs relative">
+          <div id="reader" class="w-full bg-black rounded-lg overflow-hidden min-h-[220px] flex items-center justify-center text-slate-500 text-xs relative">
             <div class="scanner-laser"></div>
             Câmera pausada
           </div>
@@ -371,6 +370,11 @@
         atualizarCabecalhoUsuario();
         iniciarOuvintePatrimonios();
       } else {
+        // Se deslogar, garante que a câmera seja desligada se estiver ativa
+        if (cameraAtiva && html5QrcodeScanner) {
+          html5QrcodeScanner.stop().catch(() => {});
+          cameraAtiva = false;
+        }
         usuarioLogado = null;
         document.getElementById('view-app').classList.add('hidden');
         document.getElementById('view-login').classList.remove('hidden');
@@ -465,6 +469,14 @@
     });
 
     function alternarAba(abaAtiva) {
+      // Se sair da aba de scanner, desliga a câmera para economizar bateria e liberar o recurso
+      if (abaAtiva !== 'scanner' && cameraAtiva && html5QrcodeScanner) {
+        html5QrcodeScanner.stop().catch(() => {});
+        cameraAtiva = false;
+        document.getElementById('btn-toggle-cam').innerText = "Ligar Câmera";
+        document.getElementById('btn-capturar-frame').classList.add('hidden');
+      }
+
       ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
         const sec = document.getElementById(`sec-${aba}`);
         const btn = document.getElementById(`tab-btn-${aba}`);
@@ -553,74 +565,75 @@
     });
 
     // ----------------------------------------------------
-    // MOTOR DE CÂMERA DE ALTA PERFORMANCE (CORREÇÃO DE LEITURA)
+    // MOTOR DE CÂMERA BLINDADO CONTRA TELA PRETA
     // ----------------------------------------------------
-    document.getElementById('btn-toggle-cam').addEventListener('click', () => {
+    document.getElementById('btn-toggle-cam').addEventListener('click', async () => {
+      const btnCam = document.getElementById('btn-toggle-cam');
+      
       if (cameraAtiva) {
         if (html5QrcodeScanner) {
-          html5QrcodeScanner.stop().then(() => {
-            cameraAtiva = false;
-            document.getElementById('reader').innerText = "Câmera pausada";
-            document.getElementById('btn-toggle-cam').innerText = "Ligar Câmera";
-            document.getElementById('btn-capturar-frame').classList.add('hidden');
-          }).catch(err => console.log(err));
+          try {
+            await html5QrcodeScanner.stop();
+          } catch(e) { console.log(e); }
         }
+        cameraAtiva = false;
+        document.getElementById('reader').innerHTML = '<div class="scanner-laser"></div>Câmera pausada';
+        btnCam.innerText = "Ligar Câmera";
+        document.getElementById('btn-capturar-frame').classList.add('hidden');
       } else {
-        html5QrcodeScanner = new Html5Qrcode("reader");
+        btnCam.innerText = "Iniciando...";
         
-        // Configurações avançadas para suportar leitura contínua de códigos de barras longos (Code 128 / Code 39)
+        if (!html5QrcodeScanner) {
+          html5QrcodeScanner = new Html5Qrcode("reader");
+        }
+
         const config = {
-          fps: 25, // Taxa de quadros alta para pegar o foco em movimento
-          qrbox: { width: 300, height: 120 }, // Área retangular horizontal ideal para plaquetas de patrimônio
-          aspectRatio: 1.777778,
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.QR_CODE
-          ]
+          fps: 15,
+          qrbox: { width: 280, height: 120 }
         };
 
-        // Força câmera traseira (environment) com constraints de foco contínuo se suportadas pelo device
-        const constraints = {
-          facingMode: "environment",
-          advanced: [{ focusMode: "continuous" }]
-        };
-
-        html5QrcodeScanner.start(
-          constraints,
-          config,
-          (decodedText) => {
-            preencherEConsultarPlaqueta(decodedText);
-          },
-          (errorMessage) => {
-            // Ignora erros de quadro vazio para não poluir o console
-          }
-        ).then(() => {
-          cameraAtiva = true;
-          document.getElementById('btn-toggle-cam').innerText = "Desligar Câmera";
-          document.getElementById('btn-capturar-frame').classList.remove('hidden');
-        }).catch(err => {
-          // Fallback caso o advanced focusMode dê rejeição em algum aparelho específico
-          html5QrcodeScanner.start(
+        try {
+          // Tenta ligar com a câmera traseira padrão
+          await html5QrcodeScanner.start(
             { facingMode: "environment" },
             config,
-            (decodedText) => preencherEConsultarPlaqueta(decodedText),
-            (err) => {}
-          ).then(() => {
+            (decodedText) => {
+              preencherEConsultarPlaqueta(decodedText);
+            },
+            (errorMessage) => {}
+          );
+          
+          cameraAtiva = true;
+          btnCam.innerText = "Desligar Câmera";
+          document.getElementById('btn-capturar-frame').classList.remove('hidden');
+        } catch (err1) {
+          console.log("Tentativa 1 falhou, tentando fallback genérico de câmera...", err1);
+          try {
+            // Fallback caso a câmera traseira exija permissão genérica sem restrição de facingMode
+            await html5QrcodeScanner.start(
+              { facingMode: "user" },
+              config,
+              (decodedText) => {
+                preencherEConsultarPlaqueta(decodedText);
+              },
+              (err) => {}
+            );
             cameraAtiva = true;
-            document.getElementById('btn-toggle-cam').innerText = "Desligar Câmera";
+            btnCam.innerText = "Desligar Câmera";
             document.getElementById('btn-capturar-frame').classList.remove('hidden');
-          }).catch(e => alert("Não foi possível acessar a câmera do dispositivo. Verifique as permissões do navegador."));
-        });
+          } catch (err2) {
+            alert("Não foi possível acessar a câmera. Verifique se o navegador tem permissão nas configurações do celular ou se está acessando via HTTPS.");
+            btnCam.innerText = "Ligar Câmera";
+          }
+        }
       }
     });
 
     document.getElementById('btn-capturar-frame').addEventListener('click', () => {
-      if (!cameraAtiva) return;
+      if (!cameraAtiva || !html5QrcodeScanner) return;
       html5QrcodeScanner.scanFile()
         .then(decodedText => preencherEConsultarPlaqueta(decodedText))
-        .catch(() => alert("Aproxime a etiqueta, evite reflexos na película metálica e alinhe o código com a linha vermelha."));
+        .catch(() => alert("Aproxime a etiqueta, evite reflexos e alinhe o código de barras com a linha vermelha."));
     });
 
     document.getElementById('btn-buscar').addEventListener('click', () => buscarEExibirItem(limparPlaqueta(inputPlaqueta.value)));
@@ -827,7 +840,6 @@
       });
     }
 
-    document.getElementById('filtro-busca').assetsub?.addEventListener('input', renderizarRelaçãoBD);
     document.getElementById('filtro-busca').addEventListener('input', renderizarRelaçãoBD);
     document.getElementById('filtro-status').addEventListener('change', renderizarRelaçãoBD);
     document.getElementById('filtro-divisao').addEventListener('change', renderizarRelaçãoBD);
