@@ -26,7 +26,6 @@
       pointer-events: none;
     }
     @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
-    /* Zoom 2x aplicado no feed de vídeo da câmera para aproximar plaquetas pequenas */
     #reader video {
       transform: scale(2.0);
       transform-origin: center center;
@@ -337,10 +336,23 @@
     </div>
   </div>
 
+  <!-- MODAL DE DETALHES E HISTÓRICO DO ITEM (NOVO) -->
+  <div id="modal-detalhes-item" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-5 rounded-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+        <h3 id="modal-item-titulo" class="text-xs font-bold text-blue-400 uppercase">📦 Detalhes do Patrimônio</h3>
+        <button id="btn-fechar-modal-item" class="text-slate-400 hover:text-white text-sm font-bold">✕</button>
+      </div>
+      <div id="modal-item-conteudo" class="space-y-3 text-xs">
+        <!-- Preenchido dinamicamente -->
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCVMSES7nwZkZZdQpemDZIb8ypd40bUtvs",
@@ -487,7 +499,6 @@
       const campoPerfil = document.getElementById('campo-perfil-container');
       const tituloCad = document.getElementById('titulo-cad-usuario');
 
-      // OCULTA DEFINITIVAMENTE OS BOTÕES DAS ABAS PARA O CONFERENTE
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
         btnUsuarios.classList.add('hidden');
@@ -584,7 +595,7 @@
     function alternarAba(abaAtiva) {
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
         if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios') {
-          return; // Bloqueia acesso direto
+          return;
         }
       }
 
@@ -604,7 +615,6 @@
         }
       });
 
-      // Reforça a ocultação visual das abas restritas caso o usuário seja conferente
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
         document.getElementById('tab-btn-transferencias').classList.add('hidden');
         document.getElementById('tab-btn-usuarios').classList.add('hidden');
@@ -659,6 +669,7 @@
       } catch (err) { alert("Erro ao cadastrar: " + err.message); }
     });
 
+    // LISTAGEM DE USUÁRIOS COM LAYOUT MELHORADO E BOTÃO DE EXCLUIR HIERÁRQUICO
     function renderizarListaUsuarios() {
       const container = document.getElementById('lista-usuarios-container');
       if (!container || !usuarioLogado) return;
@@ -678,19 +689,47 @@
 
       container.innerHTML = conferidosLista.map(u => {
         const ehProprio = u.uid === usuarioLogado.uid;
+        // Validação se pode excluir (Admin exclui gestores/conferentes; Gestor exclui apenas conferentes)
+        const podeExcluir = !ehProprio && (usuarioLogado.perfil === 'admin' || (usuarioLogado.perfil === 'gestor' && u.perfil === 'conferente'));
+
         return `
-          <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-700/60 flex justify-between items-center text-xs">
+          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/60 space-y-2 text-xs">
             <div class="space-y-0.5">
               <div class="font-bold text-white">${u.nome} ${ehProprio ? '(Você)' : ''} <span class="text-[10px] text-blue-400 uppercase font-semibold">(${u.perfil})</span></div>
               <div class="text-[10px] text-slate-400">${u.email}</div>
               <div class="text-[10px] text-emerald-400">Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}</div>
             </div>
-            <button onclick="abrirModalEdicao('${u.uid}')" class="bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white px-2.5 py-1 rounded text-[11px] font-bold transition-colors">
-              ✏️ Editar
-            </button>
+            <div class="flex gap-2 pt-1 border-t border-slate-800">
+              <button onclick="abrirModalEdicao('${u.uid}')" class="flex-1 bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white py-1.5 rounded text-[11px] font-bold transition-colors text-center">
+                ✏️ Editar
+              </button>
+              ${podeExcluir ? `
+                <button onclick="excluirUsuario('${u.uid}', '${u.nome}')" class="bg-red-950/60 hover:bg-red-900 text-red-300 py-1.5 px-3 rounded text-[11px] font-bold transition-colors text-center border border-red-500/30">
+                  🗑️ Excluir
+                </button>
+              ` : ''}
+            </div>
           </div>
         `;
       }).join('');
+    }
+
+    window.excluirUsuario = async function(uid, nome) {
+      const userAlvo = bancoUsuarios.find(u => u.uid === uid);
+      if (!userAlvo) return;
+
+      if (usuarioLogado.perfil === 'gestor' && userAlvo.perfil !== 'conferente') {
+        return alert("Acesso negado: Gestores só podem excluir conferentes.");
+      }
+
+      if (!confirm(`Tem certeza que deseja excluir o usuário ${nome}? O acesso dele será removido do sistema.`)) return;
+
+      try {
+        await deleteDoc(doc(db, "usuarios", uid));
+        alert("Usuário excluído com sucesso do banco de dados!");
+      } catch (err) {
+        alert("Erro ao excluir usuário: " + err.message);
+      }
     }
 
     window.abrirModalEdicao = function(uid) {
@@ -1034,6 +1073,52 @@
       alert("Transferência rejeitada.");
     }
 
+    // ABRIR MODAL COM DETALHES E HISTÓRICO AO CLICAR NA RELAÇÃO
+    window.abrirModalItemPorPlaqueta = function(plaqueta) {
+      const item = bancoPatrimonio.find(i => i.plaqueta === plaqueta);
+      if (!item) return;
+
+      const modal = document.getElementById('modal-detalhes-item');
+      const conteudo = document.getElementById('modal-item-conteudo');
+      const divisaoOriginal = item.divisaoOrigem || item.divisao;
+
+      conteudo.innerHTML = `
+        <div class="space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="font-bold text-blue-400 text-sm">Plaqueta: ${item.plaqueta}</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-300'}">
+              ${item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE'}
+            </span>
+          </div>
+          <div><strong class="text-slate-400">Descrição:</strong> <span class="text-slate-200">${item.descricao}</span></div>
+          <div><strong class="text-slate-400">🏷️ Divisão Original:</strong> <span class="text-amber-400 font-semibold">${divisaoOriginal}</span></div>
+          <div><strong class="text-slate-400">📍 Local Atual:</strong> <span class="text-emerald-400 font-semibold">${item.localizacaoAtual || divisaoOriginal}</span></div>
+          ${item.conferidoPor ? `<div><strong class="text-slate-400">👤 Conferido por:</strong> <span class="text-slate-300">${item.conferidoPor}</span></div>` : ''}
+          ${item.observacaoAtual ? `<div><strong class="text-slate-400">💬 Obs:</strong> <span class="text-slate-300">${item.observacaoAtual}</span></div>` : ''}
+          
+          <div class="pt-2 border-t border-slate-700 space-y-1.5">
+            <strong class="text-blue-400 block">📜 Linha do Tempo (Histórico de Movimentações):</strong>
+            <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              ${item.historico && item.historico.length > 0 ? [...item.historico].reverse().map(h => `
+                <div class="p-2 rounded bg-slate-950/60 border border-slate-800 space-y-0.5">
+                  <div class="flex justify-between font-bold text-blue-300">
+                    <span>📍 ${h.local}</span>
+                    <span class="text-slate-400 text-[10px]">${h.data}</span>
+                  </div>
+                  <div class="text-slate-400 text-[10px]">Por: ${h.responsavel}${h.obs ? `| Obs: ${h.obs}` : ''}</div>
+                </div>
+              `).join('') : '<div class="text-slate-400 text-xs italic">Nenhum registro histórico adicional.</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+      modal.classList.remove('hidden');
+    }
+
+    document.getElementById('btn-fechar-modal-item').addEventListener('click', () => {
+      document.getElementById('modal-detalhes-item').classList.add('hidden');
+    });
+
     function renderizarRelaçãoBD() {
       const container = document.getElementById('container-accordions');
       if (!container || !usuarioLogado) return;
@@ -1092,7 +1177,7 @@
           </button>
           <div id="acc-${idx}" class="accordion-content collapsed p-2 space-y-2 bg-slate-900/50">
             ${visiveisDaDiv.map(item => `
-              <div class="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-xs space-y-1">
+              <div onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')" class="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-xs space-y-1 cursor-pointer hover:border-blue-500/60 transition-colors">
                 <div class="flex justify-between items-center">
                   <span class="font-bold text-white">Plaqueta: ${item.plaqueta}</span>
                   <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">
