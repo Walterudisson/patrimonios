@@ -69,7 +69,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.0</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.1</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -93,7 +93,7 @@
         <button id="tab-btn-transferencias" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap items-center justify-center gap-1">
           🔄 Fila <span id="badge-fila-count" class="bg-amber-500 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full">0</span>
         </button>
-        <button id="tab-btn-usuarios" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">👥 Usuários</button>
+        <button id="tab-btn-usuarios" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">⚙️ Administração</button>
         <button id="tab-btn-lista" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">📋 Relação</button>
       </div>
     </header>
@@ -241,46 +241,59 @@
         <div id="container-transferencias" class="space-y-3"></div>
       </section>
 
-      <!-- ABA 3: GESTÃO DE USUÁRIOS E CICLO -->
+      <!-- ABA 3: ADMINISTRAÇÃO (USUÁRIOS E CICLO EM SANFONA) -->
       <section id="sec-usuarios" class="hidden space-y-4">
-        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
-          <div class="flex justify-between items-center">
-            <h2 class="text-xs font-bold text-slate-300 uppercase">👥 Controle de Usuários</h2>
-            <button onclick="abrirModalCriacaoUsuario()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors">
-              ➕ Novo Usuário
-            </button>
+        
+        <!-- SANFONA 1: GESTÃO DE USUÁRIOS -->
+        <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
+          <button onclick="document.getElementById('acc-bloco-usuarios').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-3.5 text-left font-bold text-xs bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
+            <span class="text-blue-400 uppercase tracking-wide">👥 Gestão de Usuários</span>
+            <span class="text-[10px] text-slate-400">▼ Expandir/Recolher</span>
+          </button>
+          <div id="acc-bloco-usuarios" class="accordion-content p-3 space-y-3 bg-slate-900/50">
+            <div class="flex justify-between items-center">
+              <span class="text-[11px] text-slate-400">Colaboradores e permissões</span>
+              <button onclick="abrirModalCriacaoUsuario()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors">
+                ➕ Novo Usuário
+              </button>
+            </div>
+            <div>
+              <input type="text" id="filtro-busca-usuarios" placeholder="🔍 Pesquisar por nome ou e-mail..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+            </div>
+            <div id="lista-usuarios-container" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1"></div>
           </div>
-          <div>
-            <input type="text" id="filtro-busca-usuarios" placeholder="🔍 Pesquisar por nome ou e-mail..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-          </div>
-          <div id="lista-usuarios-container" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1"></div>
         </div>
 
-        <!-- PAINEL DE GESTÃO DE CICLO E REVERSÃO DE STATUS (EXCLUSIVO GESTOR/ADMIN) -->
-        <div id="panel-gestao-ciclo" class="bg-slate-800 p-4 rounded-xl border border-amber-500/40 space-y-3 shadow-lg">
-          <div class="border-b border-slate-700 pb-2">
-            <h2 class="text-xs font-bold text-amber-400 uppercase">🔄 Gestão de Ciclo e Reversão de Status</h2>
-            <p class="text-[10px] text-slate-400 mt-0.5">Retorne o status dos itens para "pendente" para iniciar uma nova conferência.</p>
-          </div>
-          <div class="space-y-2.5">
+        <!-- SANFONA 2: GESTÃO DE CICLO E REVERSÃO DE STATUS -->
+        <div id="panel-gestao-ciclo" class="bg-slate-800 rounded-xl border border-amber-500/40 overflow-hidden shadow-lg">
+          <button onclick="document.getElementById('acc-bloco-ciclo').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-3.5 text-left font-bold text-xs bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
+            <span class="text-amber-400 uppercase tracking-wide">🔄 Gestão de Ciclo e Inventário</span>
+            <span class="text-[10px] text-slate-400">▼ Expandir/Recolher</span>
+          </button>
+          <div id="acc-bloco-ciclo" class="accordion-content collapsed p-3.5 space-y-3 bg-slate-900/50">
             <div>
-              <label class="text-[11px] text-slate-300 font-semibold block mb-1">Reverter por Divisão Específica</label>
-              <div class="flex gap-2">
-                <select id="select-divisao-reversao" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
-                  <option value="">-- Selecione a Divisão --</option>
-                </select>
-                <button id="btn-reverter-divisao" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors">
-                  Zerar Setor
-                </button>
-              </div>
+              <p class="text-[10px] text-slate-400 mb-2">Retorne o status dos itens para "pendente" para iniciar uma nova conferência.</p>
             </div>
+            
+            <!-- Reverter por Divisão (Com layout empilhado responsivo para celular) -->
+            <div class="space-y-1.5">
+              <label class="text-[11px] text-slate-300 font-semibold block">Reverter por Divisão Específica</label>
+              <select id="select-divisao-reversao" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                <option value="">-- Selecione a Divisão --</option>
+              </select>
+              <button id="btn-reverter-divisao" class="w-full bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-2 rounded-lg text-xs transition-colors shadow-md">
+                Zerar Setor Selecionado
+              </button>
+            </div>
+
             <div class="pt-2 border-t border-slate-700/60">
-              <button id="btn-reverter-geral" class="w-full bg-red-950/60 hover:bg-red-900 text-red-300 font-bold py-2 rounded-lg text-xs border border-red-500/30 transition-colors">
-                ⚠️ Reiniciar Inventário Geral (Zerar Todos os Itens)
+              <button id="btn-reverter-geral" class="w-full bg-red-950/60 hover:bg-red-900 text-red-300 font-bold py-2.5 rounded-lg text-xs border border-red-500/30 transition-colors">
+                ⚠️ Reiniciar Inventário Geral (Zerar Todos)
               </button>
             </div>
           </div>
         </div>
+
       </section>
 
       <!-- ABA 4: RELAÇÃO E PAINEL -->
@@ -326,7 +339,7 @@
 
     <!-- Rodapé Discreto do Sistema -->
     <footer class="py-4 text-center">
-      <span class="text-[11px] text-slate-500 font-medium">v1.1.0</span>
+      <span class="text-[11px] text-slate-500 font-medium">v1.1.1</span>
     </footer>
   </div>
 
