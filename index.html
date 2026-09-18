@@ -69,7 +69,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.5</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.6</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -232,7 +232,7 @@
         </div>
       </section>
 
-      <!-- ABA NOVA: ACHADO EM CAMPO -->
+      <!-- ABA: ACHADO EM CAMPO -->
       <section id="sec-achado" class="hidden space-y-5">
         <div class="bg-slate-800 p-5 rounded-xl border border-purple-500/40 shadow-lg space-y-4">
           <div class="border-b border-slate-700 pb-3">
@@ -401,7 +401,7 @@
     </main>
 
     <footer class="py-6 text-center">
-      <span class="text-xs text-slate-500 font-medium">v1.1.5</span>
+      <span class="text-xs text-slate-500 font-medium">v1.1.6</span>
     </footer>
   </div>
 
@@ -604,12 +604,7 @@
           await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil: 'admin', divisoesAtribuidas: [] });
           alert("Administrador inicial criado com sucesso!");
         } else {
-          const cred = await signInWithEmailAndPassword(auth, email, senha);
-          const userDoc = await getDoc(doc(db, "usuarios", cred.user.uid));
-          if (!userDoc.exists()) {
-            await signOut(auth);
-            throw new Error("Acesso negado: Esta conta foi desativada ou removida do sistema.");
-          }
+          await signInWithEmailAndPassword(auth, email, senha);
         }
       } catch (err) {
         let mensagemAmigavel = "Erro ao realizar autenticação. Verifique suas credenciais.";
@@ -629,12 +624,26 @@
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+        let userDocRef = doc(db, "usuarios", user.uid);
+        let userDoc = await getDoc(userDocRef);
+
+        let dadosUsuario;
         if (!userDoc.exists()) {
-          await signOut(auth);
-          return;
+          // Se o usuário autenticou mas não tem registro no Firestore, cria um perfil padrão de Admin (caso seja o primeiro) ou Conferente
+          const snapUsuarios = await getDocs(collection(db, "usuarios"));
+          const perfilPadrao = snapUsuarios.empty ? 'admin' : 'conferente';
+          dadosUsuario = {
+            nome: user.email.split('@')[0].toUpperCase(),
+            email: user.email,
+            perfil: perfilPadrao,
+            divisoesAtribuidas: []
+          };
+          await setDoc(userDocRef, dadosUsuario);
+        } else {
+          dadosUsuario = userDoc.data();
         }
-        usuarioLogado = { uid: user.uid, email: user.email, ...userDoc.data() };
+
+        usuarioLogado = { uid: user.uid, email: user.email, ...dadosUsuario };
         
         document.getElementById('view-login').classList.add('hidden');
         document.getElementById('view-app').classList.remove('hidden');
@@ -654,9 +663,9 @@
     });
 
     function atualizarCabecalhoUsuario() {
-      document.getElementById('user-info-badge').innerText = `${usuarioLogado.nome} (${usuarioLogado.perfil.toUpperCase()})`;
+      document.getElementById('user-info-badge').innerText = `${usuarioLogado.nome} (${(usuarioLogado.perfil || 'conferente').toUpperCase()})`;
       document.getElementById('dash-nome').innerText = usuarioLogado.nome;
-      document.getElementById('dash-perfil').innerText = `Perfil: ${usuarioLogado.perfil.toUpperCase()}`;
+      document.getElementById('dash-perfil').innerText = `Perfil: ${(usuarioLogado.perfil || 'conferente').toUpperCase()}`;
       document.getElementById('dash-divisoes').innerText = usuarioLogado.perfil === 'admin' ? 'Todas (Admin)' : (usuarioLogado.divisoesAtribuidas || []).join(', ') || 'Nenhuma';
       
       const btnTransf = document.getElementById('tab-btn-transferencias');
@@ -671,7 +680,7 @@
         if (panelCiclo) panelCiclo.classList.add('hidden');
       } else {
         if (boxExportacao) boxExportacao.classList.remove('hidden');
-        if (panelCiclo) boxExportacao.classList.remove('hidden');
+        if (panelCiclo) panelCiclo.classList.remove('hidden');
         if (usuarioLogado.perfil === 'gestor') {
           campoPerfil.classList.add('hidden');
           tituloCad.innerText = "👥 Cadastrar Novo Conferente";
@@ -838,7 +847,6 @@
       } else { badgeAchado.classList.add('hidden'); }
     }
 
-    // Leitor de arquivos para Base64 no formulário de Achados em Campo
     function converterArquivoParaBase64(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -868,7 +876,6 @@
 
       if (!plaqueta || !divisao || !descricao) return alert("Preencha todos os campos obrigatórios.");
 
-      // Verificar se a plaqueta já existe
       const jaExiste = bancoPatrimonio.find(i => i.plaqueta === plaqueta);
       if (jaExiste) {
         return alert(`⚠️ Atenção: Esta plaqueta (${plaqueta}) já consta na base oficial do sistema! Utilize a aba de Leitura para conferi-la.`);
