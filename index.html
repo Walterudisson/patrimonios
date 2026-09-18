@@ -36,7 +36,7 @@
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
   <!-- TELA DE LOGIN / BOOTSTRAP -->
-  <div id="view-login" class="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center p-4">
+  <div id="view-login" class="fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center p-4">
     <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-5">
       <div class="text-center space-y-1">
         <h1 class="text-2xl font-bold text-blue-400">📦 Patrimônio CM</h1>
@@ -69,6 +69,8 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
+    <!-- Rodapé da Tela de Login -->
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.0.0</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -296,6 +298,11 @@
       </section>
 
     </main>
+
+    <!-- Rodapé Discreto do Sistema -->
+    <footer class="py-4 text-center">
+      <span class="text-[11px] text-slate-500 font-medium">v1.0.0</span>
+    </footer>
   </div>
 
   <!-- MODAL DE CRIAÇÃO DE NOVO USUÁRIO -->
@@ -410,7 +417,7 @@
     let itemAtualSelecionado = null;
     let modoBootstrapAdmin = false;
     let nivelZoomAtual = 1;
-    let itensFiltradosCache = []; // Armazena os itens atualmente filtrados na tela
+    let itensFiltradosCache = [];
 
     const dicasLista = [
       { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR' para reconhecer o texto automaticamente." },
@@ -558,9 +565,9 @@
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
         btnUsuarios.classList.add('hidden');
-        if (boxExportacao) boxExportacao.classList.add('hidden'); // Oculta opções de exportação para conferente
+        if (boxExportacao) boxExportacao.classList.add('hidden');
       } else {
-        if (boxExportacao) boxExportacao.classList.remove('hidden'); // Exibe opções de exportação para gestor/admin
+        if (boxExportacao) boxExportacao.classList.remove('hidden');
         if (usuarioLogado.perfil === 'gestor') {
           btnTransf.classList.remove('hidden');
           btnUsuarios.classList.remove('hidden');
@@ -1303,7 +1310,6 @@
         return matchTermo && matchStatus && matchDivisao;
       });
 
-      // Atualiza o cache global com o resultado dos filtros atuais para o botão de exportação customizada
       itensFiltradosCache = itensFiltrados;
 
       const gruposFiltrados = {};
