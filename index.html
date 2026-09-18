@@ -139,7 +139,7 @@
             <span class="font-bold text-blue-400 text-xs">💡 Dicas do Sistema</span>
             <div class="flex items-center gap-2">
               <button id="carrossel-prev" class="bg-slate-700 hover:bg-slate-600 text-white w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center">‹</button>
-              <span id="carrossel-indicador" class="text-[10px] text-slate-400 font-semibold">1/4</span>
+              <span id="carrossel-indicador" class="text-[10px] text-slate-400 font-semibold">1/8</span>
               <button id="carrossel-next" class="bg-slate-700 hover:bg-slate-600 text-white w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center">›</button>
             </div>
           </div>
@@ -159,19 +159,15 @@
             <button id="btn-toggle-cam" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1 rounded-lg">Ligar Câmera</button>
           </div>
 
-          <!-- CONTROLES DA CÂMERA (ZOOM, LANTERNA) -->
+          <!-- CONTROLES DE ZOOM DA CÂMERA -->
           <div id="camera-controls-bar" class="hidden flex items-center justify-between bg-slate-900 p-2 rounded-lg border border-slate-700 text-xs">
             <div class="flex items-center gap-1">
               <span class="text-[10px] text-slate-400 font-semibold mr-1">Zoom:</span>
-              <button onclick="definirZoom(1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded font-bold text-[10px] border border-slate-600">1x</button>
-              <button onclick="definirZoom(2)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded font-bold text-[10px] border border-slate-600">2x</button>
-              <button onclick="definirZoom(4)" class="bg-slate-800 hover:bg-slate-700 text-white px-2 py-0.5 rounded font-bold text-[10px] border border-slate-600">4x</button>
+              <button onclick="definirZoom(1)" class="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-0.5 rounded font-bold text-[10px] border border-slate-600">1x</button>
+              <button onclick="definirZoom(2)" class="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-0.5 rounded font-bold text-[10px] border border-slate-600">2x</button>
+              <button onclick="definirZoom(4)" class="bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-0.5 rounded font-bold text-[10px] border border-slate-600">4x</button>
             </div>
-            <div>
-              <button id="btn-toggle-flash" onclick="alternarLanterna()" class="bg-slate-800 hover:bg-slate-700 text-amber-400 px-2.5 py-1 rounded font-bold text-[10px] border border-slate-600 flex items-center gap-1">
-                🔦 Flash
-              </button>
-            </div>
+            <div class="text-[10px] text-slate-400 italic">Use pinça na tela para ajustar</div>
           </div>
 
           <div id="reader-container" class="relative w-full bg-black rounded-lg overflow-hidden min-h-[220px] flex items-center justify-center text-slate-500 text-xs">
@@ -244,7 +240,7 @@
         <div id="container-transferencias" class="space-y-3"></div>
       </section>
 
-      <!-- ABA 3: GESTÃO DE USUÁRIOS (TELA LIMPA + BOTÃO PARA MODAL) -->
+      <!-- ABA 3: GESTÃO DE USUÁRIOS -->
       <section id="sec-usuarios" class="hidden space-y-4">
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
           <div class="flex justify-between items-center">
@@ -404,13 +400,16 @@
     let itemAtualSelecionado = null;
     let modoBootstrapAdmin = false;
     let nivelZoomAtual = 1;
-    let lanternaAtiva = false;
 
     const dicasLista = [
       { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR' para reconhecer o texto automaticamente." },
       { titulo: "📱 Ângulos Difíceis e Brilho", texto: "Aproxime a câmera e evite reflexos excessivos sobre a película metálica para garantir uma leitura rápida e precisa do patrimônio." },
-      { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem de outra sala? Conduza a conferência normalmente. O sistema abrirá um alerta para aprovação do Gestor responsável." },
-      { titulo: "🔄 Gestão Hierárquica", texto: "Administradores gerenciam todo o sistema. Gestores podem atualizar seus dados e cadastrar ou editar os conferentes sob sua alçada." }
+      { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem de outra divisão ou setor? Conduza a conferência normalmente. O sistema abrirá um alerta para aprovação do Gestor responsável." },
+      { titulo: "🔄 Gestão Hierárquica", texto: "Administradores gerenciam todo o sistema. Gestores podem atualizar seus dados e cadastrar ou editar os conferentes sob sua alçada." },
+      { titulo: "🔄 Ciclo das Transferências", texto: "Moveu um item de setor? Alterações para divisões diferentes geram uma pendência automática que aguarda a aprovação do Gestor na Fila de Transferências." },
+      { titulo: "🔍 Busca Rápida por Digitação", texto: "Na aba 'Leitura', comece a digitar os números da plaqueta para ver sugestões instantâneas e agilizar o preenchimento sem precisar usar a câmera." },
+      { titulo: "📋 Acompanhamento por Setor (Relação)", texto: "Utilize a aba 'Relação' para acompanhar o progresso do inventário. Os blocos mostram o total de itens e quantos já foram conferidos em cada divisão." },
+      { titulo: "🔎 Uso de Zoom Dinâmico", texto: "Em etiquetas distantes ou pequenas, utilize os botões de atalho (1x, 2x, 4x) ou faça o movimento de pinça na tela para aproximar o foco da câmera." }
     ];
     let dicaIndiceAtual = 0;
 
@@ -905,30 +904,12 @@
       }
     });
 
-    // CONTROLES DE CÂMERA (ZOOM, LANTERNA E PINCH-TO-ZOOM)
+    // CONTROLES DE ZOOM DA CÂMERA E PINCH-TO-ZOOM
     window.definirZoom = function(fator) {
       nivelZoomAtual = fator;
       document.documentElement.style.setProperty('--camera-zoom', nivelZoomAtual);
     }
 
-    window.alternarLanterna = async function() {
-      if (!html5QrcodeScanner || !cameraAtiva) return;
-      try {
-        lanternaAtiva = !lanternaAtiva;
-        const track = html5QrcodeScanner.getRunningTrackCamera();
-        if (track && track.applyConstraints) {
-          await track.applyConstraints({ advanced: [{ torch: lanternaAtiva }] });
-          document.getElementById('btn-toggle-flash').classList.toggle('bg-amber-600', lanternaAtiva);
-          document.getElementById('btn-toggle-flash').classList.toggle('text-slate-950', lanternaAtiva);
-        } else {
-          alert("O hardware do dispositivo não suporta controle de flash via navegador.");
-        }
-      } catch (e) {
-        alert("Não foi possível acionar o flash da câmera.");
-      }
-    }
-
-    // SUPORTE A GESTO DE PINÇA (PINCH-TO-ZOOM) NO VÍDEO
     let distanciaInicialPinça = 0;
     document.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2 && cameraAtiva) {
@@ -1363,7 +1344,7 @@
     function exportarCSV(dados, nomeArquivo) {
       if (dados.length === 0) return alert("Não há registros disponíveis para exportação.");
       let csv = 'Plaqueta;Divisao Anterior;Local Atual;Status;Conferido Por;Descricao;Data Ultima Atualizacao\n';
-      dados.exports = dados.forEach(i => {
+      dados.forEach(i => {
         csv += `"${i.plaqueta}";"${i.divisaoOrigem || i.divisao}";"${i.localizacaoAtual || i.divisao}";"${i.localizado ? 'LOCALIZADO' : 'PENDENTE'}";"${i.conferidoPor || ''}";"${i.descricao.replace(/"/g, '""')}";"${i.dataLocalizacao || ''}"\n`;
       });
       const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
