@@ -69,7 +69,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.3</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.4</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -86,7 +86,7 @@
         </div>
       </div>
       
-      <!-- Abas de Navegação (Responsivas para Desktop e Mobile) -->
+      <!-- Abas de Navegação -->
       <div id="container-abas" class="max-w-4xl mx-auto flex gap-1.5 mt-3.5 bg-slate-900 p-1.5 rounded-xl border border-slate-700/60 overflow-x-auto">
         <button id="tab-btn-dashboard" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold bg-blue-600 text-white transition-all whitespace-nowrap text-center">📊 Painel</button>
         <button id="tab-btn-scanner" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">📷 Leitura</button>
@@ -98,13 +98,11 @@
       </div>
     </header>
 
-    <!-- Conteúdo Adaptado para Desktop (max-w-4xl com espaçamento otimizado) -->
     <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 space-y-5">
 
       <!-- ABA 0: DASHBOARD -->
       <section id="sec-dashboard" class="space-y-5">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <!-- Bloco do Perfil e Resumo -->
           <div class="bg-slate-800 rounded-xl p-5 border border-slate-700 space-y-3 shadow-lg md:col-span-1 flex flex-col justify-between">
             <div class="space-y-2 border-b border-slate-700 pb-3">
               <h2 id="dash-nome" class="font-bold text-sm md:text-base text-white">---</h2>
@@ -116,7 +114,6 @@
             </div>
           </div>
 
-          <!-- Grade de Estatísticas -->
           <div class="grid grid-cols-2 gap-3 md:col-span-2">
             <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/80 text-center flex flex-col justify-center shadow-md">
               <div id="dash-total" class="text-2xl md:text-3xl font-extrabold text-white">0</div>
@@ -155,17 +152,14 @@
         </div>
       </section>
 
-      <!-- ABA 1: LEITURA (Layout em Duas Colunas no Desktop) -->
+      <!-- ABA 1: LEITURA -->
       <section id="sec-scanner" class="hidden grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        
-        <!-- Coluna 1: Câmera e Scanner -->
         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-lg space-y-3">
           <div class="flex justify-between items-center">
             <span class="text-xs font-semibold text-slate-400">LEITOR DE BARRAS & OCR</span>
             <button id="btn-toggle-cam" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg">Ligar Câmera</button>
           </div>
 
-          <!-- CONTROLES DE ZOOM DA CÂMERA -->
           <div id="camera-controls-bar" class="hidden flex items-center justify-between bg-slate-900 p-2 rounded-lg border border-slate-700 text-xs">
             <div class="flex items-center gap-1">
               <span class="text-[10px] text-slate-400 font-semibold mr-1">Zoom:</span>
@@ -186,7 +180,6 @@
           <div id="ocr-status" class="hidden text-[11px] text-purple-300 text-center font-semibold animate-pulse">Processando OCR na imagem... Aguarde</div>
         </div>
 
-        <!-- Coluna 2: Busca por Digitação e Detalhes -->
         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3 shadow-lg">
           <div class="relative">
             <label class="text-xs text-slate-400 font-semibold block mb-1">NÚMERO DA PLAQUETA / PATRIMÔNIO</label>
@@ -234,7 +227,6 @@
             </button>
           </div>
         </div>
-
       </section>
 
       <!-- ABA 2: FILA DE TRANSFERÊNCIAS -->
@@ -248,11 +240,9 @@
         <div id="container-transferencias" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
       </section>
 
-      <!-- ABA 3: ADMINISTRAÇÃO (USUÁRIOS E CICLO) -->
+      <!-- ABA 3: ADMINISTRAÇÃO -->
       <section id="sec-usuarios" class="hidden space-y-5">
-        
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-          <!-- SANFONA 1: GESTÃO DE USUÁRIOS -->
           <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
             <button onclick="document.getElementById('acc-bloco-usuarios').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-4 text-left font-bold text-xs md:text-sm bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
               <span class="text-blue-400 uppercase tracking-wide">👥 Gestão de Usuários</span>
@@ -272,7 +262,6 @@
             </div>
           </div>
 
-          <!-- SANFONA 2: GESTÃO DE CICLO E REVERSÃO DE STATUS -->
           <div id="panel-gestao-ciclo" class="bg-slate-800 rounded-xl border border-amber-500/40 overflow-hidden shadow-lg">
             <button onclick="document.getElementById('acc-bloco-ciclo').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-4 text-left font-bold text-xs md:text-sm bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
               <span class="text-amber-400 uppercase tracking-wide">🔄 Gestão de Ciclo e Inventário</span>
@@ -301,7 +290,6 @@
             </div>
           </div>
         </div>
-
       </section>
 
       <!-- ABA 4: RELAÇÃO E PAINEL -->
@@ -323,7 +311,6 @@
             </div>
           </div>
 
-          <!-- BOTÕES DE EXPORTAÇÃO -->
           <div id="container-botoes-exportacao" class="space-y-2.5 pt-2 border-t border-slate-700/60">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               <button id="btn-exportar-csv" class="bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-2 rounded-lg text-xs transition-colors">
@@ -339,7 +326,6 @@
               </button>
             </div>
           </div>
-
         </div>
 
         <div id="container-accordions" class="space-y-3"></div>
@@ -347,9 +333,8 @@
 
     </main>
 
-    <!-- Rodapé Discreto -->
     <footer class="py-6 text-center">
-      <span class="text-xs text-slate-500 font-medium">v1.1.3</span>
+      <span class="text-xs text-slate-500 font-medium">v1.1.4</span>
     </footer>
   </div>
 
@@ -1335,14 +1320,15 @@
 
       container.innerHTML = pendentes.map(item => `
         <div class="bg-slate-800 p-4 rounded-xl border border-amber-500/30 text-xs space-y-2.5 shadow-md">
-          <div class="flex justify-between items-center">
-            <span class="font-bold text-blue-400 text-sm">Plaqueta: ${item.plaqueta}</span>
+          <div class="flex justify-between items-center cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">
+            <span class="font-bold text-blue-400 text-sm hover:underline">Plaqueta: ${item.plaqueta} 🔍</span>
             <span class="bg-amber-950 text-amber-300 px-2.5 py-0.5 rounded text-[10px] font-bold">AGUARDANDO</span>
           </div>
-          <p class="text-slate-200 text-xs">${item.descricao}</p>
+          <p class="text-slate-200 text-xs cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">${item.descricao}</p>
           <div class="text-[11px] space-y-1 bg-slate-900 p-2.5 rounded border border-slate-700">
             <div>🏷️ Divisão Anterior: ${item.divisaoOrigem}</div>
             <div>📍 Novo Local: <span class="text-emerald-400 font-bold">${item.divisaoDestinoSugerida}</span></div>
+            ${item.observacaoAtual ? `<div class="pt-1 border-t border-slate-800 text-slate-300">💬 <strong class="text-slate-400">Observação:</strong> ${item.observacaoAtual}</div>` : ''}
           </div>
           <div class="flex gap-2 pt-1">
             <button onclick="aprovarTransferencia('${item.plaqueta}', '${item.divisaoDestinoSugerida}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition-colors">✅ Aprovar</button>
@@ -1380,15 +1366,15 @@
         <div class="space-y-2.5">
           <div class="flex justify-between items-center">
             <span class="font-bold text-blue-400 text-sm">Plaqueta: ${item.plaqueta}</span>
-            <span class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-300'}">
-              ${item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE'}
+            <span class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${item.statusTransferencia === 'pendente' ? 'bg-amber-900 text-amber-300' : (item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-300')}">
+              ${item.statusTransferencia === 'pendente' ? '⏳ AGUARDANDO TRANSF.' : (item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE')}
             </span>
           </div>
           <div><strong class="text-slate-400">Descrição:</strong> <span class="text-slate-200">${item.descricao}</span></div>
           <div><strong class="text-slate-400">🏷️ Divisão Anterior:</strong> <span class="text-amber-400 font-semibold">${divisaoAnterior}</span></div>
-          <div><strong class="text-slate-400">📍 Local Atual:</strong> <span class="text-emerald-400 font-semibold">${item.localizacaoAtual || divisaoAnterior}</span></div>
+          <div><strong class="text-slate-400">📍 Local Atual / Sugerido:</strong> <span class="text-emerald-400 font-semibold">${item.divisaoDestinoSugerida || item.localizacaoAtual || divisaoAnterior}</span></div>
           ${item.conferidoPor ? `<div><strong class="text-slate-400">👤 Conferido por:</strong> <span class="text-slate-300">${item.conferidoPor}</span></div>` : ''}
-          ${item.observacaoAtual ? `<div><strong class="text-slate-400">💬 Obs:</strong> <span class="text-slate-300">${item.observacaoAtual}</span></div>` : ''}
+          ${item.observacaoAtual ? `<div><strong class="text-slate-400">💬 Observação:</strong> <span class="text-slate-300">${item.observacaoAtual}</span></div>` : ''}
           
           ${ehAdminOuGestor && item.localizado ? `
             <div class="pt-2 border-t border-slate-700">
