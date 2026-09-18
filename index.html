@@ -69,7 +69,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.7 (Otimizado Offline)</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.8</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -144,7 +144,7 @@
             <span class="font-bold text-blue-400 text-xs md:text-sm">💡 Dicas do Sistema</span>
             <div class="flex items-center gap-2.5">
               <button id="carrossel-prev" class="bg-slate-700 hover:bg-slate-600 text-white w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center">‹</button>
-              <span id="carrossel-indicador" class="text-xs text-slate-400 font-semibold">1/8</span>
+              <span id="carrossel-indicador" class="text-xs text-slate-400 font-semibold">1/5</span>
               <button id="carrossel-next" class="bg-slate-700 hover:bg-slate-600 text-white w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center">›</button>
             </div>
           </div>
@@ -402,7 +402,7 @@
     </main>
 
     <footer class="py-6 text-center">
-      <span class="text-xs text-slate-500 font-medium">v1.1.7 (Otimizado Offline)</span>
+      <span class="text-xs text-slate-500 font-medium">v1.1.8 (Corrigido)</span>
     </footer>
   </div>
 
@@ -639,7 +639,6 @@
         document.getElementById('view-app').classList.remove('hidden');
         atualizarCabecalhoUsuario();
         
-        // Carrega base local ou do storage do navegador
         carregarDadosLocaisOuRemotos();
         atualizarCarrossel();
       } else {
@@ -670,7 +669,7 @@
         if (panelCiclo) panelCiclo.classList.add('hidden');
       } else {
         if (boxExportacao) boxExportacao.classList.remove('hidden');
-        if (panelCiclo) boxExportacao.classList.remove('hidden');
+        if (panelCiclo) panelCiclo.classList.remove('hidden');
         if (usuarioLogado.perfil === 'gestor') {
           campoPerfil.classList.add('hidden');
           tituloCad.innerText = "👥 Cadastrar Novo Conferente";
@@ -681,7 +680,6 @@
       }
     }
 
-    // Sistema de Cache Local (Offline-first) para poupar leituras
     async function carregarDadosLocaisOrdemRemota(forcarDownload = false) {
       const cacheSalvo = localStorage.getItem('patrimonio_cm_cache');
       const usuariosSalvos = localStorage.getItem('patrimonio_cm_usuarios_cache');
@@ -700,7 +698,7 @@
       await sincronizarBaseCompleta();
     }
 
-    async function sincronizarBaseCompleta() {
+    async function sincronizarBaseCompleta(forcar = false) {
       try {
         const btnSync = document.getElementById('btn-sincronizar-local');
         if (btnSync) btnSync.innerText = "📥 A baixar...";
@@ -717,7 +715,7 @@
 
         atualizarInterfaceCompleta();
         if (btnSync) btnSync.innerText = "📥 Sincronizar Base";
-        alert(`Base sincronizada com sucesso! ${bancoPatrimonio.length} itens carregados localmente.`);
+        if (forcar) alert(`Base sincronizada com sucesso! ${bancoPatrimonio.length} itens carregados localmente.`);
       } catch (err) {
         alert("Erro ao sincronizar com a nuvem. Verifique a sua conexão.");
         const btnSync = document.getElementById('btn-sincronizar-local');
@@ -753,7 +751,7 @@
     function usuarioTemAcessoDivisao(divisao) {
       if (!usuarioLogado) return false;
       if (usuarioLogado.perfil === 'admin' || usuarioLogado.perfil === 'gestor') return true;
-      return (usuarioLogado.divisoesAtribuidas || []).includes(divisao);
+      return (usuarioLogado.divisaoAtribuidas || []).includes(divisao);
     }
 
     function popularSelectsDivisao() {
@@ -956,8 +954,6 @@
         };
 
         await setDoc(doc(db, "patrimonios", plaqueta), novoItem);
-        
-        // Atualiza cache local
         bancoPatrimonio.push(novoItem);
         salvarCacheLocal();
 
@@ -1448,7 +1444,6 @@
 
     async function buscarEExibirItem(plaquetaCod) {
       if (!plaquetaCod) return;
-      // Busca 100% local no cache para zerar leituras
       const itemLocal = bancoPatrimonio.find(i => i.plaqueta === plaquetaCod);
       if (itemLocal) {
         itemAtualSelecionado = itemLocal;
@@ -1543,7 +1538,6 @@
 
       await updateDoc(docRef, dadosAtualizacao);
 
-      // Atualiza objeto local e cache
       itemAtualSelecionado.localizado = true;
       itemAtualSelecionado.observacaoAtual = obs;
       itemAtualSelecionado.dataLocalizacao = dataHora;
@@ -1598,9 +1592,9 @@
               <div class="space-y-1">
                 <span class="text-[11px] font-bold text-blue-400 block">🖼️ Evidências Fotográficas Anexadas:</span>
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  ${item.fotos?.plaqueta ? `<div><span class="text-[10px] text-slate-400 block">Placa:</span><a href="${item.fotos.plaqueta}" target="_blank"><img src="${item.fotos.plaqueta}" class="w-full h-24 object-cover rounded border border-slate-700"></a></div>` : ''}
-                  ${item.fotos?.item ? `<div><span class="text-[10px] text-slate-400 block">Item:</span><a href="${item.fotos.item}" target="_blank"><img src="${item.fotos.item}" class="w-full h-24 object-cover rounded border border-slate-700"></a></div>` : ''}
-                  ${item.fotos?.local ? `<div><span class="text-[10px] text-slate-400 block">Local:</span><a href="${item.fotos.local}" target="_blank"><img src="${item.fotos.local}" class="w-full h-24 object-cover rounded border border-slate-700"></a></div>` : ''}
+                  ${item.fotos?.plaqueta ? `<div><span class="text-[10px] text-slate-400 block">Placa:</span><a href="${item.fotos.plaqueta}" target="_blank"><img src="${item.fotos.plaqueta}" class="w-full h-24 object-cover rounded border border-slate-700 hover:opacity-80 transition-opacity"></a></div>` : ''}
+                  ${item.fotos?.item ? `<div><span class="text-[10px] text-slate-400 block">Item:</span><a href="${item.fotos.item}" target="_blank"><img src="${item.fotos.item}" class="w-full h-24 object-cover rounded border border-slate-700 hover:opacity-80 transition-opacity"></a></div>` : ''}
+                  ${item.fotos?.local ? `<div><span class="text-[10px] text-slate-400 block">Local:</span><a href="${item.fotos.local}" target="_blank"><img src="${item.fotos.local}" class="w-full h-24 object-cover rounded border border-slate-700 hover:opacity-80 transition-opacity"></a></div>` : ''}
                 </div>
               </div>
 
