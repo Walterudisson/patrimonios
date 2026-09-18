@@ -69,95 +69,100 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.2</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.3</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
   <div id="view-app" class="hidden flex-1 flex flex-col">
     
-    <header class="bg-slate-800 border-b border-slate-700 p-3 sticky top-0 z-40">
-      <div class="max-w-md mx-auto flex justify-between items-center">
+    <header class="bg-slate-800 border-b border-slate-700 p-3.5 sticky top-0 z-40 shadow-md">
+      <div class="max-w-4xl mx-auto flex justify-between items-center">
         <div>
-          <h1 class="text-sm font-bold text-blue-400">📦 Patrimônio CM</h1>
-          <div id="user-info-badge" class="text-[10px] text-slate-400">Carregando usuário...</div>
+          <h1 class="text-sm md:text-base font-bold text-blue-400">📦 Patrimônio CM</h1>
+          <div id="user-info-badge" class="text-[10px] md:text-xs text-slate-400">Carregando usuário...</div>
         </div>
         <div class="flex items-center gap-2">
-          <button id="btn-logout" class="bg-slate-700 hover:bg-red-900/50 text-slate-300 hover:text-red-300 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors">Sair</button>
+          <button id="btn-logout" class="bg-slate-700 hover:bg-red-900/50 text-slate-300 hover:text-red-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">Sair</button>
         </div>
       </div>
       
-      <!-- Abas de Navegação -->
-      <div id="container-abas" class="max-w-md mx-auto flex gap-1 mt-3 bg-slate-900 p-1 rounded-xl border border-slate-700/60 overflow-x-auto">
-        <button id="tab-btn-dashboard" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold bg-blue-600 text-white transition-all whitespace-nowrap">📊 Painel</button>
-        <button id="tab-btn-scanner" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">📷 Leitura</button>
-        <button id="tab-btn-transferencias" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap items-center justify-center gap-1">
-          🔄 Fila <span id="badge-fila-count" class="bg-amber-500 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full">0</span>
+      <!-- Abas de Navegação (Responsivas para Desktop e Mobile) -->
+      <div id="container-abas" class="max-w-4xl mx-auto flex gap-1.5 mt-3.5 bg-slate-900 p-1.5 rounded-xl border border-slate-700/60 overflow-x-auto">
+        <button id="tab-btn-dashboard" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold bg-blue-600 text-white transition-all whitespace-nowrap text-center">📊 Painel</button>
+        <button id="tab-btn-scanner" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">📷 Leitura</button>
+        <button id="tab-btn-transferencias" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap items-center justify-center gap-1.5 text-center">
+          🔄 Fila <span id="badge-fila-count" class="bg-amber-500 text-slate-950 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">0</span>
         </button>
-        <button id="tab-btn-usuarios" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">⚙️ Administração</button>
-        <button id="tab-btn-lista" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">📋 Relação</button>
+        <button id="tab-btn-usuarios" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">⚙️ Administração</button>
+        <button id="tab-btn-lista" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">📋 Relação</button>
       </div>
     </header>
 
-    <main class="flex-1 max-w-md w-full mx-auto p-4 space-y-4">
+    <!-- Conteúdo Adaptado para Desktop (max-w-4xl com espaçamento otimizado) -->
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 space-y-5">
 
       <!-- ABA 0: DASHBOARD -->
-      <section id="sec-dashboard" class="space-y-4">
-        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3 shadow-lg">
-          <div class="flex justify-between items-center border-b border-slate-700 pb-2">
-            <div>
-              <h2 id="dash-nome" class="font-bold text-sm text-white">---</h2>
-              <span id="dash-perfil" class="text-[10px] bg-blue-900 text-blue-300 px-2 py-0.5 rounded uppercase font-bold">---</span>
+      <section id="sec-dashboard" class="space-y-5">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Bloco do Perfil e Resumo -->
+          <div class="bg-slate-800 rounded-xl p-5 border border-slate-700 space-y-3 shadow-lg md:col-span-1 flex flex-col justify-between">
+            <div class="space-y-2 border-b border-slate-700 pb-3">
+              <h2 id="dash-nome" class="font-bold text-sm md:text-base text-white">---</h2>
+              <span id="dash-perfil" class="inline-block text-[10px] bg-blue-900 text-blue-300 px-2.5 py-0.5 rounded uppercase font-bold">---</span>
             </div>
-            <div class="text-right">
-              <span class="text-[10px] text-slate-400 block">Divisões de Atuação:</span>
-              <span id="dash-divisoes" class="text-xs font-bold text-emerald-400">---</span>
+            <div>
+              <span class="text-[11px] text-slate-400 block mb-0.5">Divisões de Atuação:</span>
+              <span id="dash-divisoes" class="text-xs md:text-sm font-bold text-emerald-400">---</span>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-2 pt-1">
-            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/60 text-center">
-              <div id="dash-total" class="text-xl font-extrabold text-white">0</div>
-              <div class="text-[10px] text-slate-400 font-semibold mt-0.5">ITENS NA(S) DIVISÃO(ÕES)</div>
+          <!-- Grade de Estatísticas -->
+          <div class="grid grid-cols-2 gap-3 md:col-span-2">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/80 text-center flex flex-col justify-center shadow-md">
+              <div id="dash-total" class="text-2xl md:text-3xl font-extrabold text-white">0</div>
+              <div class="text-[11px] text-slate-400 font-semibold mt-1">ITENS NA(S) DIVISÃO(ÕES)</div>
             </div>
-            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/60 text-center">
-              <div id="dash-localizados" class="text-xl font-extrabold text-emerald-400">0</div>
-              <div class="text-[10px] text-slate-400 font-semibold mt-0.5">CONFERIDOS NO SETOR</div>
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/80 text-center flex flex-col justify-center shadow-md">
+              <div id="dash-localizados" class="text-2xl md:text-3xl font-extrabold text-emerald-400">0</div>
+              <div class="text-[11px] text-slate-400 font-semibold mt-1">CONFERIDOS NO SETOR</div>
             </div>
-            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/60 text-center">
-              <div id="dash-pendentes" class="text-xl font-extrabold text-amber-400">0</div>
-              <div class="text-[10px] text-slate-400 font-semibold mt-0.5">PENDENTES</div>
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/80 text-center flex flex-col justify-center shadow-md">
+              <div id="dash-pendentes" class="text-2xl md:text-3xl font-extrabold text-amber-400">0</div>
+              <div class="text-[11px] text-slate-400 font-semibold mt-1">PENDENTES</div>
             </div>
-            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/60 text-center">
-              <div id="dash-aguardando" class="text-xl font-extrabold text-purple-400">0</div>
-              <div class="text-[10px] text-slate-400 font-semibold mt-0.5">AGUARDANDO TRANSF.</div>
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/80 text-center flex flex-col justify-center shadow-md">
+              <div id="dash-aguardando" class="text-2xl md:text-3xl font-extrabold text-purple-400">0</div>
+              <div class="text-[11px] text-slate-400 font-semibold mt-1">AGUARDANDO TRANSF.</div>
             </div>
           </div>
         </div>
 
         <!-- CARROSSEL DE DICAS -->
-        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-2.5 shadow-md">
-          <div class="flex justify-between items-center border-b border-slate-700/50 pb-2">
-            <span class="font-bold text-blue-400 text-xs">💡 Dicas do Sistema</span>
-            <div class="flex items-center gap-2">
-              <button id="carrossel-prev" class="bg-slate-700 hover:bg-slate-600 text-white w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center">‹</button>
-              <span id="carrossel-indicador" class="text-[10px] text-slate-400 font-semibold">1/8</span>
-              <button id="carrossel-next" class="bg-slate-700 hover:bg-slate-600 text-white w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center">›</button>
+        <div class="bg-slate-800 rounded-xl p-5 border border-slate-700 space-y-3 shadow-md">
+          <div class="flex justify-between items-center border-b border-slate-700/50 pb-2.5">
+            <span class="font-bold text-blue-400 text-xs md:text-sm">💡 Dicas do Sistema</span>
+            <div class="flex items-center gap-2.5">
+              <button id="carrossel-prev" class="bg-slate-700 hover:bg-slate-600 text-white w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center">‹</button>
+              <span id="carrossel-indicador" class="text-xs text-slate-400 font-semibold">1/8</span>
+              <button id="carrossel-next" class="bg-slate-700 hover:bg-slate-600 text-white w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center">›</button>
             </div>
           </div>
           
-          <div class="space-y-1">
-            <div id="carrossel-titulo" class="text-xs font-bold text-amber-300">---</div>
-            <div id="carrossel-texto" class="text-xs text-slate-300 leading-relaxed">---</div>
+          <div class="space-y-1.5">
+            <div id="carrossel-titulo" class="text-xs md:text-sm font-bold text-amber-300">---</div>
+            <div id="carrossel-texto" class="text-xs md:text-sm text-slate-300 leading-relaxed">---</div>
           </div>
         </div>
       </section>
 
-      <!-- ABA 1: LEITURA -->
-      <section id="sec-scanner" class="hidden space-y-4">
-        <div class="bg-slate-800 rounded-xl p-3 border border-slate-700 shadow-lg space-y-2">
+      <!-- ABA 1: LEITURA (Layout em Duas Colunas no Desktop) -->
+      <section id="sec-scanner" class="hidden grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+        
+        <!-- Coluna 1: Câmera e Scanner -->
+        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-lg space-y-3">
           <div class="flex justify-between items-center">
             <span class="text-xs font-semibold text-slate-400">LEITOR DE BARRAS & OCR</span>
-            <button id="btn-toggle-cam" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1 rounded-lg">Ligar Câmera</button>
+            <button id="btn-toggle-cam" class="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg">Ligar Câmera</button>
           </div>
 
           <!-- CONTROLES DE ZOOM DA CÂMERA -->
@@ -171,7 +176,7 @@
             <div class="text-[10px] text-slate-400 italic">Use pinça na tela para ajustar</div>
           </div>
 
-          <div id="reader-container" class="relative w-full bg-black rounded-lg overflow-hidden min-h-[220px] flex items-center justify-center text-slate-500 text-xs">
+          <div id="reader-container" class="relative w-full bg-black rounded-lg overflow-hidden min-h-[240px] flex items-center justify-center text-slate-500 text-xs">
             <div class="scanner-laser"></div>
             <div id="reader" class="w-full h-full">Câmera pausada</div>
           </div>
@@ -181,7 +186,8 @@
           <div id="ocr-status" class="hidden text-[11px] text-purple-300 text-center font-semibold animate-pulse">Processando OCR na imagem... Aguarde</div>
         </div>
 
-        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3">
+        <!-- Coluna 2: Busca por Digitação e Detalhes -->
+        <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 space-y-3 shadow-lg">
           <div class="relative">
             <label class="text-xs text-slate-400 font-semibold block mb-1">NÚMERO DA PLAQUETA / PATRIMÔNIO</label>
             <div class="flex gap-2">
@@ -191,7 +197,7 @@
             <div id="suggestions-box" class="hidden absolute left-0 right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 max-h-48 overflow-y-auto"></div>
           </div>
 
-          <div id="item-details" class="hidden bg-slate-900/90 p-3 rounded-lg border border-slate-700 space-y-2 text-xs">
+          <div id="item-details" class="hidden bg-slate-900/90 p-3.5 rounded-lg border border-slate-700 space-y-2 text-xs">
             <div class="flex justify-between items-start">
               <span id="det-plaqueta" class="font-bold text-blue-400 text-sm">---</span>
               <span id="det-status" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-700 text-slate-300">---</span>
@@ -205,7 +211,7 @@
             </div>
           </div>
 
-          <div class="space-y-2 pt-2 border-t border-slate-700/50">
+          <div class="space-y-2.5 pt-2 border-t border-slate-700/50">
             <div>
               <label class="text-xs text-slate-400 font-semibold block mb-1">📍 LOCALIZAÇÃO ATUAL (DIVISÃO DESTINO) *</label>
               <select id="select-localizacao" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
@@ -228,68 +234,70 @@
             </button>
           </div>
         </div>
+
       </section>
 
       <!-- ABA 2: FILA DE TRANSFERÊNCIAS -->
-      <section id="sec-transferencias" class="hidden space-y-3">
-        <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
+      <section id="sec-transferencias" class="hidden space-y-4">
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-2 shadow-md">
           <div class="flex justify-between items-center">
-            <h2 class="text-xs font-bold text-amber-400 uppercase">🔄 Fila de Aprovação de Transferências</h2>
-            <span id="transf-contador" class="bg-slate-900 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded">0 pendentes</span>
+            <h2 class="text-xs md:text-sm font-bold text-amber-400 uppercase">🔄 Fila de Aprovação de Transferências</h2>
+            <span id="transf-contador" class="bg-slate-900 text-slate-300 text-xs font-bold px-2.5 py-1 rounded">0 pendentes</span>
           </div>
         </div>
-        <div id="container-transferencias" class="space-y-3"></div>
+        <div id="container-transferencias" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
       </section>
 
-      <!-- ABA 3: ADMINISTRAÇÃO (USUÁRIOS E CICLO EM SANFONA) -->
-      <section id="sec-usuarios" class="hidden space-y-4">
+      <!-- ABA 3: ADMINISTRAÇÃO (USUÁRIOS E CICLO) -->
+      <section id="sec-usuarios" class="hidden space-y-5">
         
-        <!-- SANFONA 1: GESTÃO DE USUÁRIOS -->
-        <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
-          <button onclick="document.getElementById('acc-bloco-usuarios').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-3.5 text-left font-bold text-xs bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
-            <span class="text-blue-400 uppercase tracking-wide">👥 Gestão de Usuários</span>
-            <span class="text-[10px] text-slate-400">▼ Expandir/Recolher</span>
-          </button>
-          <div id="acc-bloco-usuarios" class="accordion-content p-3 space-y-3 bg-slate-900/50">
-            <div class="flex justify-between items-center">
-              <span class="text-[11px] text-slate-400">Colaboradores e permissões</span>
-              <button onclick="abrirModalCriacaoUsuario()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors">
-                ➕ Novo Usuário
-              </button>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+          <!-- SANFONA 1: GESTÃO DE USUÁRIOS -->
+          <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
+            <button onclick="document.getElementById('acc-bloco-usuarios').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-4 text-left font-bold text-xs md:text-sm bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
+              <span class="text-blue-400 uppercase tracking-wide">👥 Gestão de Usuários</span>
+              <span class="text-[11px] text-slate-400">▼ Expandir/Recolher</span>
+            </button>
+            <div id="acc-bloco-usuarios" class="accordion-content p-4 space-y-3 bg-slate-900/50">
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-slate-400">Colaboradores e permissões</span>
+                <button onclick="abrirModalCriacaoUsuario()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors">
+                  ➕ Novo Usuário
+                </button>
+              </div>
+              <div>
+                <input type="text" id="filtro-busca-usuarios" placeholder="🔍 Pesquisar por nome ou e-mail..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+              </div>
+              <div id="lista-usuarios-container" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1"></div>
             </div>
-            <div>
-              <input type="text" id="filtro-busca-usuarios" placeholder="🔍 Pesquisar por nome ou e-mail..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-            </div>
-            <div id="lista-usuarios-container" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1"></div>
           </div>
-        </div>
 
-        <!-- SANFONA 2: GESTÃO DE CICLO E REVERSÃO DE STATUS -->
-        <div id="panel-gestao-ciclo" class="bg-slate-800 rounded-xl border border-amber-500/40 overflow-hidden shadow-lg">
-          <button onclick="document.getElementById('acc-bloco-ciclo').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-3.5 text-left font-bold text-xs bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
-            <span class="text-amber-400 uppercase tracking-wide">🔄 Gestão de Ciclo e Inventário</span>
-            <span class="text-[10px] text-slate-400">▼ Expandir/Recolher</span>
-          </button>
-          <div id="acc-bloco-ciclo" class="accordion-content collapsed p-3.5 space-y-3 bg-slate-900/50">
-            <div>
-              <p class="text-[10px] text-slate-400 mb-2">Retorne o status dos itens para "pendente" para iniciar uma nova conferência.</p>
-            </div>
-            
-            <!-- Reverter por Divisão -->
-            <div class="space-y-1.5">
-              <label class="text-[11px] text-slate-300 font-semibold block">Reverter por Divisão Específica</label>
-              <select id="select-divisao-reversao" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
-                <option value="">-- Selecione a Divisão --</option>
-              </select>
-              <button id="btn-reverter-divisao" class="w-full bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-2 rounded-lg text-xs transition-colors shadow-md">
-                Zerar Setor Selecionado
-              </button>
-            </div>
+          <!-- SANFONA 2: GESTÃO DE CICLO E REVERSÃO DE STATUS -->
+          <div id="panel-gestao-ciclo" class="bg-slate-800 rounded-xl border border-amber-500/40 overflow-hidden shadow-lg">
+            <button onclick="document.getElementById('acc-bloco-ciclo').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-4 text-left font-bold text-xs md:text-sm bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
+              <span class="text-amber-400 uppercase tracking-wide">🔄 Gestão de Ciclo e Inventário</span>
+              <span class="text-[11px] text-slate-400">▼ Expandir/Recolher</span>
+            </button>
+            <div id="acc-bloco-ciclo" class="accordion-content collapsed p-4 space-y-3.5 bg-slate-900/50">
+              <div>
+                <p class="text-xs text-slate-400 mb-2">Retorne o status dos itens para "pendente" para iniciar uma nova conferência.</p>
+              </div>
+              
+              <div class="space-y-1.5">
+                <label class="text-xs text-slate-300 font-semibold block">Reverter por Divisão Específica</label>
+                <select id="select-divisao-reversao" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                  <option value="">-- Selecione a Divisão --</option>
+                </select>
+                <button id="btn-reverter-divisao" class="w-full bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold py-2.5 rounded-lg text-xs transition-colors shadow-md">
+                  Zerar Setor Selecionado
+                </button>
+              </div>
 
-            <div class="pt-2 border-t border-slate-700/60">
-              <button id="btn-reverter-geral" class="w-full bg-red-950/60 hover:bg-red-900 text-red-300 font-bold py-2.5 rounded-lg text-xs border border-red-500/30 transition-colors">
-                ⚠️ Reiniciar Inventário Geral (Zerar Todos)
-              </button>
+              <div class="pt-2 border-t border-slate-700/60">
+                <button id="btn-reverter-geral" class="w-full bg-red-950/60 hover:bg-red-900 text-red-300 font-bold py-2.5 rounded-lg text-xs border border-red-500/30 transition-colors">
+                  ⚠️ Reiniciar Inventário Geral (Zerar Todos)
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -298,33 +306,35 @@
 
       <!-- ABA 4: RELAÇÃO E PAINEL -->
       <section id="sec-lista" class="hidden space-y-4">
-        <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2">
-          <div class="flex gap-2">
-            <input type="text" id="filtro-busca" placeholder="🔍 Buscar plaqueta..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
-            <select id="filtro-status" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white">
-              <option value="todos">Todos Status</option>
-              <option value="localizados">🟢 Localizados</option>
-              <option value="pendentes">🔴 Pendentes</option>
-            </select>
-          </div>
-          <div>
-            <select id="filtro-divisao" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
-              <option value="todas">Todas as Divisões permitidas</option>
-            </select>
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-md">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            <div class="flex gap-2">
+              <input type="text" id="filtro-busca" placeholder="🔍 Buscar plaqueta..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+              <select id="filtro-status" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white">
+                <option value="todos">Todos Status</option>
+                <option value="localizados">🟢 Localizados</option>
+                <option value="pendentes">🔴 Pendentes</option>
+              </select>
+            </div>
+            <div>
+              <select id="filtro-divisao" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
+                <option value="todas">Todas as Divisões permitidas</option>
+              </select>
+            </div>
           </div>
 
-          <!-- BOTÕES DE EXPORTAÇÃO (EXCLUSIVOS PARA GESTOR / ADMIN) -->
-          <div id="container-botoes-exportacao" class="space-y-2 pt-1 border-t border-slate-700/60">
-            <div class="grid grid-cols-2 gap-2">
-              <button id="btn-exportar-csv" class="bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-1.5 rounded-lg text-xs">
+          <!-- BOTÕES DE EXPORTAÇÃO -->
+          <div id="container-botoes-exportacao" class="space-y-2.5 pt-2 border-t border-slate-700/60">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <button id="btn-exportar-csv" class="bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-2 rounded-lg text-xs transition-colors">
                 📥 Relatório Geral (CSV)
               </button>
-              <button id="btn-exportar-divergencias" class="bg-slate-700 hover:bg-slate-600 text-amber-400 font-bold py-1.5 rounded-lg text-xs">
+              <button id="btn-exportar-divergencias" class="bg-slate-700 hover:bg-slate-600 text-amber-400 font-bold py-2 rounded-lg text-xs transition-colors">
                 📥 Relatório Pendentes (CSV)
               </button>
             </div>
             <div>
-              <button id="btn-exportar-filtrados" class="w-full bg-purple-900/60 hover:bg-purple-900 text-purple-200 font-bold py-1.5 rounded-lg text-xs border border-purple-500/30">
+              <button id="btn-exportar-filtrados" class="w-full bg-purple-900/60 hover:bg-purple-900 text-purple-200 font-bold py-2 rounded-lg text-xs border border-purple-500/30 transition-colors">
                 📥 Baixar Resultado dos Filtros Aplicados (CSV)
               </button>
             </div>
@@ -337,13 +347,13 @@
 
     </main>
 
-    <!-- Rodapé Discreto do Sistema -->
-    <footer class="py-4 text-center">
-      <span class="text-[11px] text-slate-500 font-medium">v1.1.2</span>
+    <!-- Rodapé Discreto -->
+    <footer class="py-6 text-center">
+      <span class="text-xs text-slate-500 font-medium">v1.1.3</span>
     </footer>
   </div>
 
-  <!-- MODAL DE CRIAÇÃO DE NOVO USUÁRIO -->
+  <!-- MODAL DE CRIAÇÃO DE USUÁRIO -->
   <div id="modal-criacao-usuario" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
     <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-5 rounded-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center border-b border-slate-700 pb-2">
@@ -447,7 +457,6 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Instância secundária isolada para criação de usuários sem afetar o login do Administrador/Gestor atual
     const appSecundario = initializeApp(firebaseConfig, "AppSecundarioCriacao");
     const authSecundario = getAuth(appSecundario);
 
@@ -733,7 +742,7 @@
         const btn = document.getElementById(`tab-btn-${aba}`);
         if (sec) sec.classList.toggle('hidden', aba !== abaAtiva);
         if (btn) {
-          btn.className = aba === abaAtiva ? "flex-1 py-1.5 px-2 rounded-lg text-xs font-bold bg-blue-600 text-white transition-all whitespace-nowrap" : "flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap";
+          btn.className = aba === abaAtiva ? "flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold bg-blue-600 text-white transition-all whitespace-nowrap text-center" : "flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center";
         }
       });
 
@@ -773,7 +782,6 @@
       } else { badgeFila.classList.add('hidden'); }
     }
 
-    // GESTÃO DE CICLO E REVERSÃO DE STATUS (LÓGICA EM LOTE)
     document.getElementById('btn-reverter-divisao').addEventListener('click', async () => {
       if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
       const divAlvo = document.getElementById('select-divisao-reversao').value;
@@ -827,7 +835,6 @@
       }
     });
 
-    // Reversão Individual de Item
     window.reverterItemIndividual = async function(plaqueta) {
       if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
       if (!confirm(`Deseja retornar o item ${plaqueta} para o status PENDENTE?`)) return;
@@ -847,7 +854,6 @@
       }
     };
 
-    // MODAL DE CRIAÇÃO DE USUÁRIO
     window.abrirModalCriacaoUsuario = function() {
       document.getElementById('modal-criacao-usuario').classList.remove('hidden');
     }
@@ -868,11 +874,8 @@
       const divisoes = Array.from(checkboxes).map(cb => cb.value);
 
       try {
-        // Utiliza a instância secundária para criar o usuário sem deslogar o Administrador/Gestor atual
         const cred = await createUserWithEmailAndPassword(authSecundario, email, senha);
         await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil, divisoesAtribuidas: divisoes });
-        
-        // Encerra a sessão do app secundário imediatamente para limpeza
         await signOut(authSecundario);
 
         alert(`Colaborador ${nome} cadastrado com sucesso.`);
@@ -887,7 +890,6 @@
       }
     });
 
-    // LISTAGEM DE USUÁRIOS
     function renderizarListaUsuarios() {
       const container = document.getElementById('lista-usuarios-container');
       const termoBusca = (document.getElementById('filtro-busca-usuarios')?.value || "").toLowerCase().trim();
@@ -1059,7 +1061,6 @@
       }
     });
 
-    // CONTROLES DE ZOOM DA CÂMERA E PINCH-TO-ZOOM
     window.definirZoom = function(fator) {
       nivelZoomAtual = fator;
       document.documentElement.style.setProperty('--camera-zoom', nivelZoomAtual);
@@ -1328,24 +1329,24 @@
       contador.innerText = `${pendentes.length} pendentes`;
 
       if (pendentes.length === 0) {
-        container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400">✨ Nenhuma transferência pendente no momento.</div>`;
+        container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400 md:col-span-2">✨ Nenhuma transferência pendente no momento.</div>`;
         return;
       }
 
       container.innerHTML = pendentes.map(item => `
-        <div class="bg-slate-800 p-3 rounded-xl border border-amber-500/30 text-xs space-y-2">
+        <div class="bg-slate-800 p-4 rounded-xl border border-amber-500/30 text-xs space-y-2.5 shadow-md">
           <div class="flex justify-between items-center">
-            <span class="font-bold text-blue-400">Plaqueta: ${item.plaqueta}</span>
-            <span class="bg-amber-950 text-amber-300 px-2 py-0.5 rounded text-[10px] font-bold">AGUARDANDO</span>
+            <span class="font-bold text-blue-400 text-sm">Plaqueta: ${item.plaqueta}</span>
+            <span class="bg-amber-950 text-amber-300 px-2.5 py-0.5 rounded text-[10px] font-bold">AGUARDANDO</span>
           </div>
-          <p class="text-slate-200 text-[11px]">${item.descricao}</p>
-          <div class="text-[10px] space-y-0.5 bg-slate-900 p-2 rounded border border-slate-700">
+          <p class="text-slate-200 text-xs">${item.descricao}</p>
+          <div class="text-[11px] space-y-1 bg-slate-900 p-2.5 rounded border border-slate-700">
             <div>🏷️ Divisão Anterior: ${item.divisaoOrigem}</div>
             <div>📍 Novo Local: <span class="text-emerald-400 font-bold">${item.divisaoDestinoSugerida}</span></div>
           </div>
           <div class="flex gap-2 pt-1">
-            <button onclick="aprovarTransferencia('${item.plaqueta}', '${item.divisaoDestinoSugerida}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 rounded text-xs">✅ Aprovar</button>
-            <button onclick="rejeitarTransferencia('${item.plaqueta}')" class="bg-red-900/60 hover:bg-red-800 text-red-200 font-bold px-3 py-1.5 rounded text-xs">❌ Rejeitar</button>
+            <button onclick="aprovarTransferencia('${item.plaqueta}', '${item.divisaoDestinoSugerida}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition-colors">✅ Aprovar</button>
+            <button onclick="rejeitarTransferencia('${item.plaqueta}')" class="bg-red-900/60 hover:bg-red-800 text-red-200 font-bold px-4 py-2 rounded text-xs transition-colors">❌ Rejeitar</button>
           </div>
         </div>
       `).join('');
@@ -1376,10 +1377,10 @@
       const ehAdminOuGestor = usuarioLogado && usuarioLogado.perfil !== 'conferente';
 
       conteudo.innerHTML = `
-        <div class="space-y-2">
+        <div class="space-y-2.5">
           <div class="flex justify-between items-center">
             <span class="font-bold text-blue-400 text-sm">Plaqueta: ${item.plaqueta}</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-300'}">
+            <span class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-300'}">
               ${item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE'}
             </span>
           </div>
@@ -1391,7 +1392,7 @@
           
           ${ehAdminOuGestor && item.localizado ? `
             <div class="pt-2 border-t border-slate-700">
-              <button onclick="reverterItemIndividual('${item.plaqueta}')" class="w-full bg-amber-950/60 hover:bg-amber-900 text-amber-300 font-bold py-1.5 rounded text-xs border border-amber-500/30">
+              <button onclick="reverterItemIndividual('${item.plaqueta}')" class="w-full bg-amber-950/60 hover:bg-amber-900 text-amber-300 font-bold py-2 rounded text-xs border border-amber-500/30 transition-colors">
                 🔄 Retornar Item para Status Pendente
               </button>
             </div>
@@ -1472,25 +1473,25 @@
         const totalCount = todosDaDiv.length;
 
         const accordion = document.createElement('div');
-        accordion.className = "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden";
+        accordion.className = "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-md";
         accordion.innerHTML = `
-          <button onclick="document.getElementById('acc-${idx}').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-3 text-left font-bold text-xs bg-slate-800 border-b border-slate-700/50">
+          <button onclick="document.getElementById('acc-${idx}').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-3.5 text-left font-bold text-xs md:text-sm bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
             <span class="text-blue-400 font-semibold">📁 ${divNome} (${totalCount})</span>
-            <span class="text-[10px] ${locCount === totalCount ? 'text-emerald-400' : 'text-amber-400'}">${locCount}/${totalCount} Localizados</span>
+            <span class="text-xs ${locCount === totalCount ? 'text-emerald-400' : 'text-amber-400'}">${locCount}/${totalCount} Localizados</span>
           </button>
-          <div id="acc-${idx}" class="accordion-content collapsed p-2 space-y-2 bg-slate-900/50">
+          <div id="acc-${idx}" class="accordion-content collapsed p-3 grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-900/50">
             ${visiveisDaDiv.map(item => `
-              <div onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')" class="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-xs space-y-1 cursor-pointer hover:border-blue-500/60 transition-colors">
+              <div onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')" class="bg-slate-800/90 p-3 rounded-lg border border-slate-700 text-xs space-y-1.5 cursor-pointer hover:border-blue-500/60 transition-colors shadow-sm">
                 <div class="flex justify-between items-center">
-                  <span class="font-bold text-white">Plaqueta: ${item.plaqueta}</span>
-                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">
+                  <span class="font-bold text-white text-sm">Plaqueta: ${item.plaqueta}</span>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">
                     ${item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE'}
                   </span>
                 </div>
-                <p class="text-slate-300 text-[11px]">${item.descricao}</p>
-                <div class="mt-1 pt-1 border-t border-slate-700/50 text-[10px] space-y-0.5 text-slate-400">
+                <p class="text-slate-300 text-xs">${item.descricao}</p>
+                <div class="mt-1.5 pt-1.5 border-t border-slate-700/50 text-[11px] space-y-0.5 text-slate-400">
                   <div>🏷️ Divisão Anterior: ${item.divisaoOrigem || item.divisao}</div>
-                  <div>📍 Local Atual: <span class="text-emerald-400">${item.localizacaoAtual || item.divisaoOrigem || item.divisao}</span></div>
+                  <div>📍 Local Atual: <span class="text-emerald-400 font-bold">${item.localizacaoAtual || item.divisaoOrigem || item.divisao}</span></div>
                 </div>
               </div>
             `).join('')}
