@@ -69,8 +69,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <!-- Rodapé da Tela de Login -->
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.0.0</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.0</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -242,7 +241,7 @@
         <div id="container-transferencias" class="space-y-3"></div>
       </section>
 
-      <!-- ABA 3: GESTÃO DE USUÁRIOS -->
+      <!-- ABA 3: GESTÃO DE USUÁRIOS E CICLO -->
       <section id="sec-usuarios" class="hidden space-y-4">
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
           <div class="flex justify-between items-center">
@@ -254,7 +253,33 @@
           <div>
             <input type="text" id="filtro-busca-usuarios" placeholder="🔍 Pesquisar por nome ou e-mail..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
           </div>
-          <div id="lista-usuarios-container" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
+          <div id="lista-usuarios-container" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1"></div>
+        </div>
+
+        <!-- PAINEL DE GESTÃO DE CICLO E REVERSÃO DE STATUS (EXCLUSIVO GESTOR/ADMIN) -->
+        <div id="panel-gestao-ciclo" class="bg-slate-800 p-4 rounded-xl border border-amber-500/40 space-y-3 shadow-lg">
+          <div class="border-b border-slate-700 pb-2">
+            <h2 class="text-xs font-bold text-amber-400 uppercase">🔄 Gestão de Ciclo e Reversão de Status</h2>
+            <p class="text-[10px] text-slate-400 mt-0.5">Retorne o status dos itens para "pendente" para iniciar uma nova conferência.</p>
+          </div>
+          <div class="space-y-2.5">
+            <div>
+              <label class="text-[11px] text-slate-300 font-semibold block mb-1">Reverter por Divisão Específica</label>
+              <div class="flex gap-2">
+                <select id="select-divisao-reversao" class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
+                  <option value="">-- Selecione a Divisão --</option>
+                </select>
+                <button id="btn-reverter-divisao" class="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors">
+                  Zerar Setor
+                </button>
+              </div>
+            </div>
+            <div class="pt-2 border-t border-slate-700/60">
+              <button id="btn-reverter-geral" class="w-full bg-red-950/60 hover:bg-red-900 text-red-300 font-bold py-2 rounded-lg text-xs border border-red-500/30 transition-colors">
+                ⚠️ Reiniciar Inventário Geral (Zerar Todos os Itens)
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -301,7 +326,7 @@
 
     <!-- Rodapé Discreto do Sistema -->
     <footer class="py-4 text-center">
-      <span class="text-[11px] text-slate-500 font-medium">v1.0.0</span>
+      <span class="text-[11px] text-slate-500 font-medium">v1.1.0</span>
     </footer>
   </div>
 
@@ -394,7 +419,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCVMSES7nwZkZZdQpemDZIb8ypd40bUtvs",
@@ -561,13 +586,16 @@
       const campoPerfil = document.getElementById('campo-perfil-container');
       const tituloCad = document.getElementById('titulo-cad-usuario');
       const boxExportacao = document.getElementById('container-botoes-exportacao');
+      const panelCiclo = document.getElementById('panel-gestao-ciclo');
 
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
         btnUsuarios.classList.add('hidden');
         if (boxExportacao) boxExportacao.classList.add('hidden');
+        if (panelCiclo) panelCiclo.classList.add('hidden');
       } else {
         if (boxExportacao) boxExportacao.classList.remove('hidden');
+        if (panelCiclo) panelCiclo.classList.remove('hidden');
         if (usuarioLogado.perfil === 'gestor') {
           btnTransf.classList.remove('hidden');
           btnUsuarios.classList.remove('hidden');
@@ -613,6 +641,7 @@
     function popularSelectsDivisao() {
       const selectLocalizacao = document.getElementById('select-localizacao');
       const selectFiltro = document.getElementById('filtro-divisao');
+      const selectReversao = document.getElementById('select-divisao-reversao');
       const checkContainer = document.getElementById('cad-divisoes-checkboxes');
       const editCheckContainer = document.getElementById('edit-divisoes-checkboxes');
 
@@ -634,6 +663,14 @@
               opt.value = d; opt.innerText = d;
               selectFiltro.appendChild(opt);
             }
+          });
+        }
+
+        if (selectReversao && selectReversao.options.length <= 1) {
+          divSet.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d; opt.innerText = d;
+            selectReversao.appendChild(opt);
           });
         }
 
@@ -683,7 +720,6 @@
         }
       });
 
-      // GARANTE QUE A PÁGINA RETORNE PARA O TOPO AO TROCAR DE ABA
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
@@ -720,6 +756,80 @@
       } else { badgeFila.classList.add('hidden'); }
     }
 
+    // GESTÃO DE CICLO E REVERSÃO DE STATUS (LÓGICA EM LOTE)
+    document.getElementById('btn-reverter-divisao').addEventListener('click', async () => {
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
+      const divAlvo = document.getElementById('select-divisao-reversao').value;
+      if (!divAlvo) return alert("Selecione uma divisão para reverter.");
+
+      if (!confirm(`Deseja realmente retornar todos os itens da divisão '${divAlvo}' para o status PENDENTE? O progresso de conferência deste setor será zerado.`)) return;
+
+      const itensAfetados = bancoPatrimonio.filter(i => (i.divisaoOrigem || i.divisao) === divAlvo || i.localizacaoAtual === divAlvo);
+      if (itensAfetados.length === 0) return alert("Nenhum item encontrado nesta divisão.");
+
+      try {
+        const batch = writeBatch(db);
+        itensAfetados.forEach(item => {
+          const ref = doc(db, "patrimonios", item.plaqueta);
+          batch.update(ref, {
+            localizado: false,
+            statusTransferencia: "concluido",
+            conferidoPor: "",
+            observacaoAtual: "Status revertido para pendente (Novo Ciclo)",
+            dataLocalizacao: ""
+          });
+        });
+        await batch.commit();
+        alert(`Sucesso! ${itensAfetados.length} itens da divisão ${divAlvo} foram retornados para pendentes.`);
+        document.getElementById('select-divisao-reversao').value = "";
+      } catch (e) {
+        alert("Erro ao executar reversão setorial.");
+      }
+    });
+
+    document.getElementById('btn-reverter-geral').addEventListener('click', async () => {
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
+      if (!confirm("⚠️ ATENÇÃO: Deseja realmente reiniciar o inventário geral? TODOS OS ITENS do sistema retornarão para o status PENDENTE. Esta ação preparará o sistema para um novo ciclo completo.")) return;
+
+      try {
+        const batch = writeBatch(db);
+        bancoPatrimonio.forEach(item => {
+          const ref = doc(db, "patrimonios", item.plaqueta);
+          batch.update(ref, {
+            localizado: false,
+            statusTransferencia: "concluido",
+            conferidoPor: "",
+            observacaoAtual: "Inventário reiniciado para novo ciclo",
+            dataLocalizacao: ""
+          });
+        });
+        await batch.commit();
+        alert("Inventário geral reiniciado com sucesso! Todos os itens estão pendentes.");
+      } catch (e) {
+        alert("Erro ao reiniciar inventário geral.");
+      }
+    });
+
+    // Reversão Individual de Item
+    window.reverterItemIndividual = async function(plaqueta) {
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
+      if (!confirm(`Deseja retornar o item ${plaqueta} para o status PENDENTE?`)) return;
+
+      try {
+        await updateDoc(doc(db, "patrimonios", plaqueta), {
+          localizado: false,
+          statusTransferencia: "concluido",
+          conferidoPor: "",
+          observacaoAtual: "Item retornado manualmente para pendente",
+          dataLocalizacao: ""
+        });
+        alert("Item retornado para pendente com sucesso.");
+        document.getElementById('modal-detalhes-item').classList.add('hidden');
+      } catch (e) {
+        alert("Erro ao reverter item.");
+      }
+    };
+
     // MODAL DE CRIAÇÃO DE USUÁRIO
     window.abrirModalCriacaoUsuario = function() {
       document.getElementById('modal-criacao-usuario').classList.remove('hidden');
@@ -755,7 +865,7 @@
       }
     });
 
-    // LISTAGEM DE USUÁRIOS COM SANFONA E ORDENAÇÃO ALFABÉTICA
+    // LISTAGEM DE USUÁRIOS
     function renderizarListaUsuarios() {
       const container = document.getElementById('lista-usuarios-container');
       const termoBusca = (document.getElementById('filtro-busca-usuarios')?.value || "").toLowerCase().trim();
@@ -1241,6 +1351,7 @@
       const modal = document.getElementById('modal-detalhes-item');
       const conteudo = document.getElementById('modal-item-conteudo');
       const divisaoAnterior = item.divisaoOrigem || item.divisao;
+      const ehAdminOuGestor = usuarioLogado && usuarioLogado.perfil !== 'conferente';
 
       conteudo.innerHTML = `
         <div class="space-y-2">
@@ -1256,6 +1367,14 @@
           ${item.conferidoPor ? `<div><strong class="text-slate-400">👤 Conferido por:</strong> <span class="text-slate-300">${item.conferidoPor}</span></div>` : ''}
           ${item.observacaoAtual ? `<div><strong class="text-slate-400">💬 Obs:</strong> <span class="text-slate-300">${item.observacaoAtual}</span></div>` : ''}
           
+          ${ehAdminOuGestor && item.localizado ? `
+            <div class="pt-2 border-t border-slate-700">
+              <button onclick="reverterItemIndividual('${item.plaqueta}')" class="w-full bg-amber-950/60 hover:bg-amber-900 text-amber-300 font-bold py-1.5 rounded text-xs border border-amber-500/30">
+                🔄 Retornar Item para Status Pendente
+              </button>
+            </div>
+          ` : ''}
+
           <div class="pt-2 border-t border-slate-700 space-y-1.5">
             <strong class="text-blue-400 block">📜 Linha do Tempo (Histórico de Movimentações):</strong>
             <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
