@@ -39,17 +39,17 @@
     <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-5">
       <div class="text-center space-y-1">
         <h1 class="text-2xl font-bold text-blue-400">📦 Patrimônio CM</h1>
-        <p id="login-subtitulo" class="text-xs text-slate-400">Entre com sua conta institucional</p>
+        <p id="login-subtitulo" class="text-xs text-slate-400">Entre com sua credencial institucional</p>
       </div>
       
       <form id="form-login" class="space-y-4">
         <div id="campo-nome-container" class="hidden">
           <label class="text-xs text-slate-400 font-semibold block mb-1">NOME COMPLETO</label>
-          <input type="text" id="login-nome" placeholder="Seu Nome" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+          <input type="text" id="login-nome" placeholder="Nome do Administrador" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
         </div>
         <div>
-          <label class="text-xs text-slate-400 font-semibold block mb-1">E-MAIL</label>
-          <input type="email" id="login-email" required placeholder="seu.email@cm.gov.br" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+          <label class="text-xs text-slate-400 font-semibold block mb-1">E-MAIL INSTITUCIONAL</label>
+          <input type="email" id="login-email" required placeholder="seu.email@casamilitar.pr.gov.br" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
         </div>
         <div>
           <label class="text-xs text-slate-400 font-semibold block mb-1">SENHA</label>
@@ -62,7 +62,7 @@
 
       <div id="bootstrap-box" class="hidden text-center pt-2 border-t border-slate-700">
         <button id="btn-toggle-bootstrap" class="text-xs text-amber-400 hover:underline font-semibold">
-          ⚡ Sistema sem usuários? Clique aqui para criar o Admin inicial
+          ⚡ Nenhum usuário cadastrado? Clique para criar o Administrador inicial
         </button>
       </div>
 
@@ -234,15 +234,15 @@
           <form id="form-cad-usuario" class="space-y-3">
             <div>
               <label class="text-[11px] text-slate-400 block mb-1">Nome Completo</label>
-              <input type="text" id="cad-nome" required class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
+              <input type="text" id="cad-nome" required placeholder="Nome do colaborador" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
             </div>
             <div>
-              <label class="text-[11px] text-slate-400 block mb-1">E-mail</label>
-              <input type="email" id="cad-email" required class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
+              <label class="text-[11px] text-slate-400 block mb-1">E-mail Institucional</label>
+              <input type="email" id="cad-email" required placeholder="seu.email@casamilitar.pr.gov.br" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
             </div>
             <div>
               <label class="text-[11px] text-slate-400 block mb-1">Senha Inicial</label>
-              <input type="password" id="cad-senha" required placeholder="Mínimo 6 caracteres" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
+              <input type="password" id="cad-senha" required placeholder="Mínimo de 6 caracteres" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
             </div>
             <div id="campo-perfil-container">
               <label class="text-[11px] text-slate-400 block mb-1">Perfil de Acesso</label>
@@ -263,8 +263,14 @@
         </div>
 
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
-          <h2 class="text-xs font-bold text-slate-300 uppercase">📋 Usuários Cadastrados (Controle Hierárquico)</h2>
-          <div id="lista-usuarios-container" class="space-y-2 max-h-72 overflow-y-auto pr-1"></div>
+          <div class="flex justify-between items-center">
+            <h2 class="text-xs font-bold text-slate-300 uppercase">📋 Usuários Cadastrados</h2>
+          </div>
+          <!-- CAIXA DE PESQUISA NA ABA DE USUÁRIOS -->
+          <div>
+            <input type="text" id="filtro-busca-usuarios" placeholder="🔍 Pesquisar por nome ou e-mail..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
+          </div>
+          <div id="lista-usuarios-container" class="space-y-3 max-h-80 overflow-y-auto pr-1"></div>
         </div>
       </section>
 
@@ -314,7 +320,7 @@
           <input type="text" id="edit-nome" required class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
         </div>
         <div>
-          <label class="text-[11px] text-slate-400 block mb-1">E-mail (Somente leitura)</label>
+          <label class="text-[11px] text-slate-400 block mb-1">E-mail Institucional (Somente leitura)</label>
           <input type="email" id="edit-email" disabled class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-1.5 text-xs text-slate-500 cursor-not-allowed">
         </div>
         <div id="edit-campo-perfil-container">
@@ -343,9 +349,7 @@
         <h3 id="modal-item-titulo" class="text-xs font-bold text-blue-400 uppercase">📦 Detalhes do Patrimônio</h3>
         <button id="btn-fechar-modal-item" class="text-slate-400 hover:text-white text-sm font-bold">✕</button>
       </div>
-      <div id="modal-item-conteudo" class="space-y-3 text-xs">
-        <!-- Preenchido dinamicamente -->
-      </div>
+      <div id="modal-item-conteudo" class="space-y-3 text-xs"></div>
     </div>
   </div>
 
@@ -431,10 +435,10 @@
         nomeCont.classList.remove('hidden');
         document.getElementById('btn-toggle-bootstrap').innerText = "Voltar para Login Normal";
       } else {
-        sub.innerText = "Entre com sua conta institucional";
+        sub.innerText = "Entre com sua credencial institucional";
         btn.innerText = "🔐 Entrar no Sistema";
         nomeCont.classList.add('hidden');
-        document.getElementById('btn-toggle-bootstrap').innerText = "⚡ Sistema sem usuários? Clique aqui para criar o Admin inicial";
+        document.getElementById('btn-toggle-bootstrap').innerText = "⚡ Nenhum usuário cadastrado? Clique para criar o Administrador inicial";
       }
     });
 
@@ -448,23 +452,28 @@
       try {
         if (modoBootstrapAdmin) {
           const nome = document.getElementById('login-nome').value.trim();
-          if (!nome) return alert("Preencha o nome do administrador.");
+          if (!nome) return alert("Por favor, preencha o nome completo do administrador.");
           const cred = await createUserWithEmailAndPassword(auth, email, senha);
           await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil: 'admin', divisoesAtribuidas: [] });
           alert("Administrador inicial criado com sucesso!");
         } else {
-          // Autentica no Firebase Auth
           const cred = await signInWithEmailAndPassword(auth, email, senha);
-          
-          // VERIFICAÇÃO DE SEGURANÇA: O usuário existe na base de dados do Firestore?
           const userDoc = await getDoc(doc(db, "usuarios", cred.user.uid));
           if (!userDoc.exists()) {
             await signOut(auth);
-            throw new Error("Esta conta foi desativada ou removida do sistema.");
+            throw new Error("Acesso negado: Esta conta foi desativada ou removida do sistema.");
           }
         }
       } catch (err) {
-        loginErro.innerText = "Erro: " + err.message;
+        let mensagemAmigavel = "Erro ao realizar autenticação. Verifique suas credenciais.";
+        if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+          mensagemAmigavel = "E-mail ou senha incorretos. Por favor, tente novamente.";
+        } else if (err.code === 'auth/too-many-requests') {
+          mensagemAmigavel = "Muitas tentativas falhas. O acesso foi temporariamente bloqueado por segurança.";
+        } else if (err.message) {
+          mensagemAmigavel = err.message;
+        }
+        loginErro.innerText = mensagemAmigavel;
         loginErro.classList.remove('hidden');
       }
     });
@@ -475,7 +484,6 @@
       if (user) {
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
         if (!userDoc.exists()) {
-          // Caso o usuário perca o registro com a sessão ativa
           await signOut(auth);
           return;
         }
@@ -661,7 +669,7 @@
 
     document.getElementById('form-cad-usuario').addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
+      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
 
       const nome = document.getElementById('cad-nome').value.trim();
       const email = document.getElementById('cad-email').value.trim();
@@ -673,17 +681,24 @@
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, senha);
         await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil, divisoesAtribuidas: divisoes });
-        alert(`Usuário ${nome} (${perfil}) cadastrado com sucesso!`);
+        alert(`Colaborador ${nome} cadastrado com sucesso.`);
         document.getElementById('form-cad-usuario').reset();
         document.querySelectorAll('input[name="divisao-check"]').forEach(cb => cb.checked = false);
-      } catch (err) { alert("Erro ao cadastrar: " + err.message); }
+      } catch (err) {
+        let msg = "Não foi possível concluir o cadastro.";
+        if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já está cadastrado no sistema.";
+        else if (err.code === 'auth/weak-password') msg = "A senha deve conter pelo menos 6 caracteres.";
+        alert(msg);
+      }
     });
 
+    // LISTAGEM DE USUÁRIOS COM PESQUISA E AGRUPAMENTO HIERÁRQUICO / ALFABÉTICO
     function renderizarListaUsuarios() {
       const container = document.getElementById('lista-usuarios-container');
+      const termoBusca = (document.getElementById('filtro-busca-usuarios')?.value || "").toLowerCase().trim();
       if (!container || !usuarioLogado) return;
 
-      const conferidosLista = bancoUsuarios.filter(u => {
+      const usuariosFiltradosPorPermissao = bancoUsuarios.filter(u => {
         if (usuarioLogado.perfil === 'admin') return true;
         if (usuarioLogado.perfil === 'gestor') {
           return u.uid === usuarioLogado.uid || u.perfil === 'conferente';
@@ -691,52 +706,89 @@
         return false;
       });
 
-      if (conferidosLista.length === 0) {
-        container.innerHTML = `<div class="text-xs text-slate-400 text-center py-2">Nenhum usuário gerenciável.</div>`;
+      const usuariosFinais = usuariosFiltradosPorPermissao.filter(u => {
+        const nomeMatch = (u.nome || "").toLowerCase().includes(termoBusca);
+        const emailMatch = (u.email || "").toLowerCase().includes(termoBusca);
+        return nomeMatch || emailMatch;
+      });
+
+      if (usuariosFinais.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-400 text-center py-4 bg-slate-900 rounded-lg border border-slate-700/60">Nenhum usuário encontrado.</div>`;
         return;
       }
 
-      container.innerHTML = conferidosLista.map(u => {
-        const ehProprio = u.uid === usuarioLogado.uid;
-        const podeExcluir = !ehProprio && (usuarioLogado.perfil === 'admin' || (usuarioLogado.perfil === 'gestor' && u.perfil === 'conferente'));
+      // Agrupamento por tipo de usuário (Nível 1) e ordenação alfabética (Nível 2)
+      const grupos = {
+        admin: usuariosFinais.filter(u => u.perfil === 'admin').sort((a, b) => a.nome.localeCompare(b.nome)),
+        gestor: usuariosFinais.filter(u => u.perfil === 'gestor').sort((a, b) => a.nome.localeCompare(b.nome)),
+        conferente: usuariosFinais.filter(u => u.perfil === 'conferente').sort((a, b) => a.nome.localeCompare(b.nome))
+      };
 
-        return `
-          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/60 space-y-2 text-xs">
-            <div class="space-y-0.5">
-              <div class="font-bold text-white">${u.nome} ${ehProprio ? '(Você)' : ''} <span class="text-[10px] text-blue-400 uppercase font-semibold">(${u.perfil})</span></div>
-              <div class="text-[10px] text-slate-400">${u.email}</div>
-              <div class="text-[10px] text-emerald-400">Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}</div>
-            </div>
-            <div class="flex gap-2 pt-1 border-t border-slate-800">
-              <button onclick="abrirModalEdicao('${u.uid}')" class="flex-1 bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white py-1.5 rounded text-[11px] font-bold transition-colors text-center">
-                ✏️ Editar
-              </button>
-              ${podeExcluir ? `
-                <button onclick="excluirUsuario('${u.uid}', '${u.nome}')" class="bg-red-950/60 hover:bg-red-900 text-red-300 py-1.5 px-3 rounded text-[11px] font-bold transition-colors text-center border border-red-500/30">
-                  🗑️ Excluir
-                </button>
-              ` : ''}
-            </div>
-          </div>
-        `;
-      }).join('');
+      const titulosGrupos = {
+        admin: "🛡️ Administradores",
+        gestor: "⭐ Gestores",
+        conferente: "👤 Conferentes"
+      };
+
+      let htmlConsolidado = "";
+
+      ['admin', 'gestor', 'conferente'].forEach(tipo => {
+        const listaGrupo = grupos[tipo];
+        if (listaGrupo.length > 0) {
+          htmlConsolidado += `
+            <div class="space-y-2 pt-1">
+              <div class="text-[11px] font-bold text-blue-400 uppercase border-b border-slate-700 pb-1">${titulosGrupos[tipo]} (${listaGrupo.length})</div>
+          `;
+
+          listaGrupo.forEach(u => {
+            const ehProprio = u.uid === usuarioLogado.uid;
+            const podeExcluir = !ehProprio && (usuarioLogado.perfil === 'admin' || (usuarioLogado.perfil === 'gestor' && u.perfil === 'conferente'));
+
+            htmlConsolidado += `
+              <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/60 space-y-2 text-xs">
+                <div class="space-y-0.5">
+                  <div class="font-bold text-white">${u.nome} ${ehProprio ? '(Você)' : ''}</div>
+                  <div class="text-[10px] text-slate-400">${u.email}</div>
+                  <div class="text-[10px] text-emerald-400">Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}</div>
+                </div>
+                <div class="flex gap-2 pt-1 border-t border-slate-800">
+                  <button onclick="abrirModalEdicao('${u.uid}')" class="flex-1 bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white py-1.5 rounded text-[11px] font-bold transition-colors text-center">
+                    ✏️ Editar
+                  </button>
+                  ${podeExcluir ? `
+                    <button onclick="excluirUsuario('${u.uid}', '${u.nome}')" class="bg-red-950/60 hover:bg-red-900 text-red-300 py-1.5 px-3 rounded text-[11px] font-bold transition-colors text-center border border-red-500/30">
+                      🗑️ Excluir
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          });
+
+          htmlConsolidado += `</div>`;
+        }
+      });
+
+      container.innerHTML = htmlConsolidado;
     }
+
+    document.getElementById('filtro-busca-usuarios')?.addEventListener('input', renderizarListaUsuarios);
 
     window.excluirUsuario = async function(uid, nome) {
       const userAlvo = bancoUsuarios.find(u => u.uid === uid);
       if (!userAlvo) return;
 
       if (usuarioLogado.perfil === 'gestor' && userAlvo.perfil !== 'conferente') {
-        return alert("Acesso negado: Gestores só podem excluir conferentes.");
+        return alert("Operação não permitida: Gestores só podem remover usuários com perfil conferente.");
       }
 
-      if (!confirm(`Tem certeza que deseja excluir o usuário ${nome}? O acesso dele será removido do sistema.`)) return;
+      if (!confirm(`Deseja realmente remover o acesso de ${nome}? Esta ação é irreversível.`)) return;
 
       try {
         await deleteDoc(doc(db, "usuarios", uid));
-        alert("Usuário excluído com sucesso do banco de dados!");
+        alert("Usuário removido com sucesso.");
       } catch (err) {
-        alert("Erro ao excluir usuário: " + err.message);
+        alert("Erro ao remover o usuário. Tente novamente.");
       }
     }
 
@@ -746,7 +798,7 @@
 
       if (usuarioLogado.perfil === 'gestor') {
         if (user.uid !== usuarioLogado.uid && user.perfil !== 'conferente') {
-          return alert("Acesso restrito: Gestores não podem alterar dados de outros gestores ou administradores.");
+          return alert("Acesso restrito: Gestores não possuem permissão para editar outros gestores ou administradores.");
         }
       }
 
@@ -786,7 +838,7 @@
 
       if (usuarioLogado.perfil === 'gestor') {
         if (targetUser.uid !== usuarioLogado.uid && targetUser.perfil !== 'conferente') {
-          return alert("Operação negada por hierarquia de permissões.");
+          return alert("Operação negada pelas diretrizes de hierarquia.");
         }
       }
 
@@ -802,10 +854,10 @@
         await updateDoc(doc(db, "usuarios", uid), {
           nome, perfil: perfilNovo, divisoesAtribuidas: divisoes
         });
-        alert("Dados do usuário atualizados com sucesso!");
+        alert("Dados atualizados com sucesso.");
         document.getElementById('modal-edicao-usuario').classList.add('hidden');
       } catch (err) {
-        alert("Erro ao atualizar usuário: " + err.message);
+        alert("Não foi possível salvar as alterações.");
       }
     });
 
@@ -892,7 +944,7 @@
             btnCam.innerText = "Desligar Câmera";
             document.getElementById('btn-capturar-frame').classList.remove('hidden');
           } catch (err2) {
-            alert("Não foi possível acessar a câmera. Verifique as permissões.");
+            alert("Não foi possível acessar a câmera do dispositivo. Verifique as permissões do navegador.");
             btnCam.innerText = "Ligar Câmera";
           }
         }
@@ -909,7 +961,7 @@
         const videoElement = document.querySelector('#reader video');
         if (!videoElement) {
           ocrStatus.classList.add('hidden');
-          return alert("Vídeo da câmera indisponível.");
+          return alert("Feed de vídeo indisponível no momento.");
         }
 
         const canvas = document.createElement('canvas');
@@ -928,13 +980,13 @@
 
         if (numeroLimpo.length >= 5) {
           preencherEConsultarPlaqueta(numeroLimpo);
-          alert(`OCR Detectou o número: ${numeroLimpo}`);
+          alert(`OCR identificou a plaqueta: ${numeroLimpo}`);
         } else {
-          alert(`OCR tentou a leitura mas não encontrou números claros. Tente aproximar a câmera.`);
+          alert("Nenhuma numeração clara foi reconhecida. Tente aproximar a câmera.");
         }
       } catch (e) {
         ocrStatus.classList.add('hidden');
-        alert("Erro ao processar o OCR na imagem.");
+        alert("Erro durante o processamento da imagem por OCR.");
       }
     });
 
@@ -947,7 +999,7 @@
       else {
         const docSnap = await getDoc(doc(db, "patrimonios", plaquetaCod));
         if (docSnap.exists()) { itemAtualSelecionado = { id: docSnap.id, ...docSnap.data() }; exibirDetalhes(itemAtualSelecionado); }
-        else { document.getElementById('item-details').classList.add('hidden'); alert(`Plaqueta ${plaquetaCod} não encontrada.`); }
+        else { document.getElementById('item-details').classList.add('hidden'); alert(`Patrimônio com a plaqueta ${plaquetaCod} não foi encontrado.`); }
       }
     }
 
@@ -1001,9 +1053,9 @@
     }
 
     document.getElementById('btn-salvar').addEventListener('click', async () => {
-      if (!itemAtualSelecionado) return alert("Selecione um patrimônio válido.");
+      if (!itemAtualSelecionado) return alert("Selecione um patrimônio válido antes de salvar.");
       const locAtual = document.getElementById('select-localizacao').value;
-      if (!locAtual) return alert("Selecione a Localização Atual.");
+      if (!locAtual) return alert("Selecione a localização atual do item.");
 
       const divisaoOriginal = itemAtualSelecionado.divisaoOrigem || itemAtualSelecionado.divisao;
       const obs = document.getElementById('input-observacao').value.trim();
@@ -1028,7 +1080,7 @@
       }
 
       await updateDoc(docRef, dadosAtualizacao);
-      alert(ehTransferencia ? "⚠️ Item em setor diferente! Enviado para aprovação do Gestor." : "✅ Conferido com sucesso!");
+      alert(ehTransferencia ? "⚠️ Item localizado em setor diferente! Enviado para aprovação do Gestor." : "✅ Conferência registrada com sucesso.");
       inputPlaqueta.value = ''; document.getElementById('select-localizacao').value = '';
       document.getElementById('input-observacao').value = ''; document.getElementById('item-details').classList.add('hidden');
       document.getElementById('alerta-transferencia').classList.add('hidden'); itemAtualSelecionado = null;
@@ -1043,7 +1095,7 @@
       contador.innerText = `${pendentes.length} pendentes`;
 
       if (pendentes.length === 0) {
-        container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400">✨ Nenhuma transferência pendente.</div>`;
+        container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400">✨ Nenhuma transferência pendente no momento.</div>`;
         return;
       }
 
@@ -1067,15 +1119,15 @@
     }
 
     window.aprovarTransferencia = async function(plaqueta, novaDivisao) {
-      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
-      if (!confirm(`Aprovar transferência do bem ${plaqueta} para ${novaDivisao}?`)) return;
+      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
+      if (!confirm(`Deseja aprovar a transferência do patrimônio ${plaqueta} para ${novaDivisao}?`)) return;
       await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: novaDivisao, statusTransferencia: "aprovado" });
-      alert("Transferência aprovada!");
+      alert("Transferência aprovada com sucesso.");
     }
 
     window.rejeitarTransferencia = async function(plaqueta) {
-      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
-      if (!confirm(`Rejeitar transferência?`)) return;
+      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
+      if (!confirm(`Deseja rejeitar esta solicitação de transferência?`)) return;
       const item = bancoPatrimonio.find(i => i.plaqueta === plaqueta);
       await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: item.divisaoOrigem, statusTransferencia: "rejeitado" });
       alert("Transferência rejeitada.");
@@ -1212,7 +1264,7 @@
     document.getElementById('btn-exportar-divergencias').addEventListener('click', () => exportarCSV(bancoPatrimonio.filter(i => !i.localizado), 'relatorio_pendentes'));
 
     function exportarCSV(dados, nomeArquivo) {
-      if (dados.length === 0) return alert("Nenhum registro para exportar.");
+      if (dados.length === 0) return alert("Não há registros disponíveis para exportação.");
       let csv = 'Plaqueta;Divisao Anterior;Local Atual;Status;Conferido Por;Descricao;Data Ultima Atualizacao\n';
       dados.forEach(i => {
         csv += `"${i.plaqueta}";"${i.divisaoOrigem || i.divisao}";"${i.localizacaoAtual || i.divisao}";"${i.localizado ? 'LOCALIZADO' : 'PENDENTE'}";"${i.conferidoPor || ''}";"${i.descricao.replace(/"/g, '""')}";"${i.dataLocalizacao || ''}"\n`;
