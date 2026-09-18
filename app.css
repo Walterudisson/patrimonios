@@ -1,0 +1,18 @@
+    .accordion-content { transition: max-height 0.3s ease-out; overflow: hidden; }
+    .accordion-content.collapsed { max-height: 0 !important; }
+    .scanner-laser {
+      position: absolute;
+      top: 50%; left: 5%; right: 5%;
+      height: 2px;
+      background: #ef4444;
+      box-shadow: 0 0 10px #ef4444;
+      animation: pulse 1.2s infinite;
+      z-index: 50;
+      pointer-events: none;
+    }
+    @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+    #reader video {
+      transform: scale(var(--camera-zoom, 1));
+      transform-origin: center center;
+      transition: transform 0.1s ease-out;
+    }
