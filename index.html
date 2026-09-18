@@ -69,7 +69,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.9</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.4</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -82,23 +82,19 @@
           <div id="user-info-badge" class="text-[10px] md:text-xs text-slate-400">Carregando usuário...</div>
         </div>
         <div class="flex items-center gap-2">
-          <button id="btn-sincronizar-local" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow">📥 Sincronizar Base</button>
           <button id="btn-logout" class="bg-slate-700 hover:bg-red-900/50 text-slate-300 hover:text-red-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">Sair</button>
         </div>
       </div>
       
       <!-- Abas de Navegação -->
-      <div id="container-abas" class="max-w-4xl mx-auto flex gap-1 mt-3.5 bg-slate-900 p-1 rounded-xl border border-slate-700/60 overflow-x-auto text-[11px] md:text-xs">
-        <button id="tab-btn-dashboard" class="flex-1 py-2 px-2.5 rounded-lg font-bold bg-blue-600 text-white transition-all whitespace-nowrap text-center">📊 Painel</button>
-        <button id="tab-btn-scanner" class="flex-1 py-2 px-2.5 rounded-lg font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">📷 Leitura</button>
-        <button id="tab-btn-achado" class="flex-1 py-2 px-2.5 rounded-lg font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap items-center justify-center gap-1 text-center">
-          ⚡ Achado <span id="badge-achado-count" class="bg-purple-500 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full hidden">0</span>
+      <div id="container-abas" class="max-w-4xl mx-auto flex gap-1.5 mt-3.5 bg-slate-900 p-1.5 rounded-xl border border-slate-700/60 overflow-x-auto">
+        <button id="tab-btn-dashboard" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold bg-blue-600 text-white transition-all whitespace-nowrap text-center">📊 Painel</button>
+        <button id="tab-btn-scanner" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">📷 Leitura</button>
+        <button id="tab-btn-transferencias" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap items-center justify-center gap-1.5 text-center">
+          🔄 Fila <span id="badge-fila-count" class="bg-amber-500 text-slate-950 text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">0</span>
         </button>
-        <button id="tab-btn-transferencias" class="flex-1 py-2 px-2.5 rounded-lg font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap items-center justify-center gap-1 text-center">
-          🔄 Fila <span id="badge-fila-count" class="bg-amber-500 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full hidden">0</span>
-        </button>
-        <button id="tab-btn-usuarios" class="flex-1 py-2 px-2.5 rounded-lg font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">⚙️ Admin</button>
-        <button id="tab-btn-lista" class="flex-1 py-2 px-2.5 rounded-lg font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">📋 Relação</button>
+        <button id="tab-btn-usuarios" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">⚙️ Administração</button>
+        <button id="tab-btn-lista" class="flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center">📋 Relação</button>
       </div>
     </header>
 
@@ -133,7 +129,7 @@
             </div>
             <div class="bg-slate-800 p-4 rounded-xl border border-slate-700/80 text-center flex flex-col justify-center shadow-md">
               <div id="dash-aguardando" class="text-2xl md:text-3xl font-extrabold text-purple-400">0</div>
-              <div class="text-[11px] text-slate-400 font-semibold mt-1">PENDÊNCIAS / ACHADOS</div>
+              <div class="text-[11px] text-slate-400 font-semibold mt-1">AGUARDANDO TRANSF.</div>
             </div>
           </div>
         </div>
@@ -144,7 +140,7 @@
             <span class="font-bold text-blue-400 text-xs md:text-sm">💡 Dicas do Sistema</span>
             <div class="flex items-center gap-2.5">
               <button id="carrossel-prev" class="bg-slate-700 hover:bg-slate-600 text-white w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center">‹</button>
-              <span id="carrossel-indicador" class="text-xs text-slate-400 font-semibold">1/5</span>
+              <span id="carrossel-indicador" class="text-xs text-slate-400 font-semibold">1/8</span>
               <button id="carrossel-next" class="bg-slate-700 hover:bg-slate-600 text-white w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center">›</button>
             </div>
           </div>
@@ -233,75 +229,11 @@
         </div>
       </section>
 
-      <!-- ABA: ACHADO EM CAMPO -->
-      <section id="sec-achado" class="hidden space-y-5">
-        <div class="bg-slate-800 p-5 rounded-xl border border-purple-500/40 shadow-lg space-y-4">
-          <div class="border-b border-slate-700 pb-3">
-            <h2 class="text-sm md:text-base font-bold text-purple-400 uppercase">⚡ Cadastro de Item Achado em Campo</h2>
-            <p class="text-xs text-slate-400 mt-1">Utilize esta aba exclusivamente para registrar bens encontrados fisicamente no setor que <strong>não constam</strong> na base de dados oficial.</p>
-          </div>
-
-          <div class="bg-amber-950/50 border border-amber-500/50 p-3 rounded-lg text-xs text-amber-200 space-y-1">
-            <div class="font-bold flex items-center gap-1">⚠️ AVISO IMPORTANTE DE AUDITORIA</div>
-            <p>Certifique-se rigorosamente de que o item não consta na relação antes de cadastrá-lo. Cadastros indevidos geram duplicidade no inventário patrimonial da unidade.</p>
-          </div>
-
-          <form id="form-achado-campo" class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="text-xs text-slate-300 font-semibold block mb-1">NÚMERO DA PLAQUETA *</label>
-                <input type="text" id="achado-plaqueta" required placeholder="Ex: 123456" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
-              </div>
-              <div>
-                <label class="text-xs text-slate-300 font-semibold block mb-1">DIVISÃO / SETOR ATUAL *</label>
-                <select id="achado-divisao" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
-                  <option value="">-- Selecione o Setor Atual --</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label class="text-xs text-slate-300 font-semibold block mb-1">DESCRIÇÃO DETALHADA DO BEM *</label>
-              <textarea id="achado-descricao" required rows="2" placeholder="Ex: Mesa de escritório em L cor cinza, estado bom..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"></textarea>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-slate-700/60">
-              <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 space-y-2">
-                <label class="text-[11px] font-bold text-blue-400 block">📸 Foto da Plaqueta (Obrigatória)</label>
-                <input type="file" id="foto-plaqueta" accept="image/*" required class="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer">
-                <div id="preview-plaqueta" class="text-[10px] text-emerald-400 font-semibold hidden">✓ Imagem carregada</div>
-              </div>
-
-              <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 space-y-2">
-                <label class="text-[11px] font-bold text-blue-400 block">📸 Foto do Item (Obrigatória)</label>
-                <input type="file" id="foto-item" accept="image/*" required class="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer">
-                <div id="preview-item" class="text-[10px] text-emerald-400 font-semibold hidden">✓ Imagem carregada</div>
-              </div>
-
-              <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 space-y-2">
-                <label class="text-[11px] font-bold text-slate-400 block">📸 Foto do Local (Opcional)</label>
-                <input type="file" id="foto-local" accept="image/*" class="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer">
-                <div id="preview-local" class="text-[10px] text-emerald-400 font-semibold hidden">✓ Imagem carregada</div>
-              </div>
-            </div>
-
-            <div>
-              <label class="text-xs text-slate-300 font-semibold block mb-1">OBSERVAÇÕES ADICIONAIS</label>
-              <textarea id="achado-obs" rows="2" placeholder="Informações adicionais sobre o estado ou circunstância de localização..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"></textarea>
-            </div>
-
-            <button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg">
-              ⚡ Registrar Item Achado em Campo (Aguardando Aprovação)
-            </button>
-          </form>
-        </div>
-      </section>
-
-      <!-- ABA 2: FILA DE TRANSFERÊNCIAS E ACHADOS -->
-      <section id="sec-transferencias" class="hidden space-y-5">
+      <!-- ABA 2: FILA DE TRANSFERÊNCIAS -->
+      <section id="sec-transferencias" class="hidden space-y-4">
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-2 shadow-md">
           <div class="flex justify-between items-center">
-            <h2 class="text-xs md:text-sm font-bold text-amber-400 uppercase">🔄 Fila de Aprovação (Transferências & Achados)</h2>
+            <h2 class="text-xs md:text-sm font-bold text-amber-400 uppercase">🔄 Fila de Aprovação de Transferências</h2>
             <span id="transf-contador" class="bg-slate-900 text-slate-300 text-xs font-bold px-2.5 py-1 rounded">0 pendentes</span>
           </div>
         </div>
@@ -402,7 +334,7 @@
     </main>
 
     <footer class="py-6 text-center">
-      <span class="text-xs text-slate-500 font-medium">v1.1.9 (Corrigido)</span>
+      <span class="text-xs text-slate-500 font-medium">v1.1.4</span>
     </footer>
   </div>
 
@@ -483,7 +415,7 @@
 
   <!-- MODAL DE DETALHES E HISTÓRICO DO ITEM -->
   <div id="modal-detalhes-item" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
-    <div class="bg-slate-800 border border-slate-700 w-full max-w-lg p-5 rounded-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+    <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-5 rounded-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center border-b border-slate-700 pb-2">
         <h3 id="modal-item-titulo" class="text-xs font-bold text-blue-400 uppercase">📦 Detalhes do Patrimônio</h3>
         <button id="btn-fechar-modal-item" class="text-slate-400 hover:text-white text-sm font-bold">✕</button>
@@ -495,7 +427,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCVMSES7nwZkZZdQpemDZIb8ypd40bUtvs",
@@ -524,11 +456,14 @@
     let itensFiltradosCache = [];
 
     const dicasLista = [
-      { titulo: "📥 Sincronização Local Econômica", texto: "Utilize o botão 'Sincronizar Base' no cabeçalho para baixar os dados uma única vez e navegar offline sem consumir leituras do Firebase." },
-      { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR'." },
-      { titulo: "📱 Ângulos Difíceis e Brilho", texto: "Aproxime a câmera e evite reflexos excessivos sobre a película metálica para garantir uma leitura rápida e precisa." },
-      { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem de outra divisão? Conduza a conferência normalmente. O sistema abrirá um alerta para aprovação do Gestor." },
-      { titulo: "⚡ Achados em Campo", texto: "Encontrou um bem físico que não consta na listagem? Utilize a aba 'Achado' para cadastrá-lo com fotos comprobatórias." }
+      { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR' para reconhecer o texto automaticamente." },
+      { titulo: "📱 Ângulos Difíceis e Brilho", texto: "Aproxime a câmera e evite reflexos excessivos sobre a película metálica para garantir uma leitura rápida e precisa do patrimônio." },
+      { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem de outra divisão ou setor? Conduza a conferência normalmente. O sistema abrirá um alerta para aprovação do Gestor responsável." },
+      { titulo: "🔄 Gestão Hierárquica", texto: "Administradores gerenciam todo o sistema. Gestores podem atualizar seus dados e cadastrar ou editar os conferentes sob sua alçada." },
+      { titulo: "🔄 Ciclo das Transferências", texto: "Moveu um item de setor? Alterações para divisões diferentes geram uma pendência automática que aguarda a aprovação do Gestor na Fila de Transferências." },
+      { titulo: "🔍 Busca Rápida por Digitação", texto: "Na aba 'Leitura', comece a digitar os números da plaqueta para ver sugestões instantâneas e agilizar o preenchimento sem precisar usar a câmera." },
+      { titulo: "📋 Acompanhamento por Setor (Relação)", texto: "Utilize a aba 'Relação' para acompanhar o progresso do inventário. Os blocos mostram o total de itens e quantos já foram conferidos em cada divisão." },
+      { titulo: "🔎 Uso de Zoom Dinâmico", texto: "Em etiquetas distantes ou pequenas, utilize os botões de atalho (1x, 2x, 4x) ou faça o movimento de pinça na tela para aproximar o foco da câmera." }
     ];
     let dicaIndiceAtual = 0;
 
@@ -552,6 +487,11 @@
       dicaIndiceAtual = (dicaIndiceAtual - 1 + dicasLista.length) % dicasLista.length;
       atualizarCarrossel();
     });
+
+    setInterval(() => {
+      dicaIndiceAtual = (dicaIndiceAtual + 1) % dicasLista.length;
+      atualizarCarrossel();
+    }, 18000);
 
     async function verificarSeExisteAdmin() {
       try {
@@ -597,12 +537,19 @@
           await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil: 'admin', divisoesAtribuidas: [] });
           alert("Administrador inicial criado com sucesso!");
         } else {
-          await signInWithEmailAndPassword(auth, email, senha);
+          const cred = await signInWithEmailAndPassword(auth, email, senha);
+          const userDoc = await getDoc(doc(db, "usuarios", cred.user.uid));
+          if (!userDoc.exists()) {
+            await signOut(auth);
+            throw new Error("Acesso negado: Esta conta foi desativada ou removida do sistema.");
+          }
         }
       } catch (err) {
         let mensagemAmigavel = "Erro ao realizar autenticação. Verifique suas credenciais.";
         if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
           mensagemAmigavel = "E-mail ou senha incorretos. Por favor, tente novamente.";
+        } else if (err.code === 'auth/too-many-requests') {
+          mensagemAmigavel = "Muitas tentativas falhas. O acesso foi temporariamente bloqueado por segurança.";
         } else if (err.message) {
           mensagemAmigavel = err.message;
         }
@@ -615,31 +562,17 @@
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
-        let userDocRef = doc(db, "usuarios", user.uid);
-        let userDoc = await getDoc(userDocRef);
-
-        let dadosUsuario;
+        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
         if (!userDoc.exists()) {
-          const snapUsuarios = await getDocs(collection(db, "usuarios"));
-          const perfilPadrao = snapUsuarios.empty ? 'admin' : 'conferente';
-          dadosUsuario = {
-            nome: user.email.split('@')[0].toUpperCase(),
-            email: user.email,
-            perfil: perfilPadrao,
-            divisoesAtribuidas: []
-          };
-          await setDoc(userDocRef, dadosUsuario);
-        } else {
-          dadosUsuario = userDoc.data();
+          await signOut(auth);
+          return;
         }
-
-        usuarioLogado = { uid: user.uid, email: user.email, ...dadosUsuario };
+        usuarioLogado = { uid: user.uid, email: user.email, ...userDoc.data() };
         
         document.getElementById('view-login').classList.add('hidden');
         document.getElementById('view-app').classList.remove('hidden');
         atualizarCabecalhoUsuario();
-        
-        carregarDadosLocaisOuRemotos();
+        iniciarOuvintes();
         atualizarCarrossel();
       } else {
         if (cameraAtiva && html5QrcodeScanner) {
@@ -654,93 +587,55 @@
     });
 
     function atualizarCabecalhoUsuario() {
-      document.getElementById('user-info-badge').innerText = `${usuarioLogado.nome} (${(usuarioLogado.perfil || 'conferente').toUpperCase()})`;
+      document.getElementById('user-info-badge').innerText = `${usuarioLogado.nome} (${usuarioLogado.perfil.toUpperCase()})`;
       document.getElementById('dash-nome').innerText = usuarioLogado.nome;
-      document.getElementById('dash-perfil').innerText = `Perfil: ${(usuarioLogado.perfil || 'conferente').toUpperCase()}`;
+      document.getElementById('dash-perfil').innerText = `Perfil: ${usuarioLogado.perfil.toUpperCase()}`;
       document.getElementById('dash-divisoes').innerText = usuarioLogado.perfil === 'admin' ? 'Todas (Admin)' : (usuarioLogado.divisoesAtribuidas || []).join(', ') || 'Nenhuma';
       
-      const boxExportacao = document.getElementById('container-botoes-exportacao');
-      const panelCiclo = document.getElementById('panel-gestao-ciclo');
+      const btnTransf = document.getElementById('tab-btn-transferencias');
+      const btnUsuarios = document.getElementById('tab-btn-usuarios');
       const campoPerfil = document.getElementById('campo-perfil-container');
       const tituloCad = document.getElementById('titulo-cad-usuario');
+      const boxExportacao = document.getElementById('container-botoes-exportacao');
+      const panelCiclo = document.getElementById('panel-gestao-ciclo');
 
       if (usuarioLogado.perfil === 'conferente') {
+        btnTransf.classList.add('hidden');
+        btnUsuarios.classList.add('hidden');
         if (boxExportacao) boxExportacao.classList.add('hidden');
         if (panelCiclo) panelCiclo.classList.add('hidden');
       } else {
         if (boxExportacao) boxExportacao.classList.remove('hidden');
         if (panelCiclo) panelCiclo.classList.remove('hidden');
         if (usuarioLogado.perfil === 'gestor') {
+          btnTransf.classList.remove('hidden');
+          btnUsuarios.classList.remove('hidden');
           campoPerfil.classList.add('hidden');
           tituloCad.innerText = "👥 Cadastrar Novo Conferente";
         } else if (usuarioLogado.perfil === 'admin') {
+          btnTransf.classList.remove('hidden');
+          btnUsuarios.classList.remove('hidden');
           campoPerfil.classList.remove('hidden');
           tituloCad.innerText = "👥 Cadastrar Novo Gestor ou Conferente";
         }
       }
     }
 
-    async function carregarDadosLocaisOrdemRemota(forcarDownload = false) {
-      const cacheSalvo = localStorage.getItem('patrimonio_cm_cache');
-      const usuariosSalvos = localStorage.getItem('patrimonio_cm_usuarios_cache');
-
-      if (cacheSalvo && !forcarDownload) {
-        try {
-          bancoPatrimonio = JSON.parse(cacheSalvo);
-          if (usuariosSalvos) bancoUsuarios = JSON.parse(usuariosSalvos);
-          atualizarInterfaceCompleta();
-          return;
-        } catch (e) {
-          console.log("Cache corrompido, buscando da nuvem...");
-        }
-      }
-
-      await sincronizarBaseCompleta();
-    }
-
-    async function sincronizarBaseCompleta(forcar = false) {
-      try {
-        const btnSync = document.getElementById('btn-sincronizar-local');
-        if (btnSync) btnSync.innerText = "📥 A baixar...";
-
-        const snapPat = await getDocs(collection(db, "patrimonios"));
+    function iniciarOuvintes() {
+      onSnapshot(collection(db, "patrimonios"), (snapshot) => {
         bancoPatrimonio = [];
-        snapPat.forEach(docSnap => bancoPatrimonio.push({ id: docSnap.id, ...docSnap.data() }));
-        localStorage.setItem('patrimonio_cm_cache', JSON.stringify(bancoPatrimonio));
+        snapshot.forEach(docSnap => bancoPatrimonio.push({ id: docSnap.id, ...docSnap.data() }));
+        popularSelectsDivisao();
+        atualizarDashboard();
+        renderizarRelaçãoBD();
+        renderizarFilaTransferencias();
+      });
 
-        const snapUsr = await getDocs(collection(db, "usuarios"));
+      onSnapshot(collection(db, "usuarios"), (snapshot) => {
         bancoUsuarios = [];
-        snapUsr.forEach(docSnap => bancoUsuarios.push({ uid: docSnap.id, ...docSnap.data() }));
-        localStorage.setItem('patrimonio_cm_usuarios_cache', JSON.stringify(bancoUsuarios));
-
-        atualizarInterfaceCompleta();
-        if (btnSync) btnSync.innerText = "📥 Sincronizar Base";
-        if (forcar) alert(`Base sincronizada com sucesso! ${bancoPatrimonio.length} itens carregados localmente.`);
-      } catch (err) {
-        alert("Erro ao sincronizar com a nuvem. Verifique a sua conexão.");
-        const btnSync = document.getElementById('btn-sincronizar-local');
-        if (btnSync) btnSync.innerText = "📥 Sincronizar Base";
-      }
-    }
-
-    document.getElementById('btn-sincronizar-local').addEventListener('click', () => sincronizarBaseCompleta(true));
-
-    function carregarDadosLocaisOuRemotos() {
-      carregarDadosLocaisOrdemRemota(false);
-    }
-
-    function atualizarInterfaceCompleta() {
-      popularSelectsDivisao();
-      atualizarDashboard();
-      renderizarRelaçãoBD();
-      renderizarFilaTransferencias();
-      renderizarListaUsuarios();
-    }
-
-    function salvarCacheLocal() {
-      localStorage.setItem('patrimonio_cm_cache', JSON.stringify(bancoPatrimonio));
-      localStorage.setItem('patrimonio_cm_usuarios_cache', JSON.stringify(bancoUsuarios));
-      atualizarInterfaceCompleta();
+        snapshot.forEach(docSnap => bancoUsuarios.push({ uid: docSnap.id, ...docSnap.data() }));
+        renderizarListaUsuarios();
+      });
     }
 
     function limparPlaqueta(str) {
@@ -751,12 +646,11 @@
     function usuarioTemAcessoDivisao(divisao) {
       if (!usuarioLogado) return false;
       if (usuarioLogado.perfil === 'admin' || usuarioLogado.perfil === 'gestor') return true;
-      return (usuarioLogado.divisaoAtribuidas || []).includes(divisao);
+      return (usuarioLogado.divisoesAtribuidas || []).includes(divisao);
     }
 
     function popularSelectsDivisao() {
       const selectLocalizacao = document.getElementById('select-localizacao');
-      const selectAchadoDiv = document.getElementById('achado-divisao');
       const selectFiltro = document.getElementById('filtro-divisao');
       const selectReversao = document.getElementById('select-divisao-reversao');
       const checkContainer = document.getElementById('cad-divisoes-checkboxes');
@@ -765,8 +659,7 @@
       if (bancoPatrimonio.length > 0) {
         const divSet = [...new Set(bancoPatrimonio.map(i => i.divisaoOrigem || i.divisao))].sort();
 
-        if (selectLocalizacao) {
-          selectLocalizacao.innerHTML = '<option value="">-- Selecione a Sala/Divisão Atual --</option>';
+        if (selectLocalizacao.options.length <= 1) {
           divSet.forEach(d => {
             const opt = document.createElement('option');
             opt.value = d; opt.innerText = d;
@@ -774,18 +667,7 @@
           });
         }
 
-        if (selectAchadoDiv) {
-          selectAchadoDiv.innerHTML = '<option value="">-- Selecione o Setor Atual --</option>';
-          divSet.forEach(d => {
-            if (usuarioTemAcessoDivisao(d)) {
-              const opt = document.createElement('option');
-              opt.value = d; opt.innerText = d;
-              selectAchadoDiv.appendChild(opt);
-            }
-          });
-        }
-
-        if (selectFiltro && selectFiltro.options.length <= 1) {
+        if (selectFiltro.options.length <= 1) {
           divSet.forEach(d => {
             if (usuarioTemAcessoDivisao(d)) {
               const opt = document.createElement('option');
@@ -820,12 +702,18 @@
       }
     }
 
-    ['dashboard', 'scanner', 'achado', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
+    ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
       const btn = document.getElementById(`tab-btn-${aba}`);
       if (btn) btn.addEventListener('click', () => alternarAba(aba));
     });
 
     function alternarAba(abaAtiva) {
+      if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
+        if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios') {
+          return;
+        }
+      }
+
       if (abaAtiva !== 'scanner' && cameraAtiva && html5QrcodeScanner) {
         html5QrcodeScanner.stop().catch(() => {});
         cameraAtiva = false;
@@ -834,16 +722,21 @@
         document.getElementById('camera-controls-bar').classList.add('hidden');
       }
 
-      ['dashboard', 'scanner', 'achado', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
+      ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
         const sec = document.getElementById(`sec-${aba}`);
         const btn = document.getElementById(`tab-btn-${aba}`);
         if (sec) sec.classList.toggle('hidden', aba !== abaAtiva);
         if (btn) {
-          btn.className = aba === abaAtiva ? "flex-1 py-2 px-2.5 rounded-lg font-bold bg-blue-600 text-white transition-all whitespace-nowrap text-center" : "flex-1 py-2 px-2.5 rounded-lg font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center";
+          btn.className = aba === abaAtiva ? "flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold bg-blue-600 text-white transition-all whitespace-nowrap text-center" : "flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center";
         }
       });
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
+        document.getElementById('tab-btn-transferencias').classList.add('hidden');
+        document.getElementById('tab-btn-usuarios').classList.add('hidden');
+      }
     }
 
     function atualizarDashboard() {
@@ -857,10 +750,10 @@
         return minhasDivs.includes(origem) || minhasDivs.includes(atual);
       });
 
-      const total = itensFiltrados.filter(i => !i.achadoEmCampo).length;
-      const localizados = itensFiltrados.filter(i => i.localizado && i.statusTransferencia !== 'pendente' && !i.achadoEmCampo).length;
-      const pendentes = itensFiltrados.filter(i => !i.localizado && !i.achadoEmCampo).length;
-      const aguardando = bancoPatrimonio.filter(i => i.statusTransferencia === 'pendente' || i.statusTransferencia === 'pendente_achado').length;
+      const total = itensFiltrados.length;
+      const localizados = itensFiltrados.filter(i => i.localizado && i.statusTransferencia !== 'pendente').length;
+      const pendentes = itensFiltrados.filter(i => !i.localizado).length;
+      const aguardando = bancoPatrimonio.filter(i => i.statusTransferencia === 'pendente').length;
 
       document.getElementById('dash-total').innerText = total;
       document.getElementById('dash-localizados').innerText = localizados;
@@ -868,103 +761,11 @@
       document.getElementById('dash-aguardando').innerText = aguardando;
 
       const badgeFila = document.getElementById('badge-fila-count');
-      const badgeAchado = document.getElementById('badge-achado-count');
-      
-      const totalAchadosPendentes = bancoPatrimonio.filter(i => i.statusTransferencia === 'pendente_achado').length;
-      const totalTransferenciasPendentes = bancoPatrimonio.filter(i => i.statusTransferencia === 'pendente').length;
-
-      if (totalTransferenciasPendentes > 0 && usuarioLogado.perfil !== 'conferente') {
-        badgeFila.innerText = totalTransferenciasPendentes;
+      if (aguardando > 0 && usuarioLogado.perfil !== 'conferente') {
+        badgeFila.innerText = aguardando;
         badgeFila.classList.remove('hidden');
       } else { badgeFila.classList.add('hidden'); }
-
-      if (totalAchadosPendentes > 0) {
-        badgeAchado.innerText = totalAchadosPendentes;
-        badgeAchado.classList.remove('hidden');
-      } else { badgeAchado.classList.add('hidden'); }
     }
-
-    function converterArquivoParaBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-        reader.readAsDataURL(file);
-      });
-    }
-
-    ['foto-plaqueta', 'foto-item', 'foto-local'].forEach(id => {
-      document.getElementById(id)?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        const previewId = id.replace('foto-', 'preview-');
-        const prevEl = document.getElementById(previewId);
-        if (file && prevEl) {
-          prevEl.classList.remove('hidden');
-        }
-      });
-    });
-
-    document.getElementById('form-achado-campo').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const plaqueta = limparPlaqueta(document.getElementById('achado-plaqueta').value);
-      const divisao = document.getElementById('achado-divisao').value;
-      const descricao = document.getElementById('achado-descricao').value.trim();
-      const obs = document.getElementById('achado-obs').value.trim();
-
-      if (!plaqueta || !divisao || !descricao) return alert("Preencha todos os campos obrigatórios.");
-
-      const jaExiste = bancoPatrimonio.find(i => i.plaqueta === plaqueta);
-      if (jaExiste) {
-        return alert(`⚠️ Atenção: Esta plaqueta (${plaqueta}) já consta na base oficial do sistema! Utilize a aba de Leitura para conferi-la.`);
-      }
-
-      const filePlaqueta = document.getElementById('foto-plaqueta').files[0];
-      const fileItem = document.getElementById('foto-item').files[0];
-      const fileLocal = document.getElementById('foto-local').files[0];
-
-      if (!filePlaqueta || !fileItem) {
-        return alert("As fotos da plaqueta e do item são obrigatórias.");
-      }
-
-      try {
-        const base64Plaqueta = await converterArquivoParaBase64(filePlaqueta);
-        const base64Item = await converterArquivoParaBase64(fileItem);
-        const base64Local = fileLocal ? await converterArquivoParaBase64(fileLocal) : null;
-
-        const dataHora = new Date().toLocaleString('pt-BR');
-
-        const novoItem = {
-          plaqueta,
-          descricao,
-          divisaoOrigem: divisao,
-          localizacaoAtual: divisao,
-          localizado: true,
-          achadoEmCampo: true,
-          statusTransferencia: "pendente_achado",
-          conferidoPor: `${usuarioLogado.nome} (${usuarioLogado.email})`,
-          observacaoAtual: obs || "Item achado em campo sem registro prévio",
-          dataLocalizacao: dataHora,
-          fotos: { plaqueta: base64Plaqueta, item: base64Item, local: base64Local },
-          historico: [{
-            local: divisao,
-            data: dataHora,
-            responsavel: `${usuarioLogado.nome} (${usuarioLogado.email})`,
-            obs: `Cadastrado como Achado em Campo. Obs: ${obs}`
-          }]
-        };
-
-        await setDoc(doc(db, "patrimonios", plaqueta), novoItem);
-        bancoPatrimonio.push(novoItem);
-        salvarCacheLocal();
-
-        alert("⚡ Item achado em campo cadastrado com sucesso! Enviado para validação do Gestor.");
-        document.getElementById('form-achado-campo').reset();
-        ['preview-plaqueta', 'preview-item', 'preview-local'].forEach(id => document.getElementById(id).classList.add('hidden'));
-        alternarAba('dashboard');
-      } catch (err) {
-        alert("Erro ao salvar item achado em campo. Verifique o tamanho das imagens.");
-      }
-    });
 
     document.getElementById('btn-reverter-divisao').addEventListener('click', async () => {
       if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
@@ -973,7 +774,7 @@
 
       if (!confirm(`Deseja realmente retornar todos os itens da divisão '${divAlvo}' para o status PENDENTE? O progresso de conferência deste setor será zerado.`)) return;
 
-      const itensAfetados = bancoPatrimonio.filter(i => !i.achadoEmCampo && ((i.divisaoOrigem || i.divisao) === divAlvo || i.localizacaoAtual === divAlvo));
+      const itensAfetados = bancoPatrimonio.filter(i => (i.divisaoOrigem || i.divisao) === divAlvo || i.localizacaoAtual === divAlvo);
       if (itensAfetados.length === 0) return alert("Nenhum item encontrado nesta divisão.");
 
       try {
@@ -987,14 +788,8 @@
             observacaoAtual: "Status revertido para pendente (Novo Ciclo)",
             dataLocalizacao: ""
           });
-          item.localizado = false;
-          item.statusTransferencia = "concluido";
-          item.conferidoPor = "";
-          item.observacaoAtual = "Status revertido para pendente (Novo Ciclo)";
-          item.dataLocalizacao = "";
         });
         await batch.commit();
-        salvarCacheLocal();
         alert(`Sucesso! ${itensAfetados.length} itens da divisão ${divAlvo} foram retornados para pendentes.`);
         document.getElementById('select-divisao-reversao').value = "";
       } catch (e) {
@@ -1004,30 +799,22 @@
 
     document.getElementById('btn-reverter-geral').addEventListener('click', async () => {
       if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
-      if (!confirm("⚠️ ATENÇÃO: Deseja realmente reiniciar o inventário geral? TODOS OS ITENS normais retornarão para o status PENDENTE.")) return;
+      if (!confirm("⚠️ ATENÇÃO: Deseja realmente reiniciar o inventário geral? TODOS OS ITENS do sistema retornarão para o status PENDENTE. Esta ação preparará o sistema para um novo ciclo completo.")) return;
 
       try {
         const batch = writeBatch(db);
         bancoPatrimonio.forEach(item => {
-          if (!item.achadoEmCampo) {
-            const ref = doc(db, "patrimonios", item.plaqueta);
-            batch.update(ref, {
-              localizado: false,
-              statusTransferencia: "concluido",
-              conferidoPor: "",
-              observacaoAtual: "Inventário reiniciado para novo ciclo",
-              dataLocalizacao: ""
-            });
-            item.localizado = false;
-            item.statusTransferencia = "concluido";
-            item.conferidoPor = "";
-            item.observacaoAtual = "Inventário reiniciado para novo ciclo";
-            item.dataLocalizacao = "";
-          }
+          const ref = doc(db, "patrimonios", item.plaqueta);
+          batch.update(ref, {
+            localizado: false,
+            statusTransferencia: "concluido",
+            conferidoPor: "",
+            observacaoAtual: "Inventário reiniciado para novo ciclo",
+            dataLocalizacao: ""
+          });
         });
         await batch.commit();
-        salvarCacheLocal();
-        alert("Inventário geral reiniciado com sucesso!");
+        alert("Inventário geral reiniciado com sucesso! Todos os itens estão pendentes.");
       } catch (e) {
         alert("Erro ao reiniciar inventário geral.");
       }
@@ -1045,15 +832,6 @@
           observacaoAtual: "Item retornado manualmente para pendente",
           dataLocalizacao: ""
         });
-        const it = bancoPatrimonio.find(x => x.plaqueta === plaqueta);
-        if (it) {
-          it.localizado = false;
-          it.statusTransferencia = "concluido";
-          it.conferidoPor = "";
-          it.observacaoAtual = "Item retornado manualmente para pendente";
-          it.dataLocalizacao = "";
-        }
-        salvarCacheLocal();
         alert("Item retornado para pendente com sucesso.");
         document.getElementById('modal-detalhes-item').classList.add('hidden');
       } catch (e) {
@@ -1082,12 +860,8 @@
 
       try {
         const cred = await createUserWithEmailAndPassword(authSecundario, email, senha);
-        const novoUserDoc = { nome, email, perfil, divisoesAtribuidas: divisoes };
-        await setDoc(doc(db, "usuarios", cred.user.uid), novoUserDoc);
+        await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil, divisoesAtribuidas: divisoes });
         await signOut(authSecundario);
-
-        bancoUsuarios.push({ uid: cred.user.uid, ...novoUserDoc });
-        salvarCacheLocal();
 
         alert(`Colaborador ${nome} cadastrado com sucesso.`);
         document.getElementById('form-cad-usuario').reset();
@@ -1197,8 +971,6 @@
 
       try {
         await deleteDoc(doc(db, "usuarios", uid));
-        bancoUsuarios = bancoUsuarios.filter(u => u.uid !== uid);
-        salvarCacheLocal();
         alert("Usuário removido com sucesso.");
       } catch (err) {
         alert("Erro ao remover o usuário. Tente novamente.");
@@ -1267,11 +1039,6 @@
         await updateDoc(doc(db, "usuarios", uid), {
           nome, perfil: perfilNovo, divisoesAtribuidas: divisoes
         });
-        targetUser.nome = nome;
-        targetUser.perfil = perfilNovo;
-        targetUser.divisaoAtribuidas = divisoes;
-        salvarCacheLocal();
-
         alert("Dados atualizados com sucesso.");
         document.getElementById('modal-edicao-usuario').classList.add('hidden');
       } catch (err) {
@@ -1422,7 +1189,9 @@
         const ctx = canvas.getContext('2d');
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
-        const result = await Tesseract.recognize(canvas, 'por+eng', { logger: m => {} });
+        const result = await Tesseract.recognize(canvas, 'por+eng', {
+          logger: m => {}
+        });
 
         ocrStatus.classList.add('hidden');
         const textoExtraido = result.data.text;
@@ -1445,15 +1214,11 @@
     async function buscarEExibirItem(plaquetaCod) {
       if (!plaquetaCod) return;
       const itemLocal = bancoPatrimonio.find(i => i.plaqueta === plaquetaCod);
-      if (itemLocal) {
-        itemAtualSelecionado = itemLocal;
-        exibirDetalhes(itemLocal);
-      } else {
-        document.getElementById('item-details').classList.add('hidden');
-        if (confirm(`Patrimônio com a plaqueta ${plaquetaCod} não foi encontrado na base local.\n\nDeseja ir para a aba 'Achado em Campo' para cadastrá-lo?`)) {
-          document.getElementById('achado-plaqueta').value = plaquetaCod;
-          alternarAba('achado');
-        }
+      if (itemLocal) { itemAtualSelecionado = itemLocal; exibirDetalhes(itemLocal); }
+      else {
+        const docSnap = await getDoc(doc(db, "patrimonios", plaquetaCod));
+        if (docSnap.exists()) { itemAtualSelecionado = { id: docSnap.id, ...docSnap.data() }; exibirDetalhes(itemAtualSelecionado); }
+        else { document.getElementById('item-details').classList.add('hidden'); alert(`Patrimônio com a plaqueta ${plaquetaCod} não foi encontrado.`); }
       }
     }
 
@@ -1465,10 +1230,7 @@
       document.getElementById('det-divisao').innerText = divisaoOriginal;
 
       const badgeStatus = document.getElementById('det-status');
-      if (item.achadoEmCampo && item.statusTransferencia === 'pendente_achado') {
-        badgeStatus.innerText = "⚡ ACHADO EM CAMPO";
-        badgeStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-900 text-purple-300 border border-purple-500/30";
-      } else if (item.statusTransferencia === 'pendente') {
+      if (item.statusTransferencia === 'pendente') {
         badgeStatus.innerText = "⏳ AGUARDANDO TRANSF.";
         badgeStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-900 text-amber-300 border border-amber-500/30";
       } else if (item.localizado) {
@@ -1537,21 +1299,6 @@
       }
 
       await updateDoc(docRef, dadosAtualizacao);
-
-      itemAtualSelecionado.localizado = true;
-      itemAtualSelecionado.observacaoAtual = obs;
-      itemAtualSelecionado.dataLocalizacao = dataHora;
-      itemAtualSelecionado.conferidoPor = usuarioLogado.email;
-      itemAtualSelecionado.historico = historicoAtual;
-      if (ehTransferencia) {
-        itemAtualSelecionado.statusTransferencia = "pendente";
-        itemAtualSelecionado.divisaoDestinoSugerida = locAtual;
-      } else {
-        itemAtualSelecionado.localizacaoAtual = locAtual;
-        itemAtualSelecionado.statusTransferencia = "concluido";
-      }
-      salvarCacheLocal();
-
       alert(ehTransferencia ? "⚠️ Item localizado em setor diferente! Enviado para aprovação do Gestor." : "✅ Conferência registrada com sucesso.");
       inputPlaqueta.value = ''; document.getElementById('select-localizacao').value = '';
       document.getElementById('input-observacao').value = ''; document.getElementById('item-details').classList.add('hidden');
@@ -1563,96 +1310,38 @@
       const contador = document.getElementById('transf-contador');
       if (!container) return;
 
-      const pendentesTransferencia = bancoPatrimonio.filter(i => i.statusTransferencia === 'pendente');
-      const pendentesAchados = bancoPatrimonio.filter(i => i.statusTransferencia === 'pendente_achado');
-      const todosPendentes = [...pendentesAchados, ...pendentesTransferencia];
+      const pendentes = bancoPatrimonio.filter(i => i.statusTransferencia === 'pendente');
+      contador.innerText = `${pendentes.length} pendentes`;
 
-      contador.innerText = `${todosPendentes.length} pendentes`;
-
-      if (todosPendentes.length === 0) {
-        container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400 md:col-span-2">✨ Nenhuma pendência ou item achado aguardando aprovação.</div>`;
+      if (pendentes.length === 0) {
+        container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400 md:col-span-2">✨ Nenhuma transferência pendente no momento.</div>`;
         return;
       }
 
-      container.innerHTML = todosPendentes.map(item => {
-        if (item.achadoEmCampo) {
-          return `
-            <div class="bg-slate-800 p-4 rounded-xl border border-purple-500/40 text-xs space-y-3 shadow-md md:col-span-2">
-              <div class="flex justify-between items-center cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">
-                <span class="font-bold text-purple-400 text-sm hover:underline">⚡ ACHADO EM CAMPO: Plaqueta ${item.plaqueta} 🔍</span>
-                <span class="bg-purple-950 text-purple-300 px-2.5 py-0.5 rounded text-[10px] font-bold border border-purple-500/30">PENDENTE APROVAÇÃO</span>
-              </div>
-              <p class="text-slate-200 text-xs">${item.descricao}</p>
-              <div class="text-[11px] space-y-1 bg-slate-900 p-3 rounded border border-slate-700">
-                <div>🏷️ Setor de Localização: <span class="text-emerald-400 font-bold">${item.divisaoOrigem}</span></div>
-                <div>👤 Cadastrado por: ${item.conferidoPor}</div>
-                ${item.observacaoAtual ? `<div class="text-slate-300">💬 <strong class="text-slate-400">Obs:</strong> ${item.observacaoAtual}</div>` : ''}
-              </div>
-
-              <div class="space-y-1">
-                <span class="text-[11px] font-bold text-blue-400 block">🖼️ Evidências Fotográficas Anexadas:</span>
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  ${item.fotos?.plaqueta ? `<div><span class="text-[10px] text-slate-400 block">Placa:</span><a href="${item.fotos.plaqueta}" target="_blank"><img src="${item.fotos.plaqueta}" class="w-full h-24 object-cover rounded border border-slate-700 hover:opacity-80 transition-opacity"></a></div>` : ''}
-                  ${item.fotos?.item ? `<div><span class="text-[10px] text-slate-400 block">Item:</span><a href="${item.fotos.item}" target="_blank"><img src="${item.fotos.item}" class="w-full h-24 object-cover rounded border border-slate-700 hover:opacity-80 transition-opacity"></a></div>` : ''}
-                  ${item.fotos?.local ? `<div><span class="text-[10px] text-slate-400 block">Local:</span><a href="${item.fotos.local}" target="_blank"><img src="${item.fotos.local}" class="w-full h-24 object-cover rounded border border-slate-700 hover:opacity-80 transition-opacity"></a></div>` : ''}
-                </div>
-              </div>
-
-              <div class="flex gap-2 pt-1">
-                <button onclick="aprovarAchado('${item.plaqueta}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition-colors">✅ Aprovar e Incorporar ao Inventário</button>
-                <button onclick="rejeitarAchado('${item.plaqueta}')" class="bg-red-900/60 hover:bg-red-800 text-red-200 font-bold px-4 py-2 rounded text-xs transition-colors">❌ Rejeitar / Excluir</button>
-              </div>
-            </div>
-          `;
-        } else {
-          return `
-            <div class="bg-slate-800 p-4 rounded-xl border border-amber-500/30 text-xs space-y-2.5 shadow-md">
-              <div class="flex justify-between items-center cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">
-                <span class="font-bold text-blue-400 text-sm hover:underline">Plaqueta: ${item.plaqueta} 🔍</span>
-                <span class="bg-amber-950 text-amber-300 px-2.5 py-0.5 rounded text-[10px] font-bold">AGUARDANDO</span>
-              </div>
-              <p class="text-slate-200 text-xs cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">${item.descricao}</p>
-              <div class="text-[11px] space-y-1 bg-slate-900 p-2.5 rounded border border-slate-700">
-                <div>🏷️ Divisão Anterior: ${item.divisaoOrigem}</div>
-                <div>📍 Novo Local: <span class="text-emerald-400 font-bold">${item.divisaoDestinoSugerida}</span></div>
-                ${item.observacaoAtual ? `<div class="pt-1 border-t border-slate-800 text-slate-300">💬 <strong class="text-slate-400">Observação:</strong> ${item.observacaoAtual}</div>` : ''}
-              </div>
-              <div class="flex gap-2 pt-1">
-                <button onclick="aprovarTransferencia('${item.plaqueta}', '${item.divisaoDestinoSugerida}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition-colors">✅ Aprovar</button>
-                <button onclick="rejeitarTransferencia('${item.plaqueta}')" class="bg-red-900/60 hover:bg-red-800 text-red-200 font-bold px-4 py-2 rounded text-xs transition-colors">❌ Rejeitar</button>
-              </div>
-            </div>
-          `;
-        }
-      }).join('');
-    }
-
-    window.aprovarAchado = async function(plaqueta) {
-      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
-      if (!confirm(`Deseja aprovar e incorporar oficialmente o item ${plaqueta} ao inventário da unidade?`)) return;
-      await updateDoc(doc(db, "patrimonios", plaqueta), { statusTransferencia: "aprovado" });
-      const it = bancoPatrimonio.find(x => x.plaqueta === plaqueta);
-      if (it) it.statusTransferencia = "aprovado";
-      salvarCacheLocal();
-      alert("Item achado aprovado e incorporado com sucesso!");
-    }
-
-    window.rejeitarAchado = async function(plaqueta) {
-      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
-      if (!confirm(`Deseja rejeitar e remover este registro de achado em campo?`)) return;
-      await deleteDoc(doc(db, "patrimonios", plaqueta));
-      bancoPatrimonio = bancoPatrimonio.filter(x => x.plaqueta !== plaqueta);
-      salvarCacheLocal();
-      alert("Registro removido com sucesso.");
+      container.innerHTML = pendentes.map(item => `
+        <div class="bg-slate-800 p-4 rounded-xl border border-amber-500/30 text-xs space-y-2.5 shadow-md">
+          <div class="flex justify-between items-center cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">
+            <span class="font-bold text-blue-400 text-sm hover:underline">Plaqueta: ${item.plaqueta} 🔍</span>
+            <span class="bg-amber-950 text-amber-300 px-2.5 py-0.5 rounded text-[10px] font-bold">AGUARDANDO</span>
+          </div>
+          <p class="text-slate-200 text-xs cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">${item.descricao}</p>
+          <div class="text-[11px] space-y-1 bg-slate-900 p-2.5 rounded border border-slate-700">
+            <div>🏷️ Divisão Anterior: ${item.divisaoOrigem}</div>
+            <div>📍 Novo Local: <span class="text-emerald-400 font-bold">${item.divisaoDestinoSugerida}</span></div>
+            ${item.observacaoAtual ? `<div class="pt-1 border-t border-slate-800 text-slate-300">💬 <strong class="text-slate-400">Observação:</strong> ${item.observacaoAtual}</div>` : ''}
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button onclick="aprovarTransferencia('${item.plaqueta}', '${item.divisaoDestinoSugerida}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition-colors">✅ Aprovar</button>
+            <button onclick="rejeitarTransferencia('${item.plaqueta}')" class="bg-red-900/60 hover:bg-red-800 text-red-200 font-bold px-4 py-2 rounded text-xs transition-colors">❌ Rejeitar</button>
+          </div>
+        </div>
+      `).join('');
     }
 
     window.aprovarTransferencia = async function(plaqueta, novaDivisao) {
       if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
       if (!confirm(`Deseja aprovar a transferência do patrimônio ${plaqueta} para ${novaDivisao}?`)) return;
       await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: novaDivisao, statusTransferencia: "aprovado" });
-      const it = bancoPatrimonio.find(x => x.plaqueta === plaqueta);
-      if (it) { it.localizacaoAtual = novaDivisao; it.statusTransferencia = "aprovado"; }
-      salvarCacheLocal();
       alert("Transferência aprovada com sucesso.");
     }
 
@@ -1661,8 +1350,6 @@
       if (!confirm(`Deseja rejeitar esta solicitação de transferência?`)) return;
       const item = bancoPatrimonio.find(i => i.plaqueta === plaqueta);
       await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: item.divisaoOrigem, statusTransferencia: "rejeitado" });
-      if (item) { item.localizacaoAtual = item.divisaoOrigem; item.statusTransferencia = "rejeitado"; }
-      salvarCacheLocal();
       alert("Transferência rejeitada.");
     }
 
@@ -1676,30 +1363,20 @@
       const ehAdminOuGestor = usuarioLogado && usuarioLogado.perfil !== 'conferente';
 
       conteudo.innerHTML = `
-        <div class="space-y-3">
+        <div class="space-y-2.5">
           <div class="flex justify-between items-center">
             <span class="font-bold text-blue-400 text-sm">Plaqueta: ${item.plaqueta}</span>
-            <span class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${item.achadoEmCampo ? 'bg-purple-900 text-purple-300' : (item.statusTransferencia === 'pendente' ? 'bg-amber-900 text-amber-300' : (item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-300'))}">
-              ${item.achadoEmCampo ? '⚡ ACHADO EM CAMPO' : (item.statusTransferencia === 'pendente' ? '⏳ AGUARDANDO TRANSF.' : (item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE'))}
+            <span class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${item.statusTransferencia === 'pendente' ? 'bg-amber-900 text-amber-300' : (item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-300')}">
+              ${item.statusTransferencia === 'pendente' ? '⏳ AGUARDANDO TRANSF.' : (item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE')}
             </span>
           </div>
           <div><strong class="text-slate-400">Descrição:</strong> <span class="text-slate-200">${item.descricao}</span></div>
-          <div><strong class="text-slate-400">🏷️ Setor / Divisão:</strong> <span class="text-amber-400 font-semibold">${divisaoAnterior}</span></div>
+          <div><strong class="text-slate-400">🏷️ Divisão Anterior:</strong> <span class="text-amber-400 font-semibold">${divisaoAnterior}</span></div>
+          <div><strong class="text-slate-400">📍 Local Atual / Sugerido:</strong> <span class="text-emerald-400 font-semibold">${item.divisaoDestinoSugerida || item.localizacaoAtual || divisaoAnterior}</span></div>
           ${item.conferidoPor ? `<div><strong class="text-slate-400">👤 Conferido por:</strong> <span class="text-slate-300">${item.conferidoPor}</span></div>` : ''}
           ${item.observacaoAtual ? `<div><strong class="text-slate-400">💬 Observação:</strong> <span class="text-slate-300">${item.observacaoAtual}</span></div>` : ''}
           
-          ${item.achadoEmCampo && item.fotos ? `
-            <div class="space-y-1.5 pt-2 border-t border-slate-700">
-              <strong class="text-purple-400 block">🖼️ Evidências Fotográficas:</strong>
-              <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                ${item.fotos.plaqueta ? `<div><span class="text-[10px] text-slate-400 block">Placa:</span><a href="${item.fotos.plaqueta}" target="_blank"><img src="${item.fotos.plaqueta}" class="w-full h-24 object-cover rounded border border-slate-700"></a></div>` : ''}
-                ${item.fotos.item ? `<div><span class="text-[10px] text-slate-400 block">Item:</span><a href="${item.fotos.item}" target="_blank"><img src="${item.fotos.item}" class="w-full h-24 object-cover rounded border border-slate-700"></a></div>` : ''}
-                ${item.fotos.local ? `<div><span class="text-[10px] text-slate-400 block">Local:</span><a href="${item.fotos.local}" target="_blank"><img src="${item.fotos.local}" class="w-full h-24 object-cover rounded border border-slate-700"></a></div>` : ''}
-              </div>
-            </div>
-          ` : ''}
-
-          ${ehAdminOuGestor && item.localizado && !item.achadoEmCampo ? `
+          ${ehAdminOuGestor && item.localizado ? `
             <div class="pt-2 border-t border-slate-700">
               <button onclick="reverterItemIndividual('${item.plaqueta}')" class="w-full bg-amber-950/60 hover:bg-amber-900 text-amber-300 font-bold py-2 rounded text-xs border border-amber-500/30 transition-colors">
                 🔄 Retornar Item para Status Pendente
@@ -1708,7 +1385,7 @@
           ` : ''}
 
           <div class="pt-2 border-t border-slate-700 space-y-1.5">
-            <strong class="text-blue-400 block">📜 Linha do Tempo (Histórico):</strong>
+            <strong class="text-blue-400 block">📜 Linha do Tempo (Histórico de Movimentações):</strong>
             <div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
               ${item.historico && item.historico.length > 0 ? [...item.historico].reverse().map(h => `
                 <div class="p-2 rounded bg-slate-950/60 border border-slate-800 space-y-0.5">
@@ -1793,13 +1470,14 @@
               <div onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')" class="bg-slate-800/90 p-3 rounded-lg border border-slate-700 text-xs space-y-1.5 cursor-pointer hover:border-blue-500/60 transition-colors shadow-sm">
                 <div class="flex justify-between items-center">
                   <span class="font-bold text-white text-sm">Plaqueta: ${item.plaqueta}</span>
-                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.achadoEmCampo ? 'bg-purple-900 text-purple-300' : (item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400')}">
-                    ${item.achadoEmCampo ? '⚡ ACHADO EM CAMPO' : (item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE')}
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">
+                    ${item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE'}
                   </span>
                 </div>
                 <p class="text-slate-300 text-xs">${item.descricao}</p>
                 <div class="mt-1.5 pt-1.5 border-t border-slate-700/50 text-[11px] space-y-0.5 text-slate-400">
-                  <div>🏷️ Setor: ${item.divisaoOrigem \vert{}\vert{} item.divisao}</div>${item.conferidoPor ? `<div>👤 Conferido por: ${item.conferidoPor}</div>` : ''}
+                  <div>🏷️ Divisão Anterior: ${item.divisaoOrigem || item.divisao}</div>
+                  <div>📍 Local Atual: <span class="text-emerald-400 font-bold">${item.localizacaoAtual || item.divisaoOrigem || item.divisao}</span></div>
                 </div>
               </div>
             `).join('')}
@@ -1820,9 +1498,9 @@
     function exportarCSV(dados, nomeArquivo) {
       if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
       if (dados.length === 0) return alert("Não há registros disponíveis para exportação com os filtros atuais.");
-      let csv = 'Plaqueta;Setor;Status;Tipo Registro;Conferido Por;Descricao;Data Atualizacao\n';
+      let csv = 'Plaqueta;Divisao Anterior;Local Atual;Status;Conferido Por;Descricao;Data Ultima Atualizacao\n';
       dados.forEach(i => {
-        csv += `"${i.plaqueta}";"${i.divisaoOrigem || i.divisao}";"${i.localizado ? 'LOCALIZADO' : 'PENDENTE'}";"${i.achadoEmCampo ? 'ACHADO EM CAMPO' : 'ORIGINAL'}";"${i.conferidoPor || ''}";"${i.descricao.replace(/"/g, '""')}";"${i.dataLocalizacao || ''}"\n`;
+        csv += `"${i.plaqueta}";"${i.divisaoOrigem || i.divisao}";"${i.localizacaoAtual || i.divisao}";"${i.localizado ? 'LOCALIZADO' : 'PENDENTE'}";"${i.conferidoPor || ''}";"${i.descricao.replace(/"/g, '""')}";"${i.dataLocalizacao || ''}"\n`;
       });
       const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
