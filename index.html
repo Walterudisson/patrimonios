@@ -26,6 +26,11 @@
       pointer-events: none;
     }
     @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+    /* Zoom 2x aplicado no feed de vídeo da câmera para aproximar plaquetas pequenas */
+    #reader video {
+      transform: scale(2.0);
+      transform-origin: center center;
+    }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
@@ -80,14 +85,14 @@
         </div>
       </div>
       
-      <!-- Abas de Navegação (Com Badge Corrigido Inline) -->
+      <!-- Abas de Navegação -->
       <div id="container-abas" class="max-w-md mx-auto flex gap-1 mt-3 bg-slate-900 p-1 rounded-xl border border-slate-700/60 overflow-x-auto">
         <button id="tab-btn-dashboard" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold bg-blue-600 text-white transition-all whitespace-nowrap">📊 Painel</button>
         <button id="tab-btn-scanner" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">📷 Leitura</button>
-        <button id="tab-btn-transferencias" class="hidden flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap items-center justify-center gap-1">
+        <button id="tab-btn-transferencias" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap items-center justify-center gap-1">
           🔄 Fila <span id="badge-fila-count" class="bg-amber-500 text-slate-950 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full">0</span>
         </button>
-        <button id="tab-btn-usuarios" class="hidden flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">👥 Usuários</button>
+        <button id="tab-btn-usuarios" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">👥 Usuários</button>
         <button id="tab-btn-lista" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap">📋 Relação</button>
       </div>
     </header>
@@ -482,7 +487,7 @@
       const campoPerfil = document.getElementById('campo-perfil-container');
       const tituloCad = document.getElementById('titulo-cad-usuario');
 
-      // RESTRIÇÃO RÍGIDA DE INTERFACE POR PERFIL
+      // OCULTA DEFINITIVAMENTE OS BOTÕES DAS ABAS PARA O CONFERENTE
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
         btnUsuarios.classList.add('hidden');
@@ -576,12 +581,10 @@
       if (btn) btn.addEventListener('click', () => alternarAba(aba));
     });
 
-    // VALIDAÇÃO DE SEGURANÇA CONTRA ACESSO DE CONFERENTE A ABAS RESTRITAS
     function alternarAba(abaAtiva) {
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
         if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios') {
-          alert("Acesso restrito a gestores e administradores.");
-          return;
+          return; // Bloqueia acesso direto
         }
       }
 
@@ -600,6 +603,12 @@
           btn.className = aba === abaAtiva ? "flex-1 py-1.5 px-2 rounded-lg text-xs font-bold bg-blue-600 text-white transition-all whitespace-nowrap" : "flex-1 py-1.5 px-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap";
         }
       });
+
+      // Reforça a ocultação visual das abas restritas caso o usuário seja conferente
+      if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
+        document.getElementById('tab-btn-transferencias').classList.add('hidden');
+        document.getElementById('tab-btn-usuarios').classList.add('hidden');
+      }
     }
 
     function atualizarDashboard() {
@@ -1034,7 +1043,6 @@
       const divisaoFiltro = document.getElementById('filtro-divisao').value;
       const minhasDivs = usuarioLogado.divisoesAtribuidas || [];
 
-      // 1. Busca todos os itens permitidos para o usuário (base sem filtro de status)
       const itensPermitidos = bancoPatrimonio.filter(i => {
         const origem = i.divisaoOrigem || i.divisao;
         const atual = i.localizacaoAtual || origem;
@@ -1042,7 +1050,6 @@
         return true;
       });
 
-      // 2. Agrupa por divisão considerando o total real para o denominador correto (ex: 10/174)
       const gruposTotal = {};
       itensPermitidos.forEach(i => {
         const divAtual = i.localizacaoAtual || i.divisaoOrigem || i.divisao;
@@ -1050,7 +1057,6 @@
         gruposTotal[divAtual].push(i);
       });
 
-      // 3. Aplica os filtros de busca e status para exibição dos cards internos
       const itensFiltrados = itensPermitidos.filter(i => {
         const atual = i.localizacaoAtual || i.divisaoOrigem || i.divisao;
         const matchTermo = i.plaqueta.includes(termo) || i.descricao.toLowerCase().includes(termo);
@@ -1068,12 +1074,10 @@
 
       container.innerHTML = '';
       
-      // Renderiza os accordions utilizando o total real do grupo para o formato X / Total
       Object.keys(gruposTotal).sort().forEach((divNome, idx) => {
         const todosDaDiv = gruposTotal[divNome];
         const visiveisDaDiv = gruposFiltrados[divNome] || [];
         
-        // Se a divisão inteira foi filtrada para fora por busca/status, pula
         if (visiveisDaDiv.length === 0 && (termo || statusFiltro !== 'todos' || divisaoFiltro !== 'todas')) return;
 
         const locCount = todosDaDiv.filter(i => i.localizado).length;
