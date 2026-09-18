@@ -453,7 +453,15 @@
           await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil: 'admin', divisoesAtribuidas: [] });
           alert("Administrador inicial criado com sucesso!");
         } else {
-          await signInWithEmailAndPassword(auth, email, senha);
+          // Autentica no Firebase Auth
+          const cred = await signInWithEmailAndPassword(auth, email, senha);
+          
+          // VERIFICAÇÃO DE SEGURANÇA: O usuário existe na base de dados do Firestore?
+          const userDoc = await getDoc(doc(db, "usuarios", cred.user.uid));
+          if (!userDoc.exists()) {
+            await signOut(auth);
+            throw new Error("Esta conta foi desativada ou removida do sistema.");
+          }
         }
       } catch (err) {
         loginErro.innerText = "Erro: " + err.message;
@@ -466,11 +474,13 @@
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-        if (userDoc.exists()) {
-          usuarioLogado = { uid: user.uid, email: user.email, ...userDoc.data() };
-        } else {
-          usuarioLogado = { uid: user.uid, email: user.email, nome: user.email.split('@')[0], perfil: 'conferente', divisoesAtribuidas: [] };
+        if (!userDoc.exists()) {
+          // Caso o usuário perca o registro com a sessão ativa
+          await signOut(auth);
+          return;
         }
+        usuarioLogado = { uid: user.uid, email: user.email, ...userDoc.data() };
+        
         document.getElementById('view-login').classList.add('hidden');
         document.getElementById('view-app').classList.remove('hidden');
         atualizarCabecalhoUsuario();
@@ -1071,7 +1081,6 @@
       alert("Transferência rejeitada.");
     }
 
-    // ABRIR MODAL COM DETALHES E HISTÓRICO AO CLICAR NA RELAÇÃO (ATUALIZADO PARA DIVISÃO ANTERIOR)
     window.abrirModalItemPorPlaqueta = function(plaqueta) {
       const item = bancoPatrimonio.find(i => i.plaqueta === plaqueta);
       if (!item) return;
