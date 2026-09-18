@@ -69,7 +69,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.1</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.2</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -275,7 +275,7 @@
               <p class="text-[10px] text-slate-400 mb-2">Retorne o status dos itens para "pendente" para iniciar uma nova conferência.</p>
             </div>
             
-            <!-- Reverter por Divisão (Com layout empilhado responsivo para celular) -->
+            <!-- Reverter por Divisão -->
             <div class="space-y-1.5">
               <label class="text-[11px] text-slate-300 font-semibold block">Reverter por Divisão Específica</label>
               <select id="select-divisao-reversao" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
@@ -339,7 +339,7 @@
 
     <!-- Rodapé Discreto do Sistema -->
     <footer class="py-4 text-center">
-      <span class="text-[11px] text-slate-500 font-medium">v1.1.1</span>
+      <span class="text-[11px] text-slate-500 font-medium">v1.1.2</span>
     </footer>
   </div>
 
@@ -446,6 +446,10 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+
+    // Instância secundária isolada para criação de usuários sem afetar o login do Administrador/Gestor atual
+    const appSecundario = initializeApp(firebaseConfig, "AppSecundarioCriacao");
+    const authSecundario = getAuth(appSecundario);
 
     let usuarioLogado = null;
     let bancoPatrimonio = [];
@@ -864,8 +868,13 @@
       const divisoes = Array.from(checkboxes).map(cb => cb.value);
 
       try {
-        const cred = await createUserWithEmailAndPassword(auth, email, senha);
+        // Utiliza a instância secundária para criar o usuário sem deslogar o Administrador/Gestor atual
+        const cred = await createUserWithEmailAndPassword(authSecundario, email, senha);
         await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil, divisoesAtribuidas: divisoes });
+        
+        // Encerra a sessão do app secundário imediatamente para limpeza
+        await signOut(authSecundario);
+
         alert(`Colaborador ${nome} cadastrado com sucesso.`);
         document.getElementById('form-cad-usuario').reset();
         document.querySelectorAll('input[name="divisao-check"]').forEach(cb => cb.checked = false);
