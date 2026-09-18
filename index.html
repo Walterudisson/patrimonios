@@ -272,14 +272,24 @@
               <option value="todas">Todas as Divisões permitidas</option>
             </select>
           </div>
-          <div class="grid grid-cols-2 gap-2">
-            <button id="btn-exportar-csv" class="bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-1.5 rounded-lg text-xs">
-              📥 Relatório Geral (CSV)
-            </button>
-            <button id="btn-exportar-divergencias" class="bg-slate-700 hover:bg-slate-600 text-amber-400 font-bold py-1.5 rounded-lg text-xs">
-              📥 Relatório Pendentes (CSV)
-            </button>
+
+          <!-- BOTÕES DE EXPORTAÇÃO (EXCLUSIVOS PARA GESTOR / ADMIN) -->
+          <div id="container-botoes-exportacao" class="space-y-2 pt-1 border-t border-slate-700/60">
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-exportar-csv" class="bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-1.5 rounded-lg text-xs">
+                📥 Relatório Geral (CSV)
+              </button>
+              <button id="btn-exportar-divergencias" class="bg-slate-700 hover:bg-slate-600 text-amber-400 font-bold py-1.5 rounded-lg text-xs">
+                📥 Relatório Pendentes (CSV)
+              </button>
+            </div>
+            <div>
+              <button id="btn-exportar-filtrados" class="w-full bg-purple-900/60 hover:bg-purple-900 text-purple-200 font-bold py-1.5 rounded-lg text-xs border border-purple-500/30">
+                📥 Baixar Resultado dos Filtros Aplicados (CSV)
+              </button>
+            </div>
           </div>
+
         </div>
 
         <div id="container-accordions" class="space-y-3"></div>
@@ -400,6 +410,7 @@
     let itemAtualSelecionado = null;
     let modoBootstrapAdmin = false;
     let nivelZoomAtual = 1;
+    let itensFiltradosCache = []; // Armazena os itens atualmente filtrados na tela
 
     const dicasLista = [
       { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR' para reconhecer o texto automaticamente." },
@@ -542,20 +553,25 @@
       const btnUsuarios = document.getElementById('tab-btn-usuarios');
       const campoPerfil = document.getElementById('campo-perfil-container');
       const tituloCad = document.getElementById('titulo-cad-usuario');
+      const boxExportacao = document.getElementById('container-botoes-exportacao');
 
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
         btnUsuarios.classList.add('hidden');
-      } else if (usuarioLogado.perfil === 'gestor') {
-        btnTransf.classList.remove('hidden');
-        btnUsuarios.classList.remove('hidden');
-        campoPerfil.classList.add('hidden');
-        tituloCad.innerText = "👥 Cadastrar Novo Conferente";
-      } else if (usuarioLogado.perfil === 'admin') {
-        btnTransf.classList.remove('hidden');
-        btnUsuarios.classList.remove('hidden');
-        campoPerfil.classList.remove('hidden');
-        tituloCad.innerText = "👥 Cadastrar Novo Gestor ou Conferente";
+        if (boxExportacao) boxExportacao.classList.add('hidden'); // Oculta opções de exportação para conferente
+      } else {
+        if (boxExportacao) boxExportacao.classList.remove('hidden'); // Exibe opções de exportação para gestor/admin
+        if (usuarioLogado.perfil === 'gestor') {
+          btnTransf.classList.remove('hidden');
+          btnUsuarios.classList.remove('hidden');
+          campoPerfil.classList.add('hidden');
+          tituloCad.innerText = "👥 Cadastrar Novo Conferente";
+        } else if (usuarioLogado.perfil === 'admin') {
+          btnTransf.classList.remove('hidden');
+          btnUsuarios.classList.remove('hidden');
+          campoPerfil.classList.remove('hidden');
+          tituloCad.innerText = "👥 Cadastrar Novo Gestor ou Conferente";
+        }
       }
     }
 
@@ -1287,6 +1303,9 @@
         return matchTermo && matchStatus && matchDivisao;
       });
 
+      // Atualiza o cache global com o resultado dos filtros atuais para o botão de exportação customizada
+      itensFiltradosCache = itensFiltrados;
+
       const gruposFiltrados = {};
       itensFiltrados.forEach(i => {
         const divAtual = i.localizacaoAtual || i.divisaoOrigem || i.divisao;
@@ -1340,9 +1359,11 @@
 
     document.getElementById('btn-exportar-csv').addEventListener('click', () => exportarCSV(bancoPatrimonio, 'relatorio_geral'));
     document.getElementById('btn-exportar-divergencias').addEventListener('click', () => exportarCSV(bancoPatrimonio.filter(i => !i.localizado), 'relatorio_pendentes'));
+    document.getElementById('btn-exportar-filtrados').addEventListener('click', () => exportarCSV(itensFiltradosCache, 'relatorio_filtrado'));
 
     function exportarCSV(dados, nomeArquivo) {
-      if (dados.length === 0) return alert("Não há registros disponíveis para exportação.");
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
+      if (dados.length === 0) return alert("Não há registros disponíveis para exportação com os filtros atuais.");
       let csv = 'Plaqueta;Divisao Anterior;Local Atual;Status;Conferido Por;Descricao;Data Ultima Atualizacao\n';
       dados.forEach(i => {
         csv += `"${i.plaqueta}";"${i.divisaoOrigem || i.divisao}";"${i.localizacaoAtual || i.divisao}";"${i.localizado ? 'LOCALIZADO' : 'PENDENTE'}";"${i.conferidoPor || ''}";"${i.descricao.replace(/"/g, '""')}";"${i.dataLocalizacao || ''}"\n`;
