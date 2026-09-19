@@ -3,7 +3,8 @@
     import {
       getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
       collection, getDocs, onSnapshot, writeBatch, query, where,
-      and, or, orderBy, startAt, endAt, limit, documentId, getCountFromServer
+      and, or, orderBy, startAt, startAfter, endAt, limit, documentId,
+      getCountFromServer, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -37,7 +38,15 @@
     let usuariosCarregados = false;
     let relacaoCarregada = false;
     let timerAutocomplete = null;
+    let timerFiltroRelacao = null;
     let primeiraCargaTransferencias = true;
+    let catalogoDivisoesCarregado = false;
+    let cursorRelacao = null;
+    let totalRelacao = 0;
+    let relacaoTemMais = true;
+    let relacaoCarregando = false;
+
+    const TAMANHO_PAGINA_RELACAO = 50;
 
     const cachePatrimonios = new Map();
     const cacheSugestoes = new Map();
@@ -231,6 +240,10 @@
         catalogoDivisoes.clear();
         usuariosCarregados = false;
         relacaoCarregada = false;
+        catalogoDivisoesCarregado = false;
+        cursorRelacao = null;
+        totalRelacao = 0;
+        relacaoTemMais = true;
         document.getElementById('view-app').classList.add('hidden');
         document.getElementById('view-login').classList.remove('hidden');
         verificarSeExisteAdmin();
@@ -249,6 +262,7 @@
       const tituloCad = document.getElementById('titulo-cad-usuario');
       const boxExportacao = document.getElementById('container-botoes-exportacao');
       const panelCiclo = document.getElementById('panel-gestao-ciclo');
+      const panelCatalogoDivisoes = document.getElementById('panel-catalogo-divisoes');
 
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
@@ -269,6 +283,10 @@
           campoPerfil.classList.remove('hidden');
           tituloCad.innerText = "👥 Cadastrar Novo Gestor ou Conferente";
         }
+      }
+
+      if (panelCatalogoDivisoes) {
+        panelCatalogoDivisoes.classList.toggle('hidden', usuarioLogado.perfil !== 'admin');
       }
     }
 
@@ -297,14 +315,138 @@
       return bancoUsuarios;
     }
 
-    async function carregarCatalogoDivisoes() {
-      (usuarioLogado?.divisoesAtribuidas || []).forEach(divisao => catalogoDivisoes.add(divisao));
-      if (usuarioLogado && usuarioLogado.perfil !== 'conferente' && !usuariosCarregados) {
-        await carregarUsuarios(false, 'catalogo_divisoes_por_usuarios');
-      } else {
-        popularSelectsDivisao();
+    function renderizarCatalogoDivisoes() {
+      const container = document.getElementById('lista-catalogo-divisoes');
+      const contador = document.getElementById('catalogo-divisoes-contador');
+      if (!container) return;
+      const divisoes = [...catalogoDivisoes].filter(Boolean).sort((a, b) => a.localeCompare(b));
+      if (contador) contador.innerText = `${divisoes.length} cadastrada(s)`;
+      container.replaceChildren();
+      if (divisoes.length === 0) {
+        const vazio = document.createElement('span');
+        vazio.className = 'text-xs text-slate-500';
+        vazio.textContent = 'Catálogo vazio. Execute a sincronização inicial.';
+        container.appendChild(vazio);
+        return;
       }
+      divisoes.forEach(divisao => {
+        const tag = document.createElement('span');
+        tag.className = 'inline-block bg-slate-800 border border-slate-700 text-slate-300 px-2 py-1 rounded text-[10px] mr-1 mb-1';
+        tag.textContent = divisao;
+        container.appendChild(tag);
+      });
     }
+
+    async function carregarCatalogoDivisoes(forcar = false) {
+      (usuarioLogado?.divisoesAtribuidas || []).forEach(divisao => catalogoDivisoes.add(divisao));
+      if (catalogoDivisoesCarregado && !forcar) {
+        popularSelectsDivisao();
+        renderizarCatalogoDivisoes();
+        return;
+      }
+
+      try {
+        const snapshot = await getDocs(collection(db, "divisoes"));
+        registrarLeituras('catalogo_divisoes', snapshot.size);
+        snapshot.docs.forEach(docSnap => {
+          const dados = docSnap.data();
+          if (dados.nome && dados.ativo !== false) catalogoDivisoes.add(dados.nome);
+        });
+        catalogoDivisoesCarregado = true;
+      } catch (erro) {
+        console.warn("Catálogo de divisões indisponível; usando atribuições dos usuários como fallback.", erro);
+      }
+
+      if (catalogoDivisoes.size === 0 && usuarioLogado?.perfil !== 'conferente' && !usuariosCarregados) {
+        await carregarUsuarios(false, 'catalogo_divisoes_fallback');
+      }
+
+      popularSelectsDivisao();
+      renderizarCatalogoDivisoes();
+    }
+
+    function idDocumentoDivisao(nome) {
+      return encodeURIComponent(nome.trim().normalize('NFC'));
+    }
+
+    async function salvarDivisaoNoCatalogo(nome) {
+      const nomeNormalizado = nome.trim().replace(/\s+/g, ' ');
+      if (!nomeNormalizado) return;
+      if (nomeNormalizado.length > 100 || /[<>"'`]/.test(nomeNormalizado)) {
+        throw new Error("Nome de divisão inválido.");
+      }
+      await setDoc(doc(db, "divisoes", idDocumentoDivisao(nomeNormalizado)), {
+        nome: nomeNormalizado,
+        ativo: true,
+        atualizadoEm: serverTimestamp(),
+        atualizadoPorUid: usuarioLogado.uid,
+        atualizadoPorNome: usuarioLogado.nome
+      }, { merge: true });
+      catalogoDivisoes.add(nomeNormalizado);
+      popularSelectsDivisao();
+      renderizarCatalogoDivisoes();
+    }
+
+    document.getElementById('btn-adicionar-divisao')?.addEventListener('click', async () => {
+      if (usuarioLogado?.perfil !== 'admin') return alert("Apenas Administradores podem alterar o catálogo.");
+      const input = document.getElementById('input-nova-divisao');
+      const nome = input.value.trim();
+      if (!nome) return alert("Informe o nome da divisão.");
+      try {
+        await salvarDivisaoNoCatalogo(nome);
+        input.value = '';
+        alert("Divisão adicionada ao catálogo.");
+      } catch (erro) {
+        console.error("Erro ao adicionar divisão:", erro);
+        alert("Não foi possível adicionar a divisão. Verifique as regras do Firestore.");
+      }
+    });
+
+    document.getElementById('btn-sincronizar-divisoes')?.addEventListener('click', async () => {
+      if (usuarioLogado?.perfil !== 'admin') return alert("Apenas Administradores podem sincronizar o catálogo.");
+      if (!confirm("Esta operação fará uma leitura completa dos patrimônios uma única vez para montar o catálogo de divisões. Deseja continuar?")) return;
+
+      const botao = document.getElementById('btn-sincronizar-divisoes');
+      botao.disabled = true;
+      botao.innerText = "Sincronizando…";
+      try {
+        const snapshot = await getDocs(collection(db, "patrimonios"));
+        registrarLeituras('sincronizacao_catalogo_divisoes', snapshot.size);
+        const nomes = new Set();
+        snapshot.docs.map(normalizarPatrimonio).forEach(item => {
+          [item.divisaoOrigem, item.divisao, item.localizacaoAtual, item.divisaoDestinoSugerida]
+            .filter(Boolean)
+            .forEach(divisao => nomes.add(divisao.trim()));
+        });
+
+        const lista = [...nomes].sort((a, b) => a.localeCompare(b));
+        for (let inicio = 0; inicio < lista.length; inicio += 450) {
+          const batch = writeBatch(db);
+          lista.slice(inicio, inicio + 450).forEach(nome => {
+            batch.set(doc(db, "divisoes", idDocumentoDivisao(nome)), {
+              nome,
+              ativo: true,
+              atualizadoEm: serverTimestamp(),
+              atualizadoPorUid: usuarioLogado.uid,
+              atualizadoPorNome: usuarioLogado.nome
+            }, { merge: true });
+          });
+          await batch.commit();
+        }
+
+        lista.forEach(nome => catalogoDivisoes.add(nome));
+        catalogoDivisoesCarregado = true;
+        popularSelectsDivisao();
+        renderizarCatalogoDivisoes();
+        alert(`Catálogo sincronizado com ${lista.length} divisões.`);
+      } catch (erro) {
+        console.error("Erro ao sincronizar catálogo:", erro);
+        alert("Não foi possível sincronizar o catálogo. Verifique as permissões do Firestore.");
+      } finally {
+        botao.disabled = false;
+        botao.innerText = "🔄 Sincronizar a partir dos patrimônios";
+      }
+    });
 
     async function carregarPatrimoniosPermitidos(operacao) {
       if (!usuarioLogado) return [];
@@ -378,15 +520,27 @@
 
       const marcadasCadastro = new Set([...document.querySelectorAll('input[name="divisao-check"]:checked')].map(cb => cb.value));
       const marcadasEdicao = new Set([...document.querySelectorAll('input[name="edit-divisao-check"]:checked')].map(cb => cb.value));
-      const renderizarCheckboxes = (nome, marcadas) => divSet.map(divisao => `
-        <label class="flex items-center gap-2 cursor-pointer text-slate-300">
-          <input type="checkbox" name="${nome}" value="${divisao}" ${marcadas.has(divisao) ? 'checked' : ''} class="rounded bg-slate-800 border-slate-700">
-          <span>${divisao}</span>
-        </label>
-      `).join('');
+      const preencherCheckboxes = (container, nome, marcadas) => {
+        if (!container) return;
+        container.replaceChildren();
+        divSet.forEach(divisao => {
+          const label = document.createElement('label');
+          label.className = 'flex items-center gap-2 cursor-pointer text-slate-300';
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.name = nome;
+          checkbox.value = divisao;
+          checkbox.checked = marcadas.has(divisao);
+          checkbox.className = 'rounded bg-slate-800 border-slate-700';
+          const texto = document.createElement('span');
+          texto.textContent = divisao;
+          label.append(checkbox, texto);
+          container.appendChild(label);
+        });
+      };
 
-      if (checkContainer) checkContainer.innerHTML = renderizarCheckboxes('divisao-check', marcadasCadastro);
-      if (editCheckContainer) editCheckContainer.innerHTML = renderizarCheckboxes('edit-divisao-check', marcadasEdicao);
+      preencherCheckboxes(checkContainer, 'divisao-check', marcadasCadastro);
+      preencherCheckboxes(editCheckContainer, 'edit-divisao-check', marcadasEdicao);
     }
 
     ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
@@ -432,7 +586,10 @@
         if (abaAtiva === 'dashboard') await carregarDashboard();
         if (abaAtiva === 'scanner') await carregarCatalogoDivisoes();
         if (abaAtiva === 'transferencias') iniciarOuvinteTransferencias();
-        if (abaAtiva === 'usuarios') await carregarUsuarios();
+        if (abaAtiva === 'usuarios') {
+          await carregarUsuarios();
+          await carregarCatalogoDivisoes();
+        }
         if (abaAtiva === 'lista') await carregarRelacaoPatrimonial();
       } catch (erro) {
         console.error(`Erro ao carregar a aba ${abaAtiva}:`, erro);
@@ -1272,24 +1429,143 @@
       document.getElementById('modal-detalhes-item').classList.add('hidden');
     });
 
-    async function carregarRelacaoPatrimonial(forcar = false) {
-      if (relacaoCarregada && !forcar) {
+    function criarConsultaRelacao(cursor = null, paraContagem = false) {
+      const patrimoniosRef = collection(db, "patrimonios");
+      const termo = limparPlaqueta(document.getElementById('filtro-busca').value);
+      const statusFiltro = document.getElementById('filtro-status').value;
+      const divisaoFiltro = document.getElementById('filtro-divisao').value;
+      const filtros = [];
+
+      if (termo.length > 0 && termo.length < 3) return { invalida: true };
+
+      if (divisaoFiltro !== 'todas') {
+        if (usuarioLogado.perfil === 'conferente' && !usuarioTemAcessoDivisao(divisaoFiltro)) {
+          throw new Error("Divisão fora da alçada do usuário.");
+        }
+        filtros.push(or(
+          where("divisaoOrigem", "==", divisaoFiltro),
+          where("divisao", "==", divisaoFiltro),
+          where("localizacaoAtual", "==", divisaoFiltro)
+        ));
+      } else if (usuarioLogado.perfil === 'conferente') {
+        const divisoes = [...new Set(usuarioLogado.divisoesAtribuidas || [])];
+        if (divisoes.length === 0) return { vazia: true };
+        if (divisoes.length > 10) return { fallback: true };
+        filtros.push(or(
+          where("divisaoOrigem", "in", divisoes),
+          where("divisao", "in", divisoes),
+          where("localizacaoAtual", "in", divisoes)
+        ));
+      }
+
+      if (statusFiltro === 'localizados') filtros.push(where("localizado", "==", true));
+      if (statusFiltro === 'pendentes') filtros.push(where("localizado", "==", false));
+
+      const restricoes = [];
+      if (filtros.length === 1) restricoes.push(filtros[0]);
+      if (filtros.length > 1) restricoes.push(and(...filtros));
+      restricoes.push(orderBy(documentId()));
+
+      if (cursor) restricoes.push(startAfter(cursor));
+      else if (termo) restricoes.push(startAt(termo));
+      if (termo) restricoes.push(endAt(`${termo}\uf8ff`));
+      if (!paraContagem) restricoes.push(limit(TAMANHO_PAGINA_RELACAO));
+
+      return { consulta: query(patrimoniosRef, ...restricoes), termo };
+    }
+
+    function atualizarPaginacaoRelacao() {
+      const info = document.getElementById('relacao-paginacao-info');
+      const botao = document.getElementById('btn-carregar-mais');
+      if (info) info.innerText = `${bancoPatrimonio.length} de ${totalRelacao} item(ns) carregado(s)`;
+      if (botao) {
+        botao.classList.toggle('hidden', !relacaoTemMais || bancoPatrimonio.length === 0);
+        botao.disabled = relacaoCarregando;
+        botao.innerText = relacaoCarregando ? 'Carregando…' : `Carregar mais ${TAMANHO_PAGINA_RELACAO}`;
+      }
+    }
+
+    async function carregarRelacaoPatrimonial({ reiniciar = false, carregarMais = false } = {}) {
+      if (relacaoCarregando) return;
+      if (relacaoCarregada && !reiniciar && !carregarMais) {
+        renderizarRelaçãoBD();
+        return;
+      }
+      if (carregarMais && !relacaoTemMais) return;
+
+      const container = document.getElementById('container-accordions');
+      if (reiniciar || !relacaoCarregada) {
+        bancoPatrimonio = [];
+        itensFiltradosCache = [];
+        cursorRelacao = null;
+        totalRelacao = 0;
+        relacaoTemMais = true;
+        container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400">Carregando primeira página…</div>`;
+      }
+
+      const configuracao = criarConsultaRelacao(carregarMais ? cursorRelacao : null, false);
+      if (configuracao.invalida) {
+        container.innerHTML = `<div class="bg-slate-800 p-5 rounded-xl border border-slate-700 text-center text-xs text-slate-400">Digite ao menos três números para pesquisar uma plaqueta.</div>`;
+        totalRelacao = 0;
+        relacaoTemMais = false;
+        atualizarPaginacaoRelacao();
+        return;
+      }
+      if (configuracao.vazia) {
+        bancoPatrimonio = [];
+        totalRelacao = 0;
+        relacaoTemMais = false;
+        relacaoCarregada = true;
+        renderizarRelaçãoBD();
+        return;
+      }
+      if (configuracao.fallback) {
+        bancoPatrimonio = await carregarPatrimoniosPermitidos('relacao_fallback_mais_de_10_divisoes');
+        totalRelacao = bancoPatrimonio.length;
+        relacaoTemMais = false;
+        relacaoCarregada = true;
         renderizarRelaçãoBD();
         return;
       }
 
-      const container = document.getElementById('container-accordions');
-      container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400">Carregando relação patrimonial sob demanda…</div>`;
-      bancoPatrimonio = await carregarPatrimoniosPermitidos('relacao_patrimonial');
-      relacaoCarregada = true;
-      renderizarRelaçãoBD();
+      relacaoCarregando = true;
+      atualizarPaginacaoRelacao();
+      try {
+        if (reiniciar || !relacaoCarregada) {
+          const configuracaoContagem = criarConsultaRelacao(null, true);
+          const contagemSnap = await getCountFromServer(configuracaoContagem.consulta);
+          totalRelacao = contagemSnap.data().count;
+          registrarLeituras('relacao_contagem', 0, estimarLeiturasAgregacao(totalRelacao));
+        }
+
+        const snapshot = await getDocs(configuracao.consulta);
+        registrarLeituras('relacao_pagina', snapshot.size);
+        const novosItens = snapshot.docs.map(normalizarPatrimonio);
+        const porPlaqueta = new Map(bancoPatrimonio.map(item => [item.plaqueta, item]));
+        novosItens.forEach(item => porPlaqueta.set(item.plaqueta, item));
+        bancoPatrimonio = [...porPlaqueta.values()];
+        cachearPatrimonios(novosItens);
+        adicionarDivisoesAoCatalogo(novosItens);
+
+        cursorRelacao = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : cursorRelacao;
+        relacaoTemMais = snapshot.size === TAMANHO_PAGINA_RELACAO && bancoPatrimonio.length < totalRelacao;
+        relacaoCarregada = true;
+        renderizarRelaçãoBD();
+      } catch (erro) {
+        console.error("Erro na consulta paginada da Relação:", erro);
+        relacaoTemMais = false;
+        container.innerHTML = `<div class="bg-red-950/40 p-5 rounded-xl border border-red-500/30 text-center text-xs text-red-300">Não foi possível carregar a consulta. Verifique as regras e os índices do Firestore.</div>`;
+      } finally {
+        relacaoCarregando = false;
+        atualizarPaginacaoRelacao();
+      }
     }
 
     function renderizarRelaçãoBD() {
       const container = document.getElementById('container-accordions');
       if (!container || !usuarioLogado) return;
 
-      const termo = document.getElementById('filtro-busca').value.toLowerCase();
+      const termo = limparPlaqueta(document.getElementById('filtro-busca').value);
       const statusFiltro = document.getElementById('filtro-status').value;
       const divisaoFiltro = document.getElementById('filtro-divisao').value;
       const minhasDivs = usuarioLogado.divisoesAtribuidas || [];
@@ -1310,7 +1586,7 @@
 
       const itensFiltrados = itensPermitidos.filter(i => {
         const atual = i.localizacaoAtual || i.divisaoOrigem || i.divisao;
-        const matchTermo = i.plaqueta.includes(termo) || i.descricao.toLowerCase().includes(termo);
+        const matchTermo = !termo || i.plaqueta.startsWith(termo);
         const matchStatus = statusFiltro === 'todos' || (statusFiltro === 'localizados' ? i.localizado : !i.localizado);
         const matchDivisao = divisaoFiltro === 'todas' || atual === divisaoFiltro;
         return matchTermo && matchStatus && matchDivisao;
@@ -1340,8 +1616,8 @@
         accordion.className = "bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-md";
         accordion.innerHTML = `
           <button onclick="document.getElementById('acc-${idx}').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-3.5 text-left font-bold text-xs md:text-sm bg-slate-800 border-b border-slate-700/50 hover:bg-slate-750 transition-colors">
-            <span class="text-blue-400 font-semibold">📁 ${divNome} (${totalCount})</span>
-            <span class="text-xs ${locCount === totalCount ? 'text-emerald-400' : 'text-amber-400'}">${locCount}/${totalCount} Localizados</span>
+            <span class="text-blue-400 font-semibold">📁 ${divNome} (${totalCount} carregados)</span>
+            <span class="text-xs ${locCount === totalCount ? 'text-emerald-400' : 'text-amber-400'}">${locCount}/${totalCount} nesta página</span>
           </button>
           <div id="acc-${idx}" class="accordion-content collapsed p-3 grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-900/50">
             ${visiveisDaDiv.map(item => `
@@ -1363,12 +1639,29 @@
         `;
         container.appendChild(accordion);
       });
+
+      if (container.children.length === 0) {
+        container.innerHTML = `<div class="bg-slate-800 p-5 rounded-xl border border-slate-700 text-center text-xs text-slate-400">Nenhum patrimônio encontrado com os filtros atuais.</div>`;
+      }
+      atualizarPaginacaoRelacao();
     }
 
-    document.getElementById('filtro-busca').addEventListener('input', renderizarRelaçãoBD);
-    document.getElementById('filtro-status').addEventListener('change', renderizarRelaçãoBD);
-    document.getElementById('filtro-divisao').addEventListener('change', renderizarRelaçãoBD);
-    document.getElementById('btn-atualizar-relacao')?.addEventListener('click', () => carregarRelacaoPatrimonial(true));
+    document.getElementById('filtro-busca').addEventListener('input', () => {
+      clearTimeout(timerFiltroRelacao);
+      relacaoCarregada = false;
+      relacaoTemMais = false;
+      atualizarPaginacaoRelacao();
+      const termo = limparPlaqueta(document.getElementById('filtro-busca').value);
+      if (termo.length > 0 && termo.length < 3) {
+        document.getElementById('relacao-paginacao-info').innerText = 'Digite ao menos três números para pesquisar';
+        return;
+      }
+      timerFiltroRelacao = setTimeout(() => carregarRelacaoPatrimonial({ reiniciar: true }), 400);
+    });
+    document.getElementById('filtro-status').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
+    document.getElementById('filtro-divisao').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
+    document.getElementById('btn-atualizar-relacao')?.addEventListener('click', () => carregarRelacaoPatrimonial({ reiniciar: true }));
+    document.getElementById('btn-carregar-mais')?.addEventListener('click', () => carregarRelacaoPatrimonial({ carregarMais: true }));
 
     document.getElementById('btn-exportar-csv').addEventListener('click', () => exportarCSV(bancoPatrimonio, 'relatorio_geral'));
     document.getElementById('btn-exportar-divergencias').addEventListener('click', () => exportarCSV(bancoPatrimonio.filter(i => !i.localizado), 'relatorio_pendentes'));
