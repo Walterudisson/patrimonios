@@ -50,7 +50,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.1.4</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.2.0 • Sprint 0.2</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -113,6 +113,11 @@
               <div class="text-[11px] text-slate-400 font-semibold mt-1">AGUARDANDO TRANSF.</div>
             </div>
           </div>
+        </div>
+
+        <div class="flex items-center justify-between gap-3 bg-slate-900/70 border border-slate-700/60 rounded-lg px-3 py-2 text-[10px] text-slate-400">
+          <span>⛽ Consumo estimado do Firestore</span>
+          <span id="firestore-metrics" class="font-semibold text-blue-300 text-right">Sessão: 0 documentos + ~0 leituras de agregação</span>
         </div>
 
         <!-- CARROSSEL DE DICAS -->
@@ -293,6 +298,9 @@
           </div>
 
           <div id="container-botoes-exportacao" class="space-y-2.5 pt-2 border-t border-slate-700/60">
+            <button id="btn-atualizar-relacao" class="w-full bg-blue-900/50 hover:bg-blue-800 text-blue-200 font-bold py-2 rounded-lg text-xs border border-blue-500/30 transition-colors">
+              🔄 Atualizar dados da relação
+            </button>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               <button id="btn-exportar-csv" class="bg-slate-700 hover:bg-slate-600 text-blue-400 font-bold py-2 rounded-lg text-xs transition-colors">
                 📥 Relatório Geral (CSV)
@@ -315,7 +323,7 @@
     </main>
 
     <footer class="py-6 text-center">
-      <span class="text-xs text-slate-500 font-medium">v1.1.4</span>
+      <span class="text-xs text-slate-500 font-medium">v1.2.0 • Sprint 0.2</span>
     </footer>
   </div>
 

@@ -1,6 +1,10 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import {
+      getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
+      collection, getDocs, onSnapshot, writeBatch, query, where,
+      and, or, orderBy, startAt, endAt, limit, documentId, getCountFromServer
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCVMSES7nwZkZZdQpemDZIb8ypd40bUtvs",
@@ -21,12 +25,74 @@
     let usuarioLogado = null;
     let bancoPatrimonio = [];
     let bancoUsuarios = [];
+    let bancoTransferencias = [];
     let html5QrcodeScanner = null;
     let cameraAtiva = false;
     let itemAtualSelecionado = null;
     let modoBootstrapAdmin = false;
     let nivelZoomAtual = 1;
     let itensFiltradosCache = [];
+    let unsubscribeTransferencias = null;
+    let abaAtual = 'dashboard';
+    let usuariosCarregados = false;
+    let relacaoCarregada = false;
+    let timerAutocomplete = null;
+    let primeiraCargaTransferencias = true;
+
+    const cachePatrimonios = new Map();
+    const cacheSugestoes = new Map();
+    const catalogoDivisoes = new Set();
+    const metricasFirestore = {
+      documentosLidos: 0,
+      leiturasAgregadasEstimadas: 0,
+      operacoes: {}
+    };
+
+    function registrarLeituras(operacao, documentos = 0, agregadasEstimadas = 0) {
+      metricasFirestore.documentosLidos += documentos;
+      metricasFirestore.leiturasAgregadasEstimadas += agregadasEstimadas;
+      const atual = metricasFirestore.operacoes[operacao] || { documentos: 0, agregadasEstimadas: 0 };
+      atual.documentos += documentos;
+      atual.agregadasEstimadas += agregadasEstimadas;
+      metricasFirestore.operacoes[operacao] = atual;
+      atualizarPainelMetricas();
+    }
+
+    function estimarLeiturasAgregacao(...contagens) {
+      return contagens.reduce((total, quantidade) => total + Math.max(1, Math.ceil(quantidade / 1000)), 0);
+    }
+
+    function atualizarPainelMetricas() {
+      const el = document.getElementById('firestore-metrics');
+      if (!el) return;
+      el.innerText = `Sessão: ${metricasFirestore.documentosLidos} documentos + ~${metricasFirestore.leiturasAgregadasEstimadas} leituras de agregação`;
+    }
+
+    window.obterMetricasFirestore = () => JSON.parse(JSON.stringify(metricasFirestore));
+
+    function normalizarPatrimonio(docSnap) {
+      const dados = docSnap.data();
+      return { id: docSnap.id, ...dados, plaqueta: dados.plaqueta || docSnap.id };
+    }
+
+    function cachearPatrimonios(itens) {
+      itens.forEach(item => cachePatrimonios.set(item.plaqueta, item));
+    }
+
+    function adicionarDivisoesAoCatalogo(itens = []) {
+      itens.forEach(item => {
+        [item.divisaoOrigem, item.divisao, item.localizacaoAtual, item.divisaoDestinoSugerida]
+          .filter(Boolean)
+          .forEach(divisao => catalogoDivisoes.add(divisao));
+      });
+      popularSelectsDivisao();
+    }
+
+    function dividirEmLotes(lista, tamanho = 10) {
+      const lotes = [];
+      for (let i = 0; i < lista.length; i += tamanho) lotes.push(lista.slice(i, i + tamanho));
+      return lotes;
+    }
 
     const dicasLista = [
       { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR' para reconhecer o texto automaticamente." },
@@ -68,9 +134,11 @@
 
     async function verificarSeExisteAdmin() {
       try {
-        const snap = await getDocs(collection(db, "usuarios"));
+        const snap = await getCountFromServer(collection(db, "usuarios"));
+        const quantidade = snap.data().count;
+        registrarLeituras('bootstrap_usuarios', 0, estimarLeiturasAgregacao(quantidade));
         const bootstrapBox = document.getElementById('bootstrap-box');
-        if (snap.empty) { bootstrapBox.classList.remove('hidden'); }
+        if (quantidade === 0) { bootstrapBox.classList.remove('hidden'); }
         else { bootstrapBox.classList.add('hidden'); }
       } catch (e) { console.log("Aguardando conexão."); }
     }
@@ -136,6 +204,7 @@
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+        registrarLeituras('perfil_usuario', 1);
         if (!userDoc.exists()) {
           await signOut(auth);
           return;
@@ -145,14 +214,23 @@
         document.getElementById('view-login').classList.add('hidden');
         document.getElementById('view-app').classList.remove('hidden');
         atualizarCabecalhoUsuario();
-        iniciarOuvintes();
         atualizarCarrossel();
+        await alternarAba('dashboard');
       } else {
+        encerrarOuvinteTransferencias();
         if (cameraAtiva && html5QrcodeScanner) {
           html5QrcodeScanner.stop().catch(() => {});
           cameraAtiva = false;
         }
         usuarioLogado = null;
+        bancoPatrimonio = [];
+        bancoUsuarios = [];
+        bancoTransferencias = [];
+        cachePatrimonios.clear();
+        cacheSugestoes.clear();
+        catalogoDivisoes.clear();
+        usuariosCarregados = false;
+        relacaoCarregada = false;
         document.getElementById('view-app').classList.add('hidden');
         document.getElementById('view-login').classList.remove('hidden');
         verificarSeExisteAdmin();
@@ -194,21 +272,72 @@
       }
     }
 
-    function iniciarOuvintes() {
-      onSnapshot(collection(db, "patrimonios"), (snapshot) => {
-        bancoPatrimonio = [];
-        snapshot.forEach(docSnap => bancoPatrimonio.push({ id: docSnap.id, ...docSnap.data() }));
-        popularSelectsDivisao();
-        atualizarDashboard();
-        renderizarRelaçãoBD();
-        renderizarFilaTransferencias();
-      });
-
-      onSnapshot(collection(db, "usuarios"), (snapshot) => {
-        bancoUsuarios = [];
-        snapshot.forEach(docSnap => bancoUsuarios.push({ uid: docSnap.id, ...docSnap.data() }));
+    async function carregarUsuarios(forcar = false, operacao = 'usuarios_sob_demanda') {
+      if (usuariosCarregados && !forcar) {
         renderizarListaUsuarios();
+        return bancoUsuarios;
+      }
+
+      const consultaUsuarios = usuarioLogado?.perfil === 'gestor'
+        ? query(collection(db, "usuarios"), where("perfil", "==", "conferente"))
+        : collection(db, "usuarios");
+      const snapshot = await getDocs(consultaUsuarios);
+      registrarLeituras(operacao, snapshot.size);
+      bancoUsuarios = snapshot.docs.map(docSnap => ({ uid: docSnap.id, ...docSnap.data() }));
+      if (usuarioLogado?.perfil === 'gestor' && !bancoUsuarios.some(usuario => usuario.uid === usuarioLogado.uid)) {
+        bancoUsuarios.unshift({ ...usuarioLogado });
+      }
+      usuariosCarregados = true;
+
+      bancoUsuarios.forEach(usuario => {
+        (usuario.divisaoAtribuidas || usuario.divisoesAtribuidas || []).forEach(divisao => catalogoDivisoes.add(divisao));
       });
+      popularSelectsDivisao();
+      renderizarListaUsuarios();
+      return bancoUsuarios;
+    }
+
+    async function carregarCatalogoDivisoes() {
+      (usuarioLogado?.divisoesAtribuidas || []).forEach(divisao => catalogoDivisoes.add(divisao));
+      if (usuarioLogado && usuarioLogado.perfil !== 'conferente' && !usuariosCarregados) {
+        await carregarUsuarios(false, 'catalogo_divisoes_por_usuarios');
+      } else {
+        popularSelectsDivisao();
+      }
+    }
+
+    async function carregarPatrimoniosPermitidos(operacao) {
+      if (!usuarioLogado) return [];
+      if (usuarioLogado.perfil === 'admin' || usuarioLogado.perfil === 'gestor') {
+        const snapshot = await getDocs(collection(db, "patrimonios"));
+        registrarLeituras(operacao, snapshot.size);
+        const itens = snapshot.docs.map(normalizarPatrimonio);
+        cachearPatrimonios(itens);
+        adicionarDivisoesAoCatalogo(itens);
+        return itens;
+      }
+
+      const divisoes = [...new Set(usuarioLogado.divisoesAtribuidas || [])];
+      if (divisoes.length === 0) return [];
+
+      const resultados = new Map();
+      let leituras = 0;
+      for (const lote of dividirEmLotes(divisoes)) {
+        const consulta = query(collection(db, "patrimonios"), or(
+          where("divisaoOrigem", "in", lote),
+          where("divisao", "in", lote),
+          where("localizacaoAtual", "in", lote)
+        ));
+        const snapshot = await getDocs(consulta);
+        leituras += snapshot.size;
+        snapshot.docs.map(normalizarPatrimonio).forEach(item => resultados.set(item.plaqueta, item));
+      }
+
+      registrarLeituras(operacao, leituras);
+      const itens = [...resultados.values()];
+      cachearPatrimonios(itens);
+      adicionarDivisoesAoCatalogo(itens);
+      return itens;
     }
 
     function limparPlaqueta(str) {
@@ -228,51 +357,36 @@
       const selectReversao = document.getElementById('select-divisao-reversao');
       const checkContainer = document.getElementById('cad-divisoes-checkboxes');
       const editCheckContainer = document.getElementById('edit-divisoes-checkboxes');
+      const divSet = [...catalogoDivisoes].filter(Boolean).sort((a, b) => a.localeCompare(b));
+      if (divSet.length === 0) return;
 
-      if (bancoPatrimonio.length > 0) {
-        const divSet = [...new Set(bancoPatrimonio.map(i => i.divisaoOrigem || i.divisao))].sort();
+      const adicionarOpcoesAusentes = (select, filtro = () => true) => {
+        if (!select) return;
+        const existentes = new Set([...select.options].map(option => option.value));
+        divSet.filter(filtro).forEach(divisao => {
+          if (existentes.has(divisao)) return;
+          const option = document.createElement('option');
+          option.value = divisao;
+          option.innerText = divisao;
+          select.appendChild(option);
+        });
+      };
 
-        if (selectLocalizacao.options.length <= 1) {
-          divSet.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d; opt.innerText = d;
-            selectLocalizacao.appendChild(opt);
-          });
-        }
+      adicionarOpcoesAusentes(selectLocalizacao);
+      adicionarOpcoesAusentes(selectFiltro, usuarioTemAcessoDivisao);
+      adicionarOpcoesAusentes(selectReversao);
 
-        if (selectFiltro.options.length <= 1) {
-          divSet.forEach(d => {
-            if (usuarioTemAcessoDivisao(d)) {
-              const opt = document.createElement('option');
-              opt.value = d; opt.innerText = d;
-              selectFiltro.appendChild(opt);
-            }
-          });
-        }
+      const marcadasCadastro = new Set([...document.querySelectorAll('input[name="divisao-check"]:checked')].map(cb => cb.value));
+      const marcadasEdicao = new Set([...document.querySelectorAll('input[name="edit-divisao-check"]:checked')].map(cb => cb.value));
+      const renderizarCheckboxes = (nome, marcadas) => divSet.map(divisao => `
+        <label class="flex items-center gap-2 cursor-pointer text-slate-300">
+          <input type="checkbox" name="${nome}" value="${divisao}" ${marcadas.has(divisao) ? 'checked' : ''} class="rounded bg-slate-800 border-slate-700">
+          <span>${divisao}</span>
+        </label>
+      `).join('');
 
-        if (selectReversao && selectReversao.options.length <= 1) {
-          divSet.forEach(d => {
-            const opt = document.createElement('option');
-            opt.value = d; opt.innerText = d;
-            selectReversao.appendChild(opt);
-          });
-        }
-
-        const htmlCheckboxes = divSet.map(d => `
-          <label class="flex items-center gap-2 cursor-pointer text-slate-300">
-            <input type="checkbox" name="divisao-check" value="${d}" class="rounded bg-slate-800 border-slate-700">
-            <span>${d}</span>
-          </label>
-        `).join('');
-
-        if (checkContainer && checkContainer.children.length === 0) checkContainer.innerHTML = htmlCheckboxes;
-        if (editCheckContainer && editCheckContainer.children.length === 0) editCheckContainer.innerHTML = divSet.map(d => `
-          <label class="flex items-center gap-2 cursor-pointer text-slate-300">
-            <input type="checkbox" name="edit-divisao-check" value="${d}" class="rounded bg-slate-800 border-slate-700">
-            <span>${d}</span>
-          </label>
-        `).join('');
-      }
+      if (checkContainer) checkContainer.innerHTML = renderizarCheckboxes('divisao-check', marcadasCadastro);
+      if (editCheckContainer) editCheckContainer.innerHTML = renderizarCheckboxes('edit-divisao-check', marcadasEdicao);
     }
 
     ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
@@ -280,12 +394,15 @@
       if (btn) btn.addEventListener('click', () => alternarAba(aba));
     });
 
-    function alternarAba(abaAtiva) {
+    async function alternarAba(abaAtiva) {
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
         if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios') {
           return;
         }
       }
+
+      if (abaAtiva !== 'transferencias') encerrarOuvinteTransferencias();
+      abaAtual = abaAtiva;
 
       if (abaAtiva !== 'scanner' && cameraAtiva && html5QrcodeScanner) {
         html5QrcodeScanner.stop().catch(() => {});
@@ -310,24 +427,20 @@
         document.getElementById('tab-btn-transferencias').classList.add('hidden');
         document.getElementById('tab-btn-usuarios').classList.add('hidden');
       }
+
+      try {
+        if (abaAtiva === 'dashboard') await carregarDashboard();
+        if (abaAtiva === 'scanner') await carregarCatalogoDivisoes();
+        if (abaAtiva === 'transferencias') iniciarOuvinteTransferencias();
+        if (abaAtiva === 'usuarios') await carregarUsuarios();
+        if (abaAtiva === 'lista') await carregarRelacaoPatrimonial();
+      } catch (erro) {
+        console.error(`Erro ao carregar a aba ${abaAtiva}:`, erro);
+        alert("Não foi possível carregar os dados desta tela. Verifique sua conexão e tente novamente.");
+      }
     }
 
-    function atualizarDashboard() {
-      if (!usuarioLogado) return;
-      const minhasDivs = usuarioLogado.divisoesAtribuidas || [];
-
-      const itensFiltrados = bancoPatrimonio.filter(i => {
-        if (usuarioLogado.perfil === 'admin' || usuarioLogado.perfil === 'gestor') return true;
-        const origem = i.divisaoOrigem || i.divisao;
-        const atual = i.localizacaoAtual || origem;
-        return minhasDivs.includes(origem) || minhasDivs.includes(atual);
-      });
-
-      const total = itensFiltrados.length;
-      const localizados = itensFiltrados.filter(i => i.localizado && i.statusTransferencia !== 'pendente').length;
-      const pendentes = itensFiltrados.filter(i => !i.localizado).length;
-      const aguardando = bancoPatrimonio.filter(i => i.statusTransferencia === 'pendente').length;
-
+    function aplicarNumerosDashboard(total, localizados, pendentes, aguardando) {
       document.getElementById('dash-total').innerText = total;
       document.getElementById('dash-localizados').innerText = localizados;
       document.getElementById('dash-pendentes').innerText = pendentes;
@@ -340,6 +453,94 @@
       } else { badgeFila.classList.add('hidden'); }
     }
 
+    async function carregarDashboard() {
+      if (!usuarioLogado) return;
+      ['dash-total', 'dash-localizados', 'dash-pendentes', 'dash-aguardando']
+        .forEach(id => document.getElementById(id).innerText = '…');
+
+      if (usuarioLogado.perfil === 'admin' || usuarioLogado.perfil === 'gestor') {
+        const patrimoniosRef = collection(db, "patrimonios");
+        const [totalSnap, localizadosSnap, aguardandoSnap] = await Promise.all([
+          getCountFromServer(patrimoniosRef),
+          getCountFromServer(query(patrimoniosRef, where("localizado", "==", true))),
+          getCountFromServer(query(patrimoniosRef, where("statusTransferencia", "==", "pendente")))
+        ]);
+
+        const total = totalSnap.data().count;
+        const totalMarcadosLocalizados = localizadosSnap.data().count;
+        const aguardando = aguardandoSnap.data().count;
+        const localizados = Math.max(0, totalMarcadosLocalizados - aguardando);
+        const pendentes = Math.max(0, total - totalMarcadosLocalizados);
+        registrarLeituras('dashboard_agregacoes', 0, estimarLeiturasAgregacao(total, totalMarcadosLocalizados, aguardando));
+        aplicarNumerosDashboard(total, localizados, pendentes, aguardando);
+        return;
+      }
+
+      const divisoes = [...new Set(usuarioLogado.divisoesAtribuidas || [])];
+      if (divisoes.length === 0) {
+        aplicarNumerosDashboard(0, 0, 0, 0);
+        return;
+      }
+
+      if (divisoes.length <= 10) {
+        try {
+          const patrimoniosRef = collection(db, "patrimonios");
+          const filtroAcesso = or(
+            where("divisaoOrigem", "in", divisoes),
+            where("divisao", "in", divisoes),
+            where("localizacaoAtual", "in", divisoes)
+          );
+          const [totalSnap, localizadosSnap, aguardandoSnap] = await Promise.all([
+            getCountFromServer(query(patrimoniosRef, filtroAcesso)),
+            getCountFromServer(query(patrimoniosRef, and(filtroAcesso, where("localizado", "==", true)))),
+            getCountFromServer(query(patrimoniosRef, and(filtroAcesso, where("statusTransferencia", "==", "pendente"))))
+          ]);
+          const total = totalSnap.data().count;
+          const totalMarcadosLocalizados = localizadosSnap.data().count;
+          const aguardando = aguardandoSnap.data().count;
+          registrarLeituras('dashboard_conferente_agregacoes', 0, estimarLeiturasAgregacao(total, totalMarcadosLocalizados, aguardando));
+          aplicarNumerosDashboard(
+            total,
+            Math.max(0, totalMarcadosLocalizados - aguardando),
+            Math.max(0, total - totalMarcadosLocalizados),
+            aguardando
+          );
+          return;
+        } catch (erro) {
+          console.warn("Agregação filtrada indisponível; usando fallback documental.", erro);
+        }
+      }
+
+      const itens = await carregarPatrimoniosPermitidos('dashboard_conferente_fallback');
+      aplicarNumerosDashboard(
+        itens.length,
+        itens.filter(item => item.localizado && item.statusTransferencia !== 'pendente').length,
+        itens.filter(item => !item.localizado).length,
+        itens.filter(item => item.statusTransferencia === 'pendente').length
+      );
+    }
+
+    async function atualizarItensEmLotes(itens, dadosAtualizacao) {
+      for (let inicio = 0; inicio < itens.length; inicio += 450) {
+        const batch = writeBatch(db);
+        itens.slice(inicio, inicio + 450).forEach(item => {
+          batch.update(doc(db, "patrimonios", item.plaqueta), dadosAtualizacao);
+        });
+        await batch.commit();
+      }
+    }
+
+    async function buscarItensDaDivisao(divisao, operacao) {
+      const consulta = query(collection(db, "patrimonios"), or(
+        where("divisaoOrigem", "==", divisao),
+        where("divisao", "==", divisao),
+        where("localizacaoAtual", "==", divisao)
+      ));
+      const snapshot = await getDocs(consulta);
+      registrarLeituras(operacao, snapshot.size);
+      return snapshot.docs.map(normalizarPatrimonio);
+    }
+
     document.getElementById('btn-reverter-divisao').addEventListener('click', async () => {
       if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
       const divAlvo = document.getElementById('select-divisao-reversao').value;
@@ -347,22 +548,18 @@
 
       if (!confirm(`Deseja realmente retornar todos os itens da divisão '${divAlvo}' para o status PENDENTE? O progresso de conferência deste setor será zerado.`)) return;
 
-      const itensAfetados = bancoPatrimonio.filter(i => (i.divisaoOrigem || i.divisao) === divAlvo || i.localizacaoAtual === divAlvo);
+      const itensAfetados = await buscarItensDaDivisao(divAlvo, 'reversao_divisao');
       if (itensAfetados.length === 0) return alert("Nenhum item encontrado nesta divisão.");
 
       try {
-        const batch = writeBatch(db);
-        itensAfetados.forEach(item => {
-          const ref = doc(db, "patrimonios", item.plaqueta);
-          batch.update(ref, {
-            localizado: false,
-            statusTransferencia: "concluido",
-            conferidoPor: "",
-            observacaoAtual: "Status revertido para pendente (Novo Ciclo)",
-            dataLocalizacao: ""
-          });
+        await atualizarItensEmLotes(itensAfetados, {
+          localizado: false,
+          statusTransferencia: "concluido",
+          conferidoPor: "",
+          observacaoAtual: "Status revertido para pendente (Novo Ciclo)",
+          dataLocalizacao: ""
         });
-        await batch.commit();
+        relacaoCarregada = false;
         alert(`Sucesso! ${itensAfetados.length} itens da divisão ${divAlvo} foram retornados para pendentes.`);
         document.getElementById('select-divisao-reversao').value = "";
       } catch (e) {
@@ -375,18 +572,17 @@
       if (!confirm("⚠️ ATENÇÃO: Deseja realmente reiniciar o inventário geral? TODOS OS ITENS do sistema retornarão para o status PENDENTE. Esta ação preparará o sistema para um novo ciclo completo.")) return;
 
       try {
-        const batch = writeBatch(db);
-        bancoPatrimonio.forEach(item => {
-          const ref = doc(db, "patrimonios", item.plaqueta);
-          batch.update(ref, {
-            localizado: false,
-            statusTransferencia: "concluido",
-            conferidoPor: "",
-            observacaoAtual: "Inventário reiniciado para novo ciclo",
-            dataLocalizacao: ""
-          });
+        const snapshot = await getDocs(collection(db, "patrimonios"));
+        registrarLeituras('reversao_geral', snapshot.size);
+        const itens = snapshot.docs.map(normalizarPatrimonio);
+        await atualizarItensEmLotes(itens, {
+          localizado: false,
+          statusTransferencia: "concluido",
+          conferidoPor: "",
+          observacaoAtual: "Inventário reiniciado para novo ciclo",
+          dataLocalizacao: ""
         });
-        await batch.commit();
+        relacaoCarregada = false;
         alert("Inventário geral reiniciado com sucesso! Todos os itens estão pendentes.");
       } catch (e) {
         alert("Erro ao reiniciar inventário geral.");
@@ -405,6 +601,9 @@
           observacaoAtual: "Item retornado manualmente para pendente",
           dataLocalizacao: ""
         });
+        const itemCache = cachePatrimonios.get(plaqueta);
+        if (itemCache) cachePatrimonios.set(plaqueta, { ...itemCache, localizado: false, statusTransferencia: "concluido" });
+        relacaoCarregada = false;
         alert("Item retornado para pendente com sucesso.");
         document.getElementById('modal-detalhes-item').classList.add('hidden');
       } catch (e) {
@@ -440,6 +639,7 @@
         document.getElementById('form-cad-usuario').reset();
         document.querySelectorAll('input[name="divisao-check"]').forEach(cb => cb.checked = false);
         fecharModalCriacaoUsuario();
+        await carregarUsuarios(true);
       } catch (err) {
         let msg = "Não foi possível concluir o cadastro.";
         if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já está cadastrado no sistema.";
@@ -545,6 +745,7 @@
       try {
         await deleteDoc(doc(db, "usuarios", uid));
         alert("Usuário removido com sucesso.");
+        await carregarUsuarios(true);
       } catch (err) {
         alert("Erro ao remover o usuário. Tente novamente.");
       }
@@ -614,6 +815,7 @@
         });
         alert("Dados atualizados com sucesso.");
         document.getElementById('modal-edicao-usuario').classList.add('hidden');
+        await carregarUsuarios(true);
       } catch (err) {
         alert("Não foi possível salvar as alterações.");
       }
@@ -663,17 +865,47 @@
 
     inputPlaqueta.addEventListener('input', (e) => {
       const valor = limparPlaqueta(e.target.value);
-      if (!valor || bancoPatrimonio.length === 0) { suggestionsBox.classList.add('hidden'); return; }
-      const correspondencias = bancoPatrimonio.filter(i => i.plaqueta.includes(valor)).slice(0, 5);
-      if (correspondencias.length > 0) {
-        suggestionsBox.innerHTML = correspondencias.map(i => `
-          <div class="p-2 hover:bg-slate-700 cursor-pointer text-xs border-b border-slate-700/50 flex justify-between" data-plaqueta="${i.plaqueta}">
-            <span class="font-bold text-blue-400">${i.plaqueta}</span>
-            <span class="text-slate-400 truncate max-w-[180px]">${i.descricao}</span>
-          </div>
-        `).join('');
-        suggestionsBox.classList.remove('hidden');
-      } else { suggestionsBox.classList.add('hidden'); }
+      clearTimeout(timerAutocomplete);
+      if (valor.length < 3) {
+        suggestionsBox.classList.add('hidden');
+        return;
+      }
+
+      timerAutocomplete = setTimeout(async () => {
+        try {
+          let correspondencias = cacheSugestoes.get(valor);
+          if (!correspondencias) {
+            const consulta = query(
+              collection(db, "patrimonios"),
+              orderBy(documentId()),
+              startAt(valor),
+              endAt(`${valor}\uf8ff`),
+              limit(5)
+            );
+            const snapshot = await getDocs(consulta);
+            registrarLeituras('autocomplete', snapshot.size);
+            correspondencias = snapshot.docs.map(normalizarPatrimonio);
+            cacheSugestoes.set(valor, correspondencias);
+            cachearPatrimonios(correspondencias);
+          }
+
+          if (inputPlaqueta.value.replace(/\D/g, '') !== valor) return;
+          if (correspondencias.length > 0) {
+            suggestionsBox.innerHTML = correspondencias.map(item => `
+              <div class="p-2 hover:bg-slate-700 cursor-pointer text-xs border-b border-slate-700/50 flex justify-between" data-plaqueta="${item.plaqueta}">
+                <span class="font-bold text-blue-400">${item.plaqueta}</span>
+                <span class="text-slate-400 truncate max-w-[180px]">${item.descricao}</span>
+              </div>
+            `).join('');
+            suggestionsBox.classList.remove('hidden');
+          } else {
+            suggestionsBox.classList.add('hidden');
+          }
+        } catch (erro) {
+          console.error("Falha no autocomplete:", erro);
+          suggestionsBox.classList.add('hidden');
+        }
+      }, 400);
     });
 
     suggestionsBox.addEventListener('click', (e) => {
@@ -786,11 +1018,17 @@
 
     async function buscarEExibirItem(plaquetaCod) {
       if (!plaquetaCod) return;
-      const itemLocal = bancoPatrimonio.find(i => i.plaqueta === plaquetaCod);
+      const itemLocal = cachePatrimonios.get(plaquetaCod);
       if (itemLocal) { itemAtualSelecionado = itemLocal; exibirDetalhes(itemLocal); }
       else {
         const docSnap = await getDoc(doc(db, "patrimonios", plaquetaCod));
-        if (docSnap.exists()) { itemAtualSelecionado = { id: docSnap.id, ...docSnap.data() }; exibirDetalhes(itemAtualSelecionado); }
+        registrarLeituras('consulta_plaqueta', 1);
+        if (docSnap.exists()) {
+          itemAtualSelecionado = normalizarPatrimonio(docSnap);
+          cachearPatrimonios([itemAtualSelecionado]);
+          adicionarDivisoesAoCatalogo([itemAtualSelecionado]);
+          exibirDetalhes(itemAtualSelecionado);
+        }
         else { document.getElementById('item-details').classList.add('hidden'); alert(`Patrimônio com a plaqueta ${plaquetaCod} não foi encontrado.`); }
       }
     }
@@ -872,18 +1110,58 @@
       }
 
       await updateDoc(docRef, dadosAtualizacao);
+      const itemAtualizado = { ...itemAtualSelecionado, ...dadosAtualizacao };
+      cachePatrimonios.set(itemAtualizado.plaqueta, itemAtualizado);
+      const indiceRelacao = bancoPatrimonio.findIndex(item => item.plaqueta === itemAtualizado.plaqueta);
+      if (indiceRelacao >= 0) bancoPatrimonio[indiceRelacao] = itemAtualizado;
+      relacaoCarregada = false;
       alert(ehTransferencia ? "⚠️ Item localizado em setor diferente! Enviado para aprovação do Gestor." : "✅ Conferência registrada com sucesso.");
       inputPlaqueta.value = ''; document.getElementById('select-localizacao').value = '';
       document.getElementById('input-observacao').value = ''; document.getElementById('item-details').classList.add('hidden');
       document.getElementById('alerta-transferencia').classList.add('hidden'); itemAtualSelecionado = null;
     });
 
+    function encerrarOuvinteTransferencias() {
+      if (unsubscribeTransferencias) {
+        unsubscribeTransferencias();
+        unsubscribeTransferencias = null;
+      }
+    }
+
+    function iniciarOuvinteTransferencias() {
+      encerrarOuvinteTransferencias();
+      primeiraCargaTransferencias = true;
+      const consulta = query(collection(db, "patrimonios"), where("statusTransferencia", "==", "pendente"));
+      unsubscribeTransferencias = onSnapshot(consulta, snapshot => {
+        const leituras = primeiraCargaTransferencias ? snapshot.size : snapshot.docChanges().length;
+        registrarLeituras('fila_transferencias_realtime', leituras);
+        primeiraCargaTransferencias = false;
+        bancoTransferencias = snapshot.docs.map(normalizarPatrimonio);
+        cachearPatrimonios(bancoTransferencias);
+        renderizarFilaTransferencias();
+        aplicarBadgeTransferencias(bancoTransferencias.length);
+      }, erro => {
+        console.error("Erro no listener de transferências:", erro);
+        document.getElementById('container-transferencias').innerHTML = `<div class="bg-red-950/40 p-4 rounded-xl border border-red-500/30 text-center text-xs text-red-300 md:col-span-2">Não foi possível acompanhar a fila em tempo real.</div>`;
+      });
+    }
+
+    function aplicarBadgeTransferencias(quantidade) {
+      const badgeFila = document.getElementById('badge-fila-count');
+      if (quantidade > 0 && usuarioLogado?.perfil !== 'conferente') {
+        badgeFila.innerText = quantidade;
+        badgeFila.classList.remove('hidden');
+      } else {
+        badgeFila.classList.add('hidden');
+      }
+    }
+
     function renderizarFilaTransferencias() {
       const container = document.getElementById('container-transferencias');
       const contador = document.getElementById('transf-contador');
       if (!container) return;
 
-      const pendentes = bancoPatrimonio.filter(i => i.statusTransferencia === 'pendente');
+      const pendentes = bancoTransferencias;
       contador.innerText = `${pendentes.length} pendentes`;
 
       if (pendentes.length === 0) {
@@ -915,20 +1193,34 @@
       if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
       if (!confirm(`Deseja aprovar a transferência do patrimônio ${plaqueta} para ${novaDivisao}?`)) return;
       await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: novaDivisao, statusTransferencia: "aprovado" });
+      relacaoCarregada = false;
       alert("Transferência aprovada com sucesso.");
     }
 
     window.rejeitarTransferencia = async function(plaqueta) {
       if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
       if (!confirm(`Deseja rejeitar esta solicitação de transferência?`)) return;
-      const item = bancoPatrimonio.find(i => i.plaqueta === plaqueta);
+      let item = cachePatrimonios.get(plaqueta);
+      if (!item) {
+        const snapshot = await getDoc(doc(db, "patrimonios", plaqueta));
+        registrarLeituras('rejeitar_transferencia', 1);
+        if (!snapshot.exists()) return alert("Patrimônio não encontrado.");
+        item = normalizarPatrimonio(snapshot);
+      }
       await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: item.divisaoOrigem, statusTransferencia: "rejeitado" });
+      relacaoCarregada = false;
       alert("Transferência rejeitada.");
     }
 
-    window.abrirModalItemPorPlaqueta = function(plaqueta) {
-      const item = bancoPatrimonio.find(i => i.plaqueta === plaqueta);
-      if (!item) return;
+    window.abrirModalItemPorPlaqueta = async function(plaqueta) {
+      let item = cachePatrimonios.get(plaqueta);
+      if (!item) {
+        const snapshot = await getDoc(doc(db, "patrimonios", plaqueta));
+        registrarLeituras('detalhe_patrimonio', 1);
+        if (!snapshot.exists()) return;
+        item = normalizarPatrimonio(snapshot);
+        cachearPatrimonios([item]);
+      }
 
       const modal = document.getElementById('modal-detalhes-item');
       const conteudo = document.getElementById('modal-item-conteudo');
@@ -979,6 +1271,19 @@
     document.getElementById('btn-fechar-modal-item').addEventListener('click', () => {
       document.getElementById('modal-detalhes-item').classList.add('hidden');
     });
+
+    async function carregarRelacaoPatrimonial(forcar = false) {
+      if (relacaoCarregada && !forcar) {
+        renderizarRelaçãoBD();
+        return;
+      }
+
+      const container = document.getElementById('container-accordions');
+      container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400">Carregando relação patrimonial sob demanda…</div>`;
+      bancoPatrimonio = await carregarPatrimoniosPermitidos('relacao_patrimonial');
+      relacaoCarregada = true;
+      renderizarRelaçãoBD();
+    }
 
     function renderizarRelaçãoBD() {
       const container = document.getElementById('container-accordions');
@@ -1063,6 +1368,7 @@
     document.getElementById('filtro-busca').addEventListener('input', renderizarRelaçãoBD);
     document.getElementById('filtro-status').addEventListener('change', renderizarRelaçãoBD);
     document.getElementById('filtro-divisao').addEventListener('change', renderizarRelaçãoBD);
+    document.getElementById('btn-atualizar-relacao')?.addEventListener('click', () => carregarRelacaoPatrimonial(true));
 
     document.getElementById('btn-exportar-csv').addEventListener('click', () => exportarCSV(bancoPatrimonio, 'relatorio_geral'));
     document.getElementById('btn-exportar-divergencias').addEventListener('click', () => exportarCSV(bancoPatrimonio.filter(i => !i.localizado), 'relatorio_pendentes'));
