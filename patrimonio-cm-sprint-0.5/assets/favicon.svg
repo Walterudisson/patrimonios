@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CM APP">
-  <rect width="64" height="64" rx="14" fill="#0f172a"/>
-  <path d="M12 18h40v28H12z" fill="#2563eb" opacity=".2"/>
-  <path d="M12 18h40v8H12z" fill="#3b82f6"/>
-  <text x="32" y="42" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="22" font-weight="700" text-anchor="middle">CM</text>
-</svg>
