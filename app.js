@@ -30,6 +30,8 @@
     let totalRelacao = 0;
     let relacaoTemMais = true;
     let relacaoCarregando = false;
+    let relacaoBaseCompleta = null;
+    let relacaoUsandoBaseCompleta = false;
 
     const TAMANHO_PAGINA_RELACAO = 50;
 
@@ -37,6 +39,15 @@
     const cacheSugestoes = new Map();
     const catalogoDivisoes = new Set();
     window.obterMetricasFirestore = obterMetricasFirestore;
+
+    function invalidarCacheRelacao() {
+      relacaoBaseCompleta = null;
+      relacaoUsandoBaseCompleta = false;
+      relacaoCarregada = false;
+      cursorRelacao = null;
+      totalRelacao = 0;
+      relacaoTemMais = true;
+    }
 
     function normalizarPatrimonio(docSnap) {
       const dados = docSnap.data();
@@ -159,11 +170,8 @@
         cacheSugestoes.clear();
         catalogoDivisoes.clear();
         usuariosCarregados = false;
-        relacaoCarregada = false;
+        invalidarCacheRelacao();
         catalogoDivisoesCarregado = false;
-        cursorRelacao = null;
-        totalRelacao = 0;
-        relacaoTemMais = true;
         document.getElementById('view-app').classList.add('hidden');
         document.getElementById('view-login').classList.remove('hidden');
       }
@@ -173,7 +181,9 @@
       document.getElementById('user-info-badge').innerText = `${usuarioLogado.nome} (${usuarioLogado.perfil.toUpperCase()})`;
       document.getElementById('dash-nome').innerText = usuarioLogado.nome;
       document.getElementById('dash-perfil').innerText = `Perfil: ${usuarioLogado.perfil.toUpperCase()}`;
-      document.getElementById('dash-divisoes').innerText = usuarioLogado.perfil === 'admin' ? 'Todas (Admin)' : (usuarioLogado.divisoesAtribuidas || []).join(', ') || 'Nenhuma';
+      document.getElementById('dash-divisoes').innerText = usuarioLogado.perfil === 'conferente'
+        ? (usuarioLogado.divisoesAtribuidas || []).join(', ') || 'Nenhuma'
+        : `Todas (${usuarioLogado.perfil === 'admin' ? 'Admin' : 'Gestor'})`;
       
       const btnTransf = document.getElementById('tab-btn-transferencias');
       const btnUsuarios = document.getElementById('tab-btn-usuarios');
@@ -527,7 +537,7 @@
           observacaoAtual: "Status revertido para pendente (Novo Ciclo)",
           dataLocalizacao: ""
         });
-        relacaoCarregada = false;
+        invalidarCacheRelacao();
         alert(`Sucesso! ${itensAfetados.length} itens da divisão ${divAlvo} foram retornados para pendentes.`);
         document.getElementById('select-divisao-reversao').value = "";
       } catch (e) {
@@ -550,7 +560,7 @@
           observacaoAtual: "Inventário reiniciado para novo ciclo",
           dataLocalizacao: ""
         });
-        relacaoCarregada = false;
+        invalidarCacheRelacao();
         alert("Inventário geral reiniciado com sucesso! Todos os itens estão pendentes.");
       } catch (e) {
         alert("Erro ao reiniciar inventário geral.");
@@ -571,7 +581,7 @@
         });
         const itemCache = cachePatrimonios.get(plaqueta);
         if (itemCache) cachePatrimonios.set(plaqueta, { ...itemCache, localizado: false, statusTransferencia: "concluido" });
-        relacaoCarregada = false;
+        invalidarCacheRelacao();
         alert("Item retornado para pendente com sucesso.");
         document.getElementById('modal-detalhes-item').classList.add('hidden');
       } catch (e) {
@@ -579,7 +589,21 @@
       }
     };
 
+    function atualizarDivisoesCadastro() {
+      const perfil = usuarioLogado?.perfil === 'gestor'
+        ? 'conferente'
+        : document.getElementById('cad-perfil').value;
+      const container = document.getElementById('cad-divisoes-container');
+      container.classList.toggle('hidden', perfil !== 'conferente');
+      if (perfil !== 'conferente') {
+        document.querySelectorAll('input[name="divisao-check"]').forEach(cb => { cb.checked = false; });
+      }
+    }
+
+    document.getElementById('cad-perfil')?.addEventListener('change', atualizarDivisoesCadastro);
+
     window.abrirModalCriacaoUsuario = function() {
+      atualizarDivisoesCadastro();
       document.getElementById('modal-criacao-usuario').classList.remove('hidden');
     }
 
@@ -596,7 +620,7 @@
       const senha = document.getElementById('cad-senha').value;
       let perfil = usuarioLogado.perfil === 'gestor' ? 'conferente' : document.getElementById('cad-perfil').value;
       const checkboxes = document.querySelectorAll('input[name="divisao-check"]:checked');
-      const divisoes = Array.from(checkboxes).map(cb => cb.value);
+      const divisoes = perfil === 'conferente' ? Array.from(checkboxes).map(cb => cb.value) : [];
 
       try {
         const cred = await createUserWithEmailAndPassword(authSecundario, email, senha);
@@ -678,7 +702,9 @@
                 <div class="space-y-0.5">
                   <div class="font-bold text-white">${u.nome} ${ehProprio ? '(Você)' : ''}</div>
                   <div class="text-[10px] text-slate-400">${u.email}</div>
-                  <div class="text-[10px] text-emerald-400">Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}</div>
+                  <div class="text-[10px] text-emerald-400">${u.perfil === 'conferente'
+                    ? `Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}`
+                    : 'Abrangência: acesso global'}</div>
                 </div>
                 <div class="flex gap-2 pt-1 border-t border-slate-700">
                   <button onclick="abrirModalEdicao('${u.uid}')" class="flex-1 bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white py-1.5 rounded text-[11px] font-bold transition-colors text-center">
@@ -738,6 +764,7 @@
       
       const perfilSelect = document.getElementById('edit-perfil');
       const campoPerfilEdit = document.getElementById('edit-campo-perfil-container');
+      const campoDivisoesEdit = document.getElementById('edit-divisoes-container');
       
       if (usuarioLogado.perfil === 'gestor') {
         campoPerfilEdit.classList.add('hidden');
@@ -751,8 +778,19 @@
         cb.checked = atribuidas.includes(cb.value);
       });
 
+      const gestorEditandoProprioPerfil = usuarioLogado.perfil === 'gestor' && user.uid === usuarioLogado.uid;
+      campoDivisoesEdit.classList.toggle('hidden', gestorEditandoProprioPerfil || user.perfil !== 'conferente');
+
       document.getElementById('modal-edicao-usuario').classList.remove('hidden');
     }
+
+    document.getElementById('edit-perfil')?.addEventListener('change', (evento) => {
+      const ehConferente = evento.target.value === 'conferente';
+      document.getElementById('edit-divisoes-container').classList.toggle('hidden', !ehConferente);
+      if (!ehConferente) {
+        document.querySelectorAll('input[name="edit-divisao-check"]').forEach(cb => { cb.checked = false; });
+      }
+    });
 
     document.getElementById('btn-fechar-modal').addEventListener('click', () => {
       document.getElementById('modal-edicao-usuario').classList.add('hidden');
@@ -778,12 +816,14 @@
       }
 
       const checkboxes = document.querySelectorAll('input[name="edit-divisao-check"]:checked');
-      const divisoes = Array.from(checkboxes).map(cb => cb.value);
+      const divisoes = perfilNovo === 'conferente' ? Array.from(checkboxes).map(cb => cb.value) : [];
 
       try {
-        await updateDoc(doc(db, "usuarios", uid), {
-          nome, perfil: perfilNovo, divisoesAtribuidas: divisoes
-        });
+        const gestorEditandoProprioPerfil = usuarioLogado.perfil === 'gestor' && targetUser.uid === usuarioLogado.uid;
+        const dadosAtualizacao = gestorEditandoProprioPerfil
+          ? { nome }
+          : { nome, perfil: perfilNovo, divisoesAtribuidas: divisoes };
+        await updateDoc(doc(db, "usuarios", uid), dadosAtualizacao);
         alert("Dados atualizados com sucesso.");
         document.getElementById('modal-edicao-usuario').classList.add('hidden');
         await carregarUsuarios(true);
@@ -1110,7 +1150,7 @@
       cachePatrimonios.set(itemAtualizado.plaqueta, itemAtualizado);
       const indiceRelacao = bancoPatrimonio.findIndex(item => item.plaqueta === itemAtualizado.plaqueta);
       if (indiceRelacao >= 0) bancoPatrimonio[indiceRelacao] = itemAtualizado;
-      relacaoCarregada = false;
+      invalidarCacheRelacao();
       alert(ehTransferencia ? "⚠️ Item localizado em setor diferente! Enviado para aprovação do Gestor." : "✅ Conferência registrada com sucesso.");
       inputPlaqueta.value = ''; document.getElementById('select-localizacao').value = '';
       document.getElementById('input-observacao').value = ''; document.getElementById('item-details').classList.add('hidden');
@@ -1189,7 +1229,7 @@
       if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
       if (!confirm(`Deseja aprovar a transferência do patrimônio ${plaqueta} para ${novaDivisao}?`)) return;
       await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: novaDivisao, statusTransferencia: "aprovado" });
-      relacaoCarregada = false;
+      invalidarCacheRelacao();
       alert("Transferência aprovada com sucesso.");
     }
 
@@ -1204,7 +1244,7 @@
         item = normalizarPatrimonio(snapshot);
       }
       await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: item.divisaoOrigem, statusTransferencia: "rejeitado" });
-      relacaoCarregada = false;
+      invalidarCacheRelacao();
       alert("Transferência rejeitada.");
     }
 
@@ -1313,10 +1353,50 @@
       return { consulta: query(patrimoniosRef, ...restricoes), termo };
     }
 
+    function obterFiltrosRelacao() {
+      return {
+        termo: limparPlaqueta(document.getElementById('filtro-busca').value),
+        status: document.getElementById('filtro-status').value,
+        divisao: document.getElementById('filtro-divisao').value
+      };
+    }
+
+    function consultaBaseRelacaoAtiva() {
+      const filtros = obterFiltrosRelacao();
+      return !filtros.termo && filtros.status === 'todos' && filtros.divisao === 'todas';
+    }
+
+    function itemCorrespondeAosFiltros(item, filtros) {
+      const divisoesItem = [item.divisaoOrigem, item.divisao, item.localizacaoAtual].filter(Boolean);
+      const correspondeTermo = !filtros.termo || String(item.plaqueta).startsWith(filtros.termo);
+      const correspondeStatus = filtros.status === 'todos'
+        || (filtros.status === 'localizados' ? item.localizado : !item.localizado);
+      const correspondeDivisao = filtros.divisao === 'todas' || divisoesItem.includes(filtros.divisao);
+      return correspondeTermo && correspondeStatus && correspondeDivisao;
+    }
+
+    function aplicarFiltrosNaBaseCompleta() {
+      if (!relacaoBaseCompleta) return false;
+      const filtros = obterFiltrosRelacao();
+      bancoPatrimonio = relacaoBaseCompleta.filter(item => itemCorrespondeAosFiltros(item, filtros));
+      itensFiltradosCache = [...bancoPatrimonio];
+      cursorRelacao = null;
+      totalRelacao = bancoPatrimonio.length;
+      relacaoTemMais = false;
+      relacaoCarregada = true;
+      relacaoUsandoBaseCompleta = true;
+      renderizarRelaçãoBD();
+      return true;
+    }
+
     function atualizarPaginacaoRelacao() {
       const info = document.getElementById('relacao-paginacao-info');
       const botao = document.getElementById('btn-carregar-mais');
-      if (info) info.innerText = `${bancoPatrimonio.length} de ${totalRelacao} item(ns) carregado(s)`;
+      if (info) {
+        info.innerText = relacaoUsandoBaseCompleta
+          ? `Filtro local: ${bancoPatrimonio.length} item(ns) • base completa com ${relacaoBaseCompleta.length}`
+          : `${bancoPatrimonio.length} de ${totalRelacao} item(ns) carregado(s)`;
+      }
       if (botao) {
         botao.classList.toggle('hidden', !relacaoTemMais || bancoPatrimonio.length === 0);
         botao.disabled = relacaoCarregando;
@@ -1324,8 +1404,9 @@
       }
     }
 
-    async function carregarRelacaoPatrimonial({ reiniciar = false, carregarMais = false } = {}) {
+    async function carregarRelacaoPatrimonial({ reiniciar = false, carregarMais = false, forcarServidor = false } = {}) {
       if (relacaoCarregando) return;
+      if (reiniciar && !forcarServidor && aplicarFiltrosNaBaseCompleta()) return;
       if (relacaoCarregada && !reiniciar && !carregarMais) {
         renderizarRelaçãoBD();
         return;
@@ -1334,6 +1415,7 @@
 
       const container = document.getElementById('container-accordions');
       if (reiniciar || !relacaoCarregada) {
+        relacaoUsandoBaseCompleta = false;
         bancoPatrimonio = [];
         itensFiltradosCache = [];
         cursorRelacao = null;
@@ -1363,6 +1445,10 @@
         totalRelacao = bancoPatrimonio.length;
         relacaoTemMais = false;
         relacaoCarregada = true;
+        if (consultaBaseRelacaoAtiva()) {
+          relacaoBaseCompleta = [...bancoPatrimonio];
+          relacaoUsandoBaseCompleta = true;
+        }
         renderizarRelaçãoBD();
         return;
       }
@@ -1389,6 +1475,10 @@
         cursorRelacao = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : cursorRelacao;
         relacaoTemMais = snapshot.size === TAMANHO_PAGINA_RELACAO && bancoPatrimonio.length < totalRelacao;
         relacaoCarregada = true;
+        if (!relacaoTemMais && consultaBaseRelacaoAtiva()) {
+          relacaoBaseCompleta = [...bancoPatrimonio];
+          relacaoUsandoBaseCompleta = true;
+        }
         renderizarRelaçãoBD();
       } catch (erro) {
         console.error("Erro na consulta paginada da Relação:", erro);
@@ -1427,7 +1517,8 @@
         const atual = i.localizacaoAtual || i.divisaoOrigem || i.divisao;
         const matchTermo = !termo || i.plaqueta.startsWith(termo);
         const matchStatus = statusFiltro === 'todos' || (statusFiltro === 'localizados' ? i.localizado : !i.localizado);
-        const matchDivisao = divisaoFiltro === 'todas' || atual === divisaoFiltro;
+        const matchDivisao = divisaoFiltro === 'todas'
+          || [i.divisaoOrigem, i.divisao, i.localizacaoAtual].filter(Boolean).includes(divisaoFiltro);
         return matchTermo && matchStatus && matchDivisao;
       });
 
@@ -1488,10 +1579,9 @@
     document.getElementById('filtro-busca').addEventListener('input', () => {
       clearTimeout(timerFiltroRelacao);
       relacaoCarregada = false;
-      relacaoTemMais = false;
-      atualizarPaginacaoRelacao();
       const termo = limparPlaqueta(document.getElementById('filtro-busca').value);
-      if (termo.length > 0 && termo.length < 3) {
+      if (!relacaoBaseCompleta && termo.length > 0 && termo.length < 3) {
+        relacaoTemMais = false;
         document.getElementById('relacao-paginacao-info').innerText = 'Digite ao menos três números para pesquisar';
         return;
       }
@@ -1499,7 +1589,10 @@
     });
     document.getElementById('filtro-status').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
     document.getElementById('filtro-divisao').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
-    document.getElementById('btn-atualizar-relacao')?.addEventListener('click', () => carregarRelacaoPatrimonial({ reiniciar: true }));
+    document.getElementById('btn-atualizar-relacao')?.addEventListener('click', () => {
+      invalidarCacheRelacao();
+      carregarRelacaoPatrimonial({ reiniciar: true, forcarServidor: true });
+    });
     document.getElementById('btn-carregar-mais')?.addEventListener('click', () => carregarRelacaoPatrimonial({ carregarMais: true }));
 
     document.getElementById('btn-exportar-csv').addEventListener('click', () => exportarCSV(bancoPatrimonio, 'relatorio_geral'));

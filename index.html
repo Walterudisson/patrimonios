@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema de Auditoria Patrimonial CM</title>
+  <title>CM APP</title>
+  <meta name="theme-color" content="#0f172a">
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -40,7 +42,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.4.0 • Sprint 0.4</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.5.0 • Sprint 0.5</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -323,7 +325,7 @@
     </main>
 
     <footer class="py-6 text-center">
-      <span class="text-xs text-slate-500 font-medium">v1.4.0 • Sprint 0.4</span>
+      <span class="text-xs text-slate-500 font-medium">v1.5.0 • Sprint 0.5</span>
     </footer>
   </div>
 
@@ -355,8 +357,8 @@
             <option value="admin">Administrador</option>
           </select>
         </div>
-        <div>
-          <label class="text-[11px] text-slate-400 block mb-1">Divisões Atribuídas (Marque as permitidas)</label>
+        <div id="cad-divisoes-container">
+          <label class="text-[11px] text-slate-400 block mb-1">Divisões Atribuídas (somente Conferentes)</label>
           <div id="cad-divisoes-checkboxes" class="max-h-36 overflow-y-auto bg-slate-900 p-2 rounded border border-slate-700 space-y-1 text-xs"></div>
         </div>
         <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs">
@@ -391,8 +393,8 @@
             <option value="admin">Administrador</option>
           </select>
         </div>
-        <div>
-          <label class="text-[11px] text-slate-400 block mb-1">Divisões Atribuídas</label>
+        <div id="edit-divisoes-container">
+          <label class="text-[11px] text-slate-400 block mb-1">Divisões Atribuídas (somente Conferentes)</label>
           <div id="edit-divisoes-checkboxes" class="max-h-36 overflow-y-auto bg-slate-900 p-2 rounded border border-slate-700 space-y-1 text-xs"></div>
         </div>
         <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs">
