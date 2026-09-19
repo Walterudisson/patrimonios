@@ -1,0 +1,185 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function usuarioAtual() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    function perfilAtual() {
+      return usuarioAtual().data.perfil;
+    }
+
+    function usuarioDoApp() {
+      return autenticado()
+        && perfilAtual() in ['admin', 'gestor', 'conferente'];
+    }
+
+    function admin() {
+      return autenticado() && perfilAtual() == 'admin';
+    }
+
+    function gestor() {
+      return autenticado() && perfilAtual() == 'gestor';
+    }
+
+    function conferente() {
+      return autenticado() && perfilAtual() == 'conferente';
+    }
+
+    function adminOuGestor() {
+      return admin() || gestor();
+    }
+
+    function minhasDivisoes() {
+      return usuarioAtual().data.divisoesAtribuidas;
+    }
+
+    function perfilValido(perfil) {
+      return perfil in ['admin', 'gestor', 'conferente'];
+    }
+
+    function cadastroUsuarioValido(dados) {
+      return dados.keys().hasAll(['nome', 'email', 'perfil', 'divisoesAtribuidas'])
+        && dados.keys().hasOnly(['nome', 'email', 'perfil', 'divisoesAtribuidas'])
+        && dados.nome is string
+        && dados.email is string
+        && perfilValido(dados.perfil)
+        && dados.divisoesAtribuidas is list
+        && (dados.perfil == 'conferente' || dados.divisoesAtribuidas.size() == 0);
+    }
+
+    function atualizacaoUsuarioValida() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['nome', 'perfil', 'divisoesAtribuidas'])
+        && request.resource.data.nome is string
+        && perfilValido(request.resource.data.perfil)
+        && request.resource.data.divisoesAtribuidas is list
+        && (request.resource.data.perfil == 'conferente'
+          || request.resource.data.divisoesAtribuidas.size() == 0);
+    }
+
+    function atualizacaoSomenteNomeValida() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome'])
+        && request.resource.data.nome is string;
+    }
+
+    function patrimonioNaAlcada(dados) {
+      return (dados.keys().hasAny(['divisaoOrigem'])
+          && dados.divisaoOrigem in minhasDivisoes())
+        || (dados.keys().hasAny(['divisao'])
+          && dados.divisao in minhasDivisoes())
+        || (dados.keys().hasAny(['localizacaoAtual'])
+          && dados.localizacaoAtual in minhasDivisoes());
+    }
+
+    function camposPatrimonioPermitidos() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'localizado',
+        'divisaoOrigem',
+        'localizacaoAtual',
+        'divisaoDestinoSugerida',
+        'statusTransferencia',
+        'observacaoAtual',
+        'dataLocalizacao',
+        'conferidoPor',
+        'historico'
+      ]);
+    }
+
+    function origemPreservada() {
+      return (resource.data.keys().hasAny(['divisaoOrigem'])
+          && request.resource.data.divisaoOrigem == resource.data.divisaoOrigem)
+        || (!resource.data.keys().hasAny(['divisaoOrigem'])
+          && resource.data.keys().hasAny(['divisao'])
+          && request.resource.data.divisaoOrigem == resource.data.divisao);
+    }
+
+    function historicoAcrescentouUmRegistro() {
+      return request.resource.data.historico is list
+        && (
+          (resource.data.keys().hasAny(['historico'])
+            && resource.data.historico is list
+            && request.resource.data.historico.size() == resource.data.historico.size() + 1)
+          || (!resource.data.keys().hasAny(['historico'])
+            && request.resource.data.historico.size() == 1)
+        );
+    }
+
+    function destinoDaConferenciaPermitido() {
+      return (request.resource.data.statusTransferencia == 'pendente'
+          && request.resource.data.divisaoDestinoSugerida in minhasDivisoes())
+        || (request.resource.data.statusTransferencia == 'concluido'
+          && request.resource.data.localizacaoAtual in minhasDivisoes());
+    }
+
+    function conferenciaValida() {
+      return conferente()
+        && camposPatrimonioPermitidos()
+        && origemPreservada()
+        && historicoAcrescentouUmRegistro()
+        && destinoDaConferenciaPermitido()
+        && request.resource.data.localizado == true
+        && request.resource.data.conferidoPor == request.auth.token.email;
+    }
+
+    match /usuarios/{usuarioId} {
+      allow get: if autenticado()
+        && (request.auth.uid == usuarioId || adminOuGestor());
+
+      allow list: if admin()
+        || (gestor() && resource.data.perfil == 'conferente');
+
+      allow create: if cadastroUsuarioValido(request.resource.data)
+        && (
+          admin()
+          || (gestor() && request.resource.data.perfil == 'conferente')
+        );
+
+      allow update: if (admin() && atualizacaoUsuarioValida())
+        || (gestor()
+            && request.auth.uid == usuarioId
+            && resource.data.perfil == 'gestor'
+            && request.resource.data.perfil == 'gestor'
+            && atualizacaoSomenteNomeValida())
+        || (gestor()
+            && resource.data.perfil == 'conferente'
+            && request.resource.data.perfil == 'conferente'
+            && atualizacaoUsuarioValida());
+
+      allow delete: if autenticado()
+        && request.auth.uid != usuarioId
+        && (
+          (admin() && resource.data.perfil != 'admin')
+          || (gestor() && resource.data.perfil == 'conferente')
+        );
+    }
+
+    match /divisoes/{divisaoId} {
+      allow read: if usuarioDoApp();
+      allow write: if false;
+    }
+
+    match /patrimonios/{patrimonioId} {
+      // A leitura direta por plaqueta sustenta o fluxo de encontrar um bem
+      // de outra divisão; consultas continuam limitadas pela alçada.
+      allow get: if usuarioDoApp();
+      allow list: if adminOuGestor()
+        || (conferente() && patrimonioNaAlcada(resource.data));
+
+      allow update: if (adminOuGestor() && camposPatrimonioPermitidos())
+        || conferenciaValida();
+
+      allow create, delete: if false;
+    }
+
+    // Qualquer coleção não descrita acima permanece bloqueada.
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}
