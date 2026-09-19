@@ -7,6 +7,7 @@
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { estimarLeiturasAgregacao, obterMetricasFirestore, registrarLeituras } from "./js/core/firestore-metrics.js";
+    import { ehPerfilValidador, prepararAtualizacaoPatrimonio } from "./js/core/movimentacao.js";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
 
     let usuarioLogado = null;
@@ -76,9 +77,9 @@
     const dicasLista = [
       { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR' para reconhecer o texto automaticamente." },
       { titulo: "📱 Ângulos Difíceis e Brilho", texto: "Aproxime a câmera e evite reflexos excessivos sobre a película metálica para garantir uma leitura rápida e precisa do patrimônio." },
-      { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem de outra divisão ou setor? Conduza a conferência normalmente. O sistema abrirá um alerta para aprovação do Gestor responsável." },
+      { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem em local diferente? Para Conferentes, a mudança seguirá para aprovação. Gestores e Administradores validam a nova localização diretamente." },
       { titulo: "🔄 Gestão Hierárquica", texto: "Administradores gerenciam todo o sistema. Gestores podem atualizar seus dados e cadastrar ou editar os conferentes sob sua alçada." },
-      { titulo: "🔄 Ciclo das Transferências", texto: "Moveu um item de setor? Alterações para divisões diferentes geram uma pendência automática que aguarda a aprovação do Gestor na Fila de Transferências." },
+      { titulo: "🔄 Ciclo das Transferências", texto: "Mudanças informadas por Conferentes geram pendência na Fila. Quando registradas por Gestor ou Administrador, são efetivadas imediatamente e mantidas no histórico." },
       { titulo: "🔍 Busca Rápida por Digitação", texto: "Na aba 'Leitura', comece a digitar os números da plaqueta para ver sugestões instantâneas e agilizar o preenchimento sem precisar usar a câmera." },
       { titulo: "📋 Acompanhamento por Setor (Relação)", texto: "Utilize a aba 'Relação' para acompanhar o progresso do inventário. Os blocos mostram o total de itens e quantos já foram conferidos em cada divisão." },
       { titulo: "🔎 Uso de Zoom Dinâmico", texto: "Em etiquetas distantes ou pequenas, utilize os botões de atalho (1x, 2x, 4x) ou faça o movimento de pinça na tela para aproximar o foco da câmera." }
@@ -191,15 +192,18 @@
       const tituloCad = document.getElementById('titulo-cad-usuario');
       const boxExportacao = document.getElementById('container-botoes-exportacao');
       const panelCiclo = document.getElementById('panel-gestao-ciclo');
+      const btnSalvar = document.getElementById('btn-salvar');
 
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
         btnUsuarios.classList.add('hidden');
         if (boxExportacao) boxExportacao.classList.add('hidden');
         if (panelCiclo) panelCiclo.classList.add('hidden');
+        if (btnSalvar) btnSalvar.innerText = '✅ Registrar Conferência';
       } else {
         if (boxExportacao) boxExportacao.classList.remove('hidden');
         if (panelCiclo) panelCiclo.classList.remove('hidden');
+        if (btnSalvar) btnSalvar.innerText = '✅ Atualizar Patrimônio';
         if (usuarioLogado.perfil === 'gestor') {
           btnTransf.classList.remove('hidden');
           btnUsuarios.classList.remove('hidden');
@@ -1077,6 +1081,15 @@
       document.getElementById('det-divisao').innerText = divisaoOriginal;
 
       const badgeStatus = document.getElementById('det-status');
+      const btnSalvar = document.getElementById('btn-salvar');
+      const pendenteBloqueado = usuarioLogado?.perfil === 'conferente'
+        && item.statusTransferencia === 'pendente';
+      btnSalvar.disabled = pendenteBloqueado;
+      btnSalvar.classList.toggle('opacity-50', pendenteBloqueado);
+      btnSalvar.classList.toggle('cursor-not-allowed', pendenteBloqueado);
+      btnSalvar.innerText = pendenteBloqueado
+        ? '⏳ Aguardando aprovação'
+        : (ehPerfilValidador(usuarioLogado?.perfil) ? '✅ Atualizar Patrimônio' : '✅ Registrar Conferência');
       if (item.statusTransferencia === 'pendente') {
         badgeStatus.innerText = "⏳ AGUARDANDO TRANSF.";
         badgeStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-900 text-amber-300 border border-amber-500/30";
@@ -1104,54 +1117,74 @@
 
       const selectLoc = document.getElementById('select-localizacao');
       selectLoc.value = item.localizacaoAtual || divisaoOriginal;
-      verificarAlertaTransferencia(divisaoOriginal, selectLoc.value);
+      verificarAlertaTransferencia(item.localizacaoAtual || divisaoOriginal, selectLoc.value);
     }
 
     document.getElementById('select-localizacao').addEventListener('change', (e) => {
       if (!itemAtualSelecionado) return;
-      verificarAlertaTransferencia(itemAtualSelecionado.divisaoOrigem || itemAtualSelecionado.divisao, e.target.value);
+      const localizacaoReferencia = itemAtualSelecionado.localizacaoAtual
+        || itemAtualSelecionado.divisaoOrigem
+        || itemAtualSelecionado.divisao;
+      verificarAlertaTransferencia(localizacaoReferencia, e.target.value);
     });
 
     function verificarAlertaTransferencia(origem, destino) {
       const alerta = document.getElementById('alerta-transferencia');
-      if (origem && destino && origem !== destino) alerta.classList.remove('hidden');
-      else alerta.classList.add('hidden');
+      const titulo = document.getElementById('alerta-transferencia-titulo');
+      const texto = document.getElementById('alerta-transferencia-texto');
+      const houveMudanca = origem && destino && origem !== destino;
+      if (!houveMudanca) {
+        alerta.classList.add('hidden');
+        return;
+      }
+
+      const perfilValidador = ehPerfilValidador(usuarioLogado?.perfil);
+      alerta.className = perfilValidador
+        ? 'bg-blue-950/60 border border-blue-500/40 p-2.5 rounded-lg text-[11px] text-blue-200 space-y-1'
+        : 'bg-amber-950/60 border border-amber-500/40 p-2.5 rounded-lg text-[11px] text-amber-200 space-y-1';
+      titulo.innerText = perfilValidador
+        ? '✅ Alteração validada pelo perfil'
+        : '⚠️ ATENÇÃO: Transferência detectada';
+      texto.innerHTML = perfilValidador
+        ? 'Ao salvar, a localização será <strong>atualizada imediatamente</strong> e registrada no histórico.'
+        : 'Ao salvar, a mudança ficará <strong>aguardando aprovação</strong> de um Gestor ou Administrador.';
     }
 
     document.getElementById('btn-salvar').addEventListener('click', async () => {
       if (!itemAtualSelecionado) return alert("Selecione um patrimônio válido antes de salvar.");
+      if (usuarioLogado?.perfil === 'conferente' && itemAtualSelecionado.statusTransferencia === 'pendente') {
+        return alert("Este patrimônio já está aguardando aprovação. Somente um Gestor ou Administrador pode concluir a movimentação.");
+      }
       const locAtual = document.getElementById('select-localizacao').value;
       if (!locAtual) return alert("Selecione a localização atual do item.");
 
-      const divisaoOriginal = itemAtualSelecionado.divisaoOrigem || itemAtualSelecionado.divisao;
       const obs = document.getElementById('input-observacao').value.trim();
       const dataHora = new Date().toLocaleString('pt-BR');
-      const ehTransferencia = divisaoOriginal !== locAtual;
-
-      const historicoAtual = itemAtualSelecionado.historico || [];
-      historicoAtual.push({ local: locAtual, data: dataHora, responsavel: `${usuarioLogado.nome} (${usuarioLogado.email})`, obs: obs });
+      const {
+        dadosAtualizacao,
+        houveMudanca: ehTransferencia,
+        perfilValidador
+      } = prepararAtualizacaoPatrimonio({
+        item: itemAtualSelecionado,
+        localizacaoDestino: locAtual,
+        usuario: usuarioLogado,
+        observacao: obs,
+        dataHora
+      });
 
       const docRef = doc(db, "patrimonios", itemAtualSelecionado.plaqueta);
-      let dadosAtualizacao = {
-        localizado: true, divisaoOrigem: divisaoOriginal, observacaoAtual: obs,
-        dataLocalizacao: dataHora, conferidoPor: usuarioLogado.email, historico: historicoAtual
-      };
-
-      if (ehTransferencia) {
-        dadosAtualizacao.statusTransferencia = "pendente";
-        dadosAtualizacao.divisaoDestinoSugerida = locAtual;
-      } else {
-        dadosAtualizacao.localizacaoAtual = locAtual;
-        dadosAtualizacao.statusTransferencia = "concluido";
-      }
-
       await updateDoc(docRef, dadosAtualizacao);
       const itemAtualizado = { ...itemAtualSelecionado, ...dadosAtualizacao };
       cachePatrimonios.set(itemAtualizado.plaqueta, itemAtualizado);
       const indiceRelacao = bancoPatrimonio.findIndex(item => item.plaqueta === itemAtualizado.plaqueta);
       if (indiceRelacao >= 0) bancoPatrimonio[indiceRelacao] = itemAtualizado;
       invalidarCacheRelacao();
-      alert(ehTransferencia ? "⚠️ Item localizado em setor diferente! Enviado para aprovação do Gestor." : "✅ Conferência registrada com sucesso.");
+      const mensagemSucesso = ehTransferencia
+        ? (perfilValidador
+          ? "✅ Localização atualizada e validada com sucesso."
+          : "⚠️ Mudança de localização enviada para aprovação.")
+        : (perfilValidador ? "✅ Patrimônio atualizado com sucesso." : "✅ Conferência registrada com sucesso.");
+      alert(mensagemSucesso);
       inputPlaqueta.value = ''; document.getElementById('select-localizacao').value = '';
       document.getElementById('input-observacao').value = ''; document.getElementById('item-details').classList.add('hidden');
       document.getElementById('alerta-transferencia').classList.add('hidden'); itemAtualSelecionado = null;
