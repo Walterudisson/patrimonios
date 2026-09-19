@@ -1,27 +1,13 @@
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import {
-      getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
+      doc, getDoc, setDoc, updateDoc, deleteDoc,
       collection, getDocs, onSnapshot, writeBatch, query, where,
       and, or, orderBy, startAt, startAfter, endAt, limit, documentId,
-      getCountFromServer, serverTimestamp
+      getCountFromServer
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyCVMSES7nwZkZZdQpemDZIb8ypd40bUtvs",
-      authDomain: "patrimonioscm.firebaseapp.com",
-      projectId: "patrimonioscm",
-      storageBucket: "patrimonioscm.firebasestorage.app",
-      messagingSenderId: "707665651049",
-      appId: "1:707665651049:web:42cb423f3c0911fe5709f8"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    const appSecundario = initializeApp(firebaseConfig, "AppSecundarioCriacao");
-    const authSecundario = getAuth(appSecundario);
+    import { auth, db, authSecundario } from "./js/config/firebase.js";
+    import { estimarLeiturasAgregacao, obterMetricasFirestore, registrarLeituras } from "./js/core/firestore-metrics.js";
+    import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
 
     let usuarioLogado = null;
     let bancoPatrimonio = [];
@@ -30,7 +16,6 @@
     let html5QrcodeScanner = null;
     let cameraAtiva = false;
     let itemAtualSelecionado = null;
-    let modoBootstrapAdmin = false;
     let nivelZoomAtual = 1;
     let itensFiltradosCache = [];
     let unsubscribeTransferencias = null;
@@ -51,33 +36,7 @@
     const cachePatrimonios = new Map();
     const cacheSugestoes = new Map();
     const catalogoDivisoes = new Set();
-    const metricasFirestore = {
-      documentosLidos: 0,
-      leiturasAgregadasEstimadas: 0,
-      operacoes: {}
-    };
-
-    function registrarLeituras(operacao, documentos = 0, agregadasEstimadas = 0) {
-      metricasFirestore.documentosLidos += documentos;
-      metricasFirestore.leiturasAgregadasEstimadas += agregadasEstimadas;
-      const atual = metricasFirestore.operacoes[operacao] || { documentos: 0, agregadasEstimadas: 0 };
-      atual.documentos += documentos;
-      atual.agregadasEstimadas += agregadasEstimadas;
-      metricasFirestore.operacoes[operacao] = atual;
-      atualizarPainelMetricas();
-    }
-
-    function estimarLeiturasAgregacao(...contagens) {
-      return contagens.reduce((total, quantidade) => total + Math.max(1, Math.ceil(quantidade / 1000)), 0);
-    }
-
-    function atualizarPainelMetricas() {
-      const el = document.getElementById('firestore-metrics');
-      if (!el) return;
-      el.innerText = `Sessão: ${metricasFirestore.documentosLidos} documentos + ~${metricasFirestore.leiturasAgregadasEstimadas} leituras de agregação`;
-    }
-
-    window.obterMetricasFirestore = () => JSON.parse(JSON.stringify(metricasFirestore));
+    window.obterMetricasFirestore = obterMetricasFirestore;
 
     function normalizarPatrimonio(docSnap) {
       const dados = docSnap.data();
@@ -141,37 +100,6 @@
       atualizarCarrossel();
     }, 18000);
 
-    async function verificarSeExisteAdmin() {
-      try {
-        const snap = await getCountFromServer(collection(db, "usuarios"));
-        const quantidade = snap.data().count;
-        registrarLeituras('bootstrap_usuarios', 0, estimarLeiturasAgregacao(quantidade));
-        const bootstrapBox = document.getElementById('bootstrap-box');
-        if (quantidade === 0) { bootstrapBox.classList.remove('hidden'); }
-        else { bootstrapBox.classList.add('hidden'); }
-      } catch (e) { console.log("Aguardando conexão."); }
-    }
-    verificarSeExisteAdmin();
-
-    document.getElementById('btn-toggle-bootstrap').addEventListener('click', () => {
-      modoBootstrapAdmin = !modoBootstrapAdmin;
-      const sub = document.getElementById('login-subtitulo');
-      const btn = document.getElementById('btn-submit-login');
-      const nomeCont = document.getElementById('campo-nome-container');
-
-      if (modoBootstrapAdmin) {
-        sub.innerText = "⚡ CONFIGURAÇÃO DO PRIMEIRO ADMINISTRADOR";
-        btn.innerText = "⚡ Criar Admin Inicial e Entrar";
-        nomeCont.classList.remove('hidden');
-        document.getElementById('btn-toggle-bootstrap').innerText = "Voltar para Login Normal";
-      } else {
-        sub.innerText = "Entre com sua credencial institucional";
-        btn.innerText = "🔐 Entrar no Sistema";
-        nomeCont.classList.add('hidden');
-        document.getElementById('btn-toggle-bootstrap').innerText = "⚡ Nenhum usuário cadastrado? Clique para criar o Administrador inicial";
-      }
-    });
-
     document.getElementById('form-login').addEventListener('submit', async (e) => {
       e.preventDefault();
       const loginErro = document.getElementById('login-erro');
@@ -180,19 +108,11 @@
       const senha = document.getElementById('login-senha').value;
 
       try {
-        if (modoBootstrapAdmin) {
-          const nome = document.getElementById('login-nome').value.trim();
-          if (!nome) return alert("Por favor, preencha o nome completo do administrador.");
-          const cred = await createUserWithEmailAndPassword(auth, email, senha);
-          await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil: 'admin', divisoesAtribuidas: [] });
-          alert("Administrador inicial criado com sucesso!");
-        } else {
-          const cred = await signInWithEmailAndPassword(auth, email, senha);
-          const userDoc = await getDoc(doc(db, "usuarios", cred.user.uid));
-          if (!userDoc.exists()) {
-            await signOut(auth);
-            throw new Error("Acesso negado: Esta conta foi desativada ou removida do sistema.");
-          }
+        const cred = await signInWithEmailAndPassword(auth, email, senha);
+        const userDoc = await getDoc(doc(db, "usuarios", cred.user.uid));
+        if (!userDoc.exists()) {
+          await signOut(auth);
+          throw new Error("Acesso negado: Esta conta foi desativada ou removida do sistema.");
         }
       } catch (err) {
         let mensagemAmigavel = "Erro ao realizar autenticação. Verifique suas credenciais.";
@@ -246,7 +166,6 @@
         relacaoTemMais = true;
         document.getElementById('view-app').classList.add('hidden');
         document.getElementById('view-login').classList.remove('hidden');
-        verificarSeExisteAdmin();
       }
     });
 
@@ -262,7 +181,6 @@
       const tituloCad = document.getElementById('titulo-cad-usuario');
       const boxExportacao = document.getElementById('container-botoes-exportacao');
       const panelCiclo = document.getElementById('panel-gestao-ciclo');
-      const panelCatalogoDivisoes = document.getElementById('panel-catalogo-divisoes');
 
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
@@ -285,9 +203,6 @@
         }
       }
 
-      if (panelCatalogoDivisoes) {
-        panelCatalogoDivisoes.classList.toggle('hidden', usuarioLogado.perfil !== 'admin');
-      }
     }
 
     async function carregarUsuarios(forcar = false, operacao = 'usuarios_sob_demanda') {
@@ -315,43 +230,17 @@
       return bancoUsuarios;
     }
 
-    function renderizarCatalogoDivisoes() {
-      const container = document.getElementById('lista-catalogo-divisoes');
-      const contador = document.getElementById('catalogo-divisoes-contador');
-      if (!container) return;
-      const divisoes = [...catalogoDivisoes].filter(Boolean).sort((a, b) => a.localeCompare(b));
-      if (contador) contador.innerText = `${divisoes.length} cadastrada(s)`;
-      container.replaceChildren();
-      if (divisoes.length === 0) {
-        const vazio = document.createElement('span');
-        vazio.className = 'text-xs text-slate-500';
-        vazio.textContent = 'Catálogo vazio. Execute a sincronização inicial.';
-        container.appendChild(vazio);
-        return;
-      }
-      divisoes.forEach(divisao => {
-        const tag = document.createElement('span');
-        tag.className = 'inline-block bg-slate-800 border border-slate-700 text-slate-300 px-2 py-1 rounded text-[10px] mr-1 mb-1';
-        tag.textContent = divisao;
-        container.appendChild(tag);
-      });
-    }
-
     async function carregarCatalogoDivisoes(forcar = false) {
       (usuarioLogado?.divisoesAtribuidas || []).forEach(divisao => catalogoDivisoes.add(divisao));
       if (catalogoDivisoesCarregado && !forcar) {
         popularSelectsDivisao();
-        renderizarCatalogoDivisoes();
         return;
       }
 
       try {
-        const snapshot = await getDocs(collection(db, "divisoes"));
-        registrarLeituras('catalogo_divisoes', snapshot.size);
-        snapshot.docs.forEach(docSnap => {
-          const dados = docSnap.data();
-          if (dados.nome && dados.ativo !== false) catalogoDivisoes.add(dados.nome);
-        });
+        const resultado = await listarDivisoesAtivas();
+        registrarLeituras('catalogo_divisoes', resultado.documentosLidos);
+        resultado.nomes.forEach(nome => catalogoDivisoes.add(nome));
         catalogoDivisoesCarregado = true;
       } catch (erro) {
         console.warn("Catálogo de divisões indisponível; usando atribuições dos usuários como fallback.", erro);
@@ -362,91 +251,7 @@
       }
 
       popularSelectsDivisao();
-      renderizarCatalogoDivisoes();
     }
-
-    function idDocumentoDivisao(nome) {
-      return encodeURIComponent(nome.trim().normalize('NFC'));
-    }
-
-    async function salvarDivisaoNoCatalogo(nome) {
-      const nomeNormalizado = nome.trim().replace(/\s+/g, ' ');
-      if (!nomeNormalizado) return;
-      if (nomeNormalizado.length > 100 || /[<>"'`]/.test(nomeNormalizado)) {
-        throw new Error("Nome de divisão inválido.");
-      }
-      await setDoc(doc(db, "divisoes", idDocumentoDivisao(nomeNormalizado)), {
-        nome: nomeNormalizado,
-        ativo: true,
-        atualizadoEm: serverTimestamp(),
-        atualizadoPorUid: usuarioLogado.uid,
-        atualizadoPorNome: usuarioLogado.nome
-      }, { merge: true });
-      catalogoDivisoes.add(nomeNormalizado);
-      popularSelectsDivisao();
-      renderizarCatalogoDivisoes();
-    }
-
-    document.getElementById('btn-adicionar-divisao')?.addEventListener('click', async () => {
-      if (usuarioLogado?.perfil !== 'admin') return alert("Apenas Administradores podem alterar o catálogo.");
-      const input = document.getElementById('input-nova-divisao');
-      const nome = input.value.trim();
-      if (!nome) return alert("Informe o nome da divisão.");
-      try {
-        await salvarDivisaoNoCatalogo(nome);
-        input.value = '';
-        alert("Divisão adicionada ao catálogo.");
-      } catch (erro) {
-        console.error("Erro ao adicionar divisão:", erro);
-        alert("Não foi possível adicionar a divisão. Verifique as regras do Firestore.");
-      }
-    });
-
-    document.getElementById('btn-sincronizar-divisoes')?.addEventListener('click', async () => {
-      if (usuarioLogado?.perfil !== 'admin') return alert("Apenas Administradores podem sincronizar o catálogo.");
-      if (!confirm("Esta operação fará uma leitura completa dos patrimônios uma única vez para montar o catálogo de divisões. Deseja continuar?")) return;
-
-      const botao = document.getElementById('btn-sincronizar-divisoes');
-      botao.disabled = true;
-      botao.innerText = "Sincronizando…";
-      try {
-        const snapshot = await getDocs(collection(db, "patrimonios"));
-        registrarLeituras('sincronizacao_catalogo_divisoes', snapshot.size);
-        const nomes = new Set();
-        snapshot.docs.map(normalizarPatrimonio).forEach(item => {
-          [item.divisaoOrigem, item.divisao, item.localizacaoAtual, item.divisaoDestinoSugerida]
-            .filter(Boolean)
-            .forEach(divisao => nomes.add(divisao.trim()));
-        });
-
-        const lista = [...nomes].sort((a, b) => a.localeCompare(b));
-        for (let inicio = 0; inicio < lista.length; inicio += 450) {
-          const batch = writeBatch(db);
-          lista.slice(inicio, inicio + 450).forEach(nome => {
-            batch.set(doc(db, "divisoes", idDocumentoDivisao(nome)), {
-              nome,
-              ativo: true,
-              atualizadoEm: serverTimestamp(),
-              atualizadoPorUid: usuarioLogado.uid,
-              atualizadoPorNome: usuarioLogado.nome
-            }, { merge: true });
-          });
-          await batch.commit();
-        }
-
-        lista.forEach(nome => catalogoDivisoes.add(nome));
-        catalogoDivisoesCarregado = true;
-        popularSelectsDivisao();
-        renderizarCatalogoDivisoes();
-        alert(`Catálogo sincronizado com ${lista.length} divisões.`);
-      } catch (erro) {
-        console.error("Erro ao sincronizar catálogo:", erro);
-        alert("Não foi possível sincronizar o catálogo. Verifique as permissões do Firestore.");
-      } finally {
-        botao.disabled = false;
-        botao.innerText = "🔄 Sincronizar a partir dos patrimônios";
-      }
-    });
 
     async function carregarPatrimoniosPermitidos(operacao) {
       if (!usuarioLogado) return [];
@@ -499,24 +304,30 @@
       const selectReversao = document.getElementById('select-divisao-reversao');
       const checkContainer = document.getElementById('cad-divisoes-checkboxes');
       const editCheckContainer = document.getElementById('edit-divisoes-checkboxes');
-      const divSet = [...catalogoDivisoes].filter(Boolean).sort((a, b) => a.localeCompare(b));
+      const comparadorPtBr = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
+      const divSet = [...catalogoDivisoes].filter(Boolean).sort(comparadorPtBr.compare);
       if (divSet.length === 0) return;
 
-      const adicionarOpcoesAusentes = (select, filtro = () => true) => {
+      const reconstruirSelect = (select, filtro = () => true) => {
         if (!select) return;
-        const existentes = new Set([...select.options].map(option => option.value));
+        const valorSelecionado = select.value;
+        const opcaoInicial = select.options[0]?.cloneNode(true);
+        select.replaceChildren();
+        if (opcaoInicial) select.appendChild(opcaoInicial);
         divSet.filter(filtro).forEach(divisao => {
-          if (existentes.has(divisao)) return;
           const option = document.createElement('option');
           option.value = divisao;
           option.innerText = divisao;
           select.appendChild(option);
         });
+        if ([...select.options].some(option => option.value === valorSelecionado)) {
+          select.value = valorSelecionado;
+        }
       };
 
-      adicionarOpcoesAusentes(selectLocalizacao);
-      adicionarOpcoesAusentes(selectFiltro, usuarioTemAcessoDivisao);
-      adicionarOpcoesAusentes(selectReversao);
+      reconstruirSelect(selectLocalizacao, usuarioTemAcessoDivisao);
+      reconstruirSelect(selectFiltro, usuarioTemAcessoDivisao);
+      reconstruirSelect(selectReversao);
 
       const marcadasCadastro = new Set([...document.querySelectorAll('input[name="divisao-check"]:checked')].map(cb => cb.value));
       const marcadasEdicao = new Set([...document.querySelectorAll('input[name="edit-divisao-check"]:checked')].map(cb => cb.value));
@@ -857,7 +668,10 @@
 
           listaGrupo.forEach(u => {
             const ehProprio = u.uid === usuarioLogado.uid;
-            const podeExcluir = !ehProprio && (usuarioLogado.perfil === 'admin' || (usuarioLogado.perfil === 'gestor' && u.perfil === 'conferente'));
+            const podeExcluir = !ehProprio && (
+              (usuarioLogado.perfil === 'admin' && u.perfil !== 'admin') ||
+              (usuarioLogado.perfil === 'gestor' && u.perfil === 'conferente')
+            );
 
             htmlConsolidado += `
               <div class="bg-slate-800 p-3 rounded-lg border border-slate-700/60 space-y-2 text-xs">
@@ -1032,16 +846,41 @@
         try {
           let correspondencias = cacheSugestoes.get(valor);
           if (!correspondencias) {
-            const consulta = query(
-              collection(db, "patrimonios"),
-              orderBy(documentId()),
-              startAt(valor),
-              endAt(`${valor}\uf8ff`),
-              limit(5)
-            );
-            const snapshot = await getDocs(consulta);
-            registrarLeituras('autocomplete', snapshot.size);
-            correspondencias = snapshot.docs.map(normalizarPatrimonio);
+            const consultas = [];
+            if (usuarioLogado.perfil === 'conferente') {
+              const divisoes = [...new Set(usuarioLogado.divisoesAtribuidas || [])];
+              dividirEmLotes(divisoes).forEach(lote => {
+                consultas.push(query(
+                  collection(db, "patrimonios"),
+                  or(
+                    where("divisaoOrigem", "in", lote),
+                    where("divisao", "in", lote),
+                    where("localizacaoAtual", "in", lote)
+                  ),
+                  orderBy(documentId()),
+                  startAt(valor),
+                  endAt(`${valor}\uf8ff`),
+                  limit(5)
+                ));
+              });
+            } else {
+              consultas.push(query(
+                collection(db, "patrimonios"),
+                orderBy(documentId()),
+                startAt(valor),
+                endAt(`${valor}\uf8ff`),
+                limit(5)
+              ));
+            }
+
+            const snapshots = await Promise.all(consultas.map(consulta => getDocs(consulta)));
+            registrarLeituras('autocomplete', snapshots.reduce((total, snapshot) => total + snapshot.size, 0));
+            const resultados = new Map();
+            snapshots.forEach(snapshot => snapshot.docs.map(normalizarPatrimonio)
+              .forEach(item => resultados.set(item.plaqueta, item)));
+            correspondencias = [...resultados.values()]
+              .sort((a, b) => String(a.plaqueta).localeCompare(String(b.plaqueta), 'pt-BR', { numeric: true }))
+              .slice(0, 5);
             cacheSugestoes.set(valor, correspondencias);
             cachearPatrimonios(correspondencias);
           }
