@@ -434,6 +434,7 @@
     document.getElementById('form-alterar-senha')?.addEventListener('submit', async evento => {
       evento.preventDefault();
       if (!auth.currentUser || !usuarioLogado?.email) return;
+      const formulario = evento.currentTarget;
 
       const senhaAtual = document.getElementById('perfil-senha-atual').value;
       const novaSenha = document.getElementById('perfil-nova-senha').value;
@@ -448,7 +449,7 @@
         const credencial = EmailAuthProvider.credential(usuarioLogado.email, senhaAtual);
         await reauthenticateWithCredential(auth.currentUser, credencial);
         await updatePassword(auth.currentUser, novaSenha);
-        evento.currentTarget.reset();
+        formulario.reset();
         notificarMensagem('Senha atualizada com sucesso.', 'sucesso');
       } catch (erro) {
         console.error('Erro ao alterar senha:', erro);
