@@ -3,7 +3,8 @@ const PAGINAS = {
   scanner: { titulo: 'Leitura', trilha: ['CM APP', 'Patrimônio', 'Leitura'] },
   lista: { titulo: 'Relação', trilha: ['CM APP', 'Patrimônio', 'Relação'] },
   transferencias: { titulo: 'Fila de aprovação', trilha: ['CM APP', 'Movimentações', 'Fila'] },
-  usuarios: { titulo: 'Administração', trilha: ['CM APP', 'Administração'] }
+  usuarios: { titulo: 'Administração', trilha: ['CM APP', 'Administração'] },
+  perfil: { titulo: 'Meu perfil', trilha: ['CM APP', 'Conta', 'Meu perfil'] }
 };
 
 let navegar = () => {};
@@ -100,6 +101,10 @@ export function inicializarNavegacao(aoNavegar, opcoes = {}) {
     if (abrir) registrarCamada('perfil');
     else removerCamada('perfil');
   });
+  document.getElementById('btn-abrir-perfil')?.addEventListener('click', () => {
+    navegar('perfil');
+    fecharPerfil();
+  });
   document.addEventListener('click', () => fecharPerfil({ sincronizarHistorico: true }));
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
@@ -122,12 +127,26 @@ export function ativarPagina(aba) {
   });
 }
 
-export function atualizarUsuarioNavegacao(usuario) {
+export function atualizarFotoUsuario(usuario, fotoUrl = '') {
   const letras = iniciais(usuario?.nome);
-  ['sidebar-avatar', 'header-avatar'].forEach(id => {
+  ['sidebar-avatar', 'header-avatar', 'profile-avatar'].forEach(id => {
     const elemento = document.getElementById(id);
-    if (elemento) elemento.textContent = letras;
+    if (!elemento) return;
+    elemento.replaceChildren();
+    if (fotoUrl) {
+      const imagem = document.createElement('img');
+      imagem.src = fotoUrl;
+      imagem.alt = '';
+      imagem.referrerPolicy = 'no-referrer';
+      elemento.appendChild(imagem);
+    } else {
+      elemento.textContent = letras;
+    }
   });
+}
+
+export function atualizarUsuarioNavegacao(usuario, fotoUrl = '') {
+  atualizarFotoUsuario(usuario, fotoUrl);
   const nome = usuario?.nome || 'Usuário';
   const perfil = usuario?.perfil || '';
   document.getElementById('sidebar-user-name').textContent = nome;

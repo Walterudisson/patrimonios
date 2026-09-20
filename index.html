@@ -14,7 +14,7 @@
   <!-- Motor de OCR (Tesseract.js) -->
   <script src="https://unpkg.com/tesseract.js@v5.1.0/dist/tesseract.min.js"></script>
 
-  <link rel="stylesheet" href="./app.css?v=1.10.1">
+  <link rel="stylesheet" href="./app.css?v=1.11.0">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
@@ -42,7 +42,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.10.1 • Sprint 1.0</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.11.0 • Sprint 1.1</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -97,7 +97,7 @@
       </nav>
 
       <div class="sidebar-footer sidebar-label">
-        <span>v1.10.1</span>
+        <span>v1.11.0</span>
         <button id="btn-logout-sidebar" type="button">SAIR</button>
       </div>
     </aside>
@@ -129,8 +129,9 @@
           <div id="profile-menu" class="hidden profile-dropdown" role="menu">
             <div class="profile-dropdown-heading">
               <strong id="profile-menu-name">Usuário</strong>
-              <span>Preferências do perfil estarão disponíveis em uma próxima sprint.</span>
+              <span>Gerencie sua foto, consulte sua abrangência e atualize sua senha.</span>
             </div>
+            <button id="btn-abrir-perfil" type="button" role="menuitem" class="profile-dropdown-primary">MEU PERFIL</button>
             <button id="btn-logout" type="button" role="menuitem">SAIR</button>
           </div>
         </div>
@@ -334,6 +335,63 @@
         </div>
       </section>
 
+      <!-- ABA: PERFIL DO USUÁRIO -->
+      <section id="sec-perfil" class="hidden space-y-5">
+        <div class="profile-page-grid">
+          <article class="app-card profile-identity-card">
+            <div class="profile-photo-column">
+              <span id="profile-avatar" class="user-avatar profile-avatar-large" aria-hidden="true">CM</span>
+              <input id="input-foto-perfil" type="file" accept="image/jpeg,image/png,image/webp" class="hidden">
+              <button id="btn-selecionar-foto" type="button" class="profile-action profile-action-primary">ALTERAR FOTO</button>
+              <button id="btn-remover-foto" type="button" class="profile-action profile-action-secondary hidden">REMOVER FOTO</button>
+              <p>JPG, PNG ou WebP. A imagem é recortada e otimizada antes do envio.</p>
+            </div>
+
+            <div class="profile-data-column">
+              <span class="eyebrow">Identificação</span>
+              <h2 id="perfil-nome">Usuário</h2>
+              <dl class="profile-data-list">
+                <div>
+                  <dt>E-mail institucional</dt>
+                  <dd id="perfil-email">---</dd>
+                </div>
+                <div>
+                  <dt>Perfil de acesso</dt>
+                  <dd id="perfil-papel">---</dd>
+                </div>
+                <div>
+                  <dt>Divisões de atuação</dt>
+                  <dd id="perfil-divisoes">---</dd>
+                </div>
+              </dl>
+            </div>
+          </article>
+
+          <article class="app-card profile-password-card">
+            <div>
+              <span class="eyebrow">Segurança da conta</span>
+              <h2>Alterar minha senha</h2>
+              <p>Informe sua senha atual para confirmar sua identidade. A nova senha deve possuir pelo menos 8 caracteres.</p>
+            </div>
+            <form id="form-alterar-senha" class="space-y-3">
+              <label class="profile-field">
+                <span>Senha atual</span>
+                <input id="perfil-senha-atual" type="password" autocomplete="current-password" required>
+              </label>
+              <label class="profile-field">
+                <span>Nova senha</span>
+                <input id="perfil-nova-senha" type="password" autocomplete="new-password" minlength="8" required>
+              </label>
+              <label class="profile-field">
+                <span>Confirmar nova senha</span>
+                <input id="perfil-confirmar-senha" type="password" autocomplete="new-password" minlength="8" required>
+              </label>
+              <button id="btn-alterar-senha" type="submit" class="profile-action profile-action-success">ATUALIZAR SENHA</button>
+            </form>
+          </article>
+        </div>
+      </section>
+
       <!-- ABA 2: FILA DE TRANSFERÊNCIAS -->
       <section id="sec-transferencias" class="hidden space-y-4">
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-2 shadow-md">
@@ -458,7 +516,7 @@
 
       <footer class="app-footer">
         <span>CM APP · Patrimônio</span>
-        <span>v1.10.1 · Sprint 1.0</span>
+        <span>v1.11.0 · Sprint 1.1</span>
       </footer>
     </div>
   </div>
@@ -565,6 +623,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=1.10.1"></script>
+  <script type="module" src="./app.js?v=1.11.0"></script>
 </body>
 </html>

@@ -1,4 +1,14 @@
-    import { signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import {
+      EmailAuthProvider,
+      createUserWithEmailAndPassword,
+      onAuthStateChanged,
+      reauthenticateWithCredential,
+      sendPasswordResetEmail,
+      signInWithEmailAndPassword,
+      signOut,
+      updatePassword,
+      updateProfile
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import {
       doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc,
       collection, getDocs, onSnapshot, writeBatch, query, where,
@@ -7,22 +17,25 @@
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js";
-    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.10.1";
+    import { validarNovaSenha } from "./js/core/perfil.js";
+    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.11.0";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
+    import { obterUrlFotoPerfil, removerFotoPerfil, salvarFotoPerfil } from "./js/services/perfil.service.js";
     import {
       configurarHistoricoFeedback,
       confirmarAcao,
       fecharConfirmacaoAtiva,
       notificarMensagem
-    } from "./js/ui/feedback.js?v=1.10.1";
+    } from "./js/ui/feedback.js?v=1.11.0";
     import {
       ativarPagina,
       atualizarAcessoNavegacao,
+      atualizarFotoUsuario,
       atualizarUsuarioNavegacao,
       fecharCamadasNavegacao,
       fecharNavegacaoMovel,
       inicializarNavegacao
-    } from "./js/ui/navigation.js?v=1.10.1";
+    } from "./js/ui/navigation.js?v=1.11.0";
 
     let usuarioLogado = null;
     let bancoPatrimonio = [];
@@ -43,8 +56,11 @@
     let relacaoCarregando = false;
     let relacaoBaseCompleta = null;
     let relacaoUsandoBaseCompleta = false;
+    let fotoPerfilUrl = '';
 
     const TAMANHO_PAGINA_RELACAO = 50;
+
+    auth.languageCode = 'pt-BR';
 
     const cachePatrimonios = new Map();
     const cacheSugestoes = new Map();
@@ -258,6 +274,7 @@
         document.getElementById('view-login').classList.add('hidden');
         document.getElementById('view-app').classList.remove('hidden');
         atualizarCabecalhoUsuario();
+        await carregarFotoPerfilAtual();
         atualizarCarrossel();
         await alternarAba('dashboard', { substituirHistorico: true });
       } else {
@@ -273,6 +290,7 @@
         usuariosCarregados = false;
         invalidarCacheRelacao();
         catalogoDivisoesCarregado = false;
+        fotoPerfilUrl = '';
         fecharCamadaSobreposta();
         if (history.state?.cmApp) {
           history.replaceState({ cmAppLogin: true }, '', `${location.pathname}${location.search}`);
@@ -283,9 +301,10 @@
     });
 
     function atualizarCabecalhoUsuario() {
-      atualizarUsuarioNavegacao(usuarioLogado);
+      atualizarUsuarioNavegacao(usuarioLogado, fotoPerfilUrl);
       atualizarAcessoNavegacao(usuarioLogado.perfil);
       document.getElementById('profile-menu-name').innerText = usuarioLogado.nome;
+      atualizarDadosTelaPerfil();
       
       const btnTransf = document.getElementById('tab-btn-transferencias');
       const btnUsuarios = document.getElementById('tab-btn-usuarios');
@@ -319,6 +338,137 @@
       }
 
     }
+
+    function atualizarDadosTelaPerfil() {
+      if (!usuarioLogado) return;
+      document.getElementById('perfil-nome').textContent = usuarioLogado.nome || 'Usuário';
+      document.getElementById('perfil-email').textContent = usuarioLogado.email || 'Não informado';
+      document.getElementById('perfil-papel').textContent = usuarioLogado.perfil || 'Não informado';
+      const divisoes = usuarioLogado.perfil === 'conferente'
+        ? [...new Set(usuarioLogado.divisoesAtribuidas || [])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+        : [];
+      document.getElementById('perfil-divisoes').textContent = divisoes.length
+        ? divisoes.join(', ')
+        : 'Abrangência global no módulo de patrimônio';
+      document.getElementById('btn-remover-foto')?.classList.toggle('hidden', !fotoPerfilUrl);
+    }
+
+    async function carregarFotoPerfilAtual() {
+      if (!usuarioLogado) return;
+      try {
+        fotoPerfilUrl = await obterUrlFotoPerfil(usuarioLogado.uid);
+      } catch (erro) {
+        if (erro?.code !== 'storage/object-not-found') {
+          console.warn('Foto de perfil indisponível; usando iniciais.', erro);
+          fotoPerfilUrl = auth.currentUser?.photoURL || '';
+        } else {
+          fotoPerfilUrl = '';
+        }
+      }
+      atualizarFotoUsuario(usuarioLogado, fotoPerfilUrl);
+      atualizarDadosTelaPerfil();
+    }
+
+    const inputFotoPerfil = document.getElementById('input-foto-perfil');
+    const btnSelecionarFoto = document.getElementById('btn-selecionar-foto');
+    const btnRemoverFoto = document.getElementById('btn-remover-foto');
+
+    btnSelecionarFoto?.addEventListener('click', () => inputFotoPerfil?.click());
+    inputFotoPerfil?.addEventListener('change', async () => {
+      const arquivo = inputFotoPerfil.files?.[0];
+      inputFotoPerfil.value = '';
+      if (!arquivo || !usuarioLogado) return;
+
+      btnSelecionarFoto.disabled = true;
+      btnSelecionarFoto.textContent = 'ENVIANDO FOTO...';
+      try {
+        fotoPerfilUrl = await salvarFotoPerfil(usuarioLogado.uid, arquivo);
+        if (auth.currentUser) {
+          try { await updateProfile(auth.currentUser, { photoURL: fotoPerfilUrl }); }
+          catch (erroPerfil) { console.warn('Foto salva, mas o perfil do Authentication não foi sincronizado.', erroPerfil); }
+        }
+        atualizarFotoUsuario(usuarioLogado, fotoPerfilUrl);
+        atualizarDadosTelaPerfil();
+        notificarMensagem('Foto de perfil atualizada com sucesso.', 'sucesso');
+      } catch (erro) {
+        console.error('Erro ao atualizar foto de perfil:', erro);
+        const mensagem = erro?.code === 'storage/unauthorized'
+          ? 'O Firebase Storage recusou o envio. Confira se o serviço e as regras da Sprint 1.1 foram publicados.'
+          : (erro?.message || 'Não foi possível atualizar a foto de perfil.');
+        notificarMensagem(mensagem, erro?.message ? 'aviso' : 'erro');
+      } finally {
+        btnSelecionarFoto.disabled = false;
+        btnSelecionarFoto.textContent = 'ALTERAR FOTO';
+      }
+    });
+
+    btnRemoverFoto?.addEventListener('click', async () => {
+      if (!usuarioLogado || !fotoPerfilUrl) return;
+      const confirmado = await confirmarAcao({
+        titulo: 'Remover foto do perfil',
+        mensagem: 'As iniciais do seu nome voltarão a ser usadas como avatar.',
+        confirmarTexto: 'Remover foto',
+        perigosa: true
+      });
+      if (!confirmado) return;
+
+      btnRemoverFoto.disabled = true;
+      try {
+        await removerFotoPerfil(usuarioLogado.uid);
+        if (auth.currentUser) {
+          try { await updateProfile(auth.currentUser, { photoURL: null }); }
+          catch (erroPerfil) { console.warn('Foto removida, mas o perfil do Authentication não foi sincronizado.', erroPerfil); }
+        }
+        fotoPerfilUrl = '';
+        atualizarFotoUsuario(usuarioLogado);
+        atualizarDadosTelaPerfil();
+        notificarMensagem('Foto de perfil removida.', 'sucesso');
+      } catch (erro) {
+        console.error('Erro ao remover foto de perfil:', erro);
+        notificarMensagem('Não foi possível remover a foto. Verifique sua conexão e as regras do Storage.', 'erro');
+      } finally {
+        btnRemoverFoto.disabled = false;
+      }
+    });
+
+    document.getElementById('form-alterar-senha')?.addEventListener('submit', async evento => {
+      evento.preventDefault();
+      if (!auth.currentUser || !usuarioLogado?.email) return;
+
+      const senhaAtual = document.getElementById('perfil-senha-atual').value;
+      const novaSenha = document.getElementById('perfil-nova-senha').value;
+      const confirmacao = document.getElementById('perfil-confirmar-senha').value;
+      const validacao = validarNovaSenha(senhaAtual, novaSenha, confirmacao);
+      if (!validacao.valido) return notificarMensagem(validacao.mensagem, 'aviso');
+
+      const botao = document.getElementById('btn-alterar-senha');
+      botao.disabled = true;
+      botao.textContent = 'ATUALIZANDO...';
+      try {
+        const credencial = EmailAuthProvider.credential(usuarioLogado.email, senhaAtual);
+        await reauthenticateWithCredential(auth.currentUser, credencial);
+        await updatePassword(auth.currentUser, novaSenha);
+        evento.currentTarget.reset();
+        notificarMensagem('Senha atualizada com sucesso.', 'sucesso');
+      } catch (erro) {
+        console.error('Erro ao alterar senha:', erro);
+        let mensagem = 'Não foi possível atualizar sua senha.';
+        let tipo = 'erro';
+        if (['auth/invalid-credential', 'auth/wrong-password'].includes(erro?.code)) {
+          mensagem = 'A senha atual informada está incorreta.';
+          tipo = 'aviso';
+        } else if (erro?.code === 'auth/too-many-requests') {
+          mensagem = 'Muitas tentativas foram realizadas. Aguarde alguns minutos e tente novamente.';
+          tipo = 'aviso';
+        } else if (erro?.code === 'auth/network-request-failed') {
+          mensagem = 'Falha de conexão. Verifique a internet e tente novamente.';
+        }
+        notificarMensagem(mensagem, tipo);
+      } finally {
+        botao.disabled = false;
+        botao.textContent = 'ATUALIZAR SENHA';
+      }
+    });
 
     async function carregarUsuarios(forcar = false) {
       if (usuariosCarregados && !forcar) {
@@ -479,7 +629,7 @@
         await controladorCamera.desligar({ retomarAposSalvar: true });
       }
 
-      ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
+      ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista', 'perfil'].forEach(aba => {
         const sec = document.getElementById(`sec-${aba}`);
         if (sec) sec.classList.toggle('hidden', aba !== abaAtiva);
       });
@@ -499,6 +649,7 @@
           await carregarUsuarios();
           await carregarCatalogoDivisoes();
         }
+        if (abaAtiva === 'perfil') atualizarDadosTelaPerfil();
         if (abaAtiva === 'lista') await carregarRelacaoPatrimonial();
       } catch (erro) {
         console.error(`Erro ao carregar a aba ${abaAtiva}:`, erro);
@@ -831,10 +982,15 @@
                     ? `Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}`
                     : 'Abrangência: acesso global'}</div>
                 </div>
-                <div class="flex gap-2 pt-1 border-t border-slate-700">
+                <div class="flex flex-wrap gap-2 pt-1 border-t border-slate-700">
                   <button onclick="abrirModalEdicao('${u.uid}')" class="flex-1 bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white py-1.5 rounded text-[11px] font-bold transition-colors text-center">
                     ✏️ Editar
                   </button>
+                  ${usuarioLogado.perfil === 'admin' ? `
+                    <button onclick="enviarRedefinicaoSenha('${u.uid}')" class="flex-1 bg-amber-950/60 hover:bg-amber-900 text-amber-200 py-1.5 px-3 rounded text-[11px] font-bold transition-colors text-center border border-amber-500/30" title="Enviar e-mail de redefinição para ${u.email}">
+                      ✉️ Redefinir senha
+                    </button>
+                  ` : ''}
                   ${podeExcluir ? `
                     <button onclick="excluirUsuario('${u.uid}', '${u.nome}')" class="bg-red-950/60 hover:bg-red-900 text-red-300 py-1.5 px-3 rounded text-[11px] font-bold transition-colors text-center border border-red-500/30">
                       🗑️ Excluir
@@ -887,6 +1043,39 @@
         await carregarUsuarios(true);
       } catch (err) {
         notificarMensagem("Erro ao remover o usuário. Tente novamente.", 'erro');
+      }
+    }
+
+    window.enviarRedefinicaoSenha = async function(uid) {
+      if (usuarioLogado?.perfil !== 'admin') {
+        return notificarMensagem('Apenas Administradores podem enviar redefinições de senha.', 'erro');
+      }
+      const destinatario = bancoUsuarios.find(usuario => usuario.uid === uid);
+      if (!destinatario?.email) {
+        return notificarMensagem('O usuário selecionado não possui um e-mail válido.', 'aviso');
+      }
+
+      const confirmado = await confirmarAcao({
+        titulo: 'Enviar redefinição de senha',
+        mensagem: `O Firebase enviará as instruções para ${destinatario.email}.`,
+        confirmarTexto: 'Enviar e-mail'
+      });
+      if (!confirmado) return;
+
+      try {
+        await sendPasswordResetEmail(auth, destinatario.email);
+        notificarMensagem(`E-mail de redefinição enviado para ${destinatario.email}.`, 'sucesso');
+      } catch (erro) {
+        console.error('Erro ao enviar redefinição de senha:', erro);
+        let mensagem = 'Não foi possível enviar o e-mail de redefinição.';
+        let tipo = 'erro';
+        if (erro?.code === 'auth/too-many-requests') {
+          mensagem = 'O limite temporário de envios foi atingido. Aguarde antes de tentar novamente.';
+          tipo = 'aviso';
+        } else if (erro?.code === 'auth/network-request-failed') {
+          mensagem = 'Falha de conexão ao solicitar a redefinição.';
+        }
+        notificarMensagem(mensagem, tipo);
       }
     }
 
@@ -966,6 +1155,10 @@
           ? { nome }
           : { nome, perfil: perfilNovo, divisoesAtribuidas: divisoes };
         await updateDoc(doc(db, "usuarios", uid), dadosAtualizacao);
+        if (uid === usuarioLogado.uid) {
+          usuarioLogado = { ...usuarioLogado, ...dadosAtualizacao };
+          atualizarCabecalhoUsuario();
+        }
         notificarMensagem("Dados atualizados com sucesso.", 'sucesso');
         await fecharModalHistorico('modal-edicao-usuario', 'edicao-usuario');
         await carregarUsuarios(true);

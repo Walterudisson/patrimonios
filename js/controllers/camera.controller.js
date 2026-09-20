@@ -9,7 +9,7 @@ import {
   limitarZoom,
   obterCapacidadesVideo,
   obterComportamentoRolagem
-} from '../core/camera.js?v=1.10.1';
+} from '../core/camera.js?v=1.11.0';
 
 export function criarControladorCamera({
   limparPlaqueta,

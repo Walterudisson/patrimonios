@@ -108,6 +108,7 @@
       letter-spacing: 0.04em;
     }
     .user-avatar-small { width: 2.35rem; height: 2.35rem; }
+    .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
     .sidebar-profile-copy { min-width: 0; }
     .sidebar-profile-copy strong { display: block; overflow: hidden; color: white; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
     .sidebar-profile-copy span { display: block; margin-top: 0.15rem; color: #94a3b8; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; }
@@ -230,6 +231,8 @@
     .profile-dropdown-heading span { display: block; margin-top: 0.3rem; color: #94a3b8; font-size: 0.65rem; line-height: 1.45; }
     .profile-dropdown button { width: 100%; padding: 0.72rem 0.85rem; border-top: 1px solid var(--app-border); color: #fca5a5; text-align: left; font-size: 0.7rem; font-weight: 800; }
     .profile-dropdown button:hover { background: rgb(127 29 29 / 0.4); }
+    .profile-dropdown button.profile-dropdown-primary { color: #bfdbfe; }
+    .profile-dropdown button.profile-dropdown-primary:hover { background: rgb(30 64 175 / 0.35); }
     .app-content { flex: 1; width: 100%; max-width: 1440px; margin: 0 auto; padding: clamp(1rem, 2.6vw, 2rem); }
     .app-footer { display: flex; justify-content: space-between; gap: 1rem; padding: 1rem clamp(1rem, 2.6vw, 2rem); color: #64748b; font-size: 0.62rem; }
     .app-card {
@@ -239,6 +242,30 @@
       padding: clamp(1rem, 2vw, 1.3rem);
       box-shadow: 0 12px 32px rgb(2 6 23 / 0.2);
     }
+    .profile-page-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(20rem, 0.9fr); gap: 1rem; align-items: start; }
+    .profile-identity-card { display: grid; grid-template-columns: minmax(10rem, 0.42fr) minmax(0, 1fr); gap: 1.4rem; align-items: center; }
+    .profile-photo-column { display: flex; flex-direction: column; align-items: center; gap: 0.65rem; text-align: center; }
+    .profile-avatar-large { width: 8rem; height: 8rem; border-width: 3px; font-size: 1.65rem; box-shadow: 0 16px 38px rgb(2 6 23 / 0.38); }
+    .profile-photo-column p { max-width: 15rem; color: #64748b; font-size: 0.62rem; line-height: 1.5; }
+    .profile-data-column h2,
+    .profile-password-card h2 { margin-top: 0.35rem; color: white; font-size: 1.15rem; font-weight: 850; }
+    .profile-data-list { display: grid; gap: 0.7rem; margin-top: 1rem; }
+    .profile-data-list div { border: 1px solid rgb(51 65 85 / 0.75); border-radius: 0.75rem; background: rgb(15 23 42 / 0.55); padding: 0.75rem; }
+    .profile-data-list dt { color: #64748b; font-size: 0.59rem; font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase; }
+    .profile-data-list dd { margin-top: 0.2rem; overflow-wrap: anywhere; color: #e2e8f0; font-size: 0.76rem; font-weight: 700; }
+    .profile-password-card { display: grid; gap: 1.1rem; }
+    .profile-password-card > div > p { margin-top: 0.45rem; color: #94a3b8; font-size: 0.68rem; line-height: 1.55; }
+    .profile-field { display: grid; gap: 0.35rem; }
+    .profile-field span { color: #cbd5e1; font-size: 0.65rem; font-weight: 750; }
+    .profile-field input { width: 100%; border: 1px solid #334155; border-radius: 0.6rem; background: #0f172a; padding: 0.7rem 0.8rem; color: white; font-size: 0.75rem; }
+    .profile-action { width: 100%; border-radius: 0.62rem; padding: 0.68rem 0.8rem; font-size: 0.67rem; font-weight: 900; transition: background 0.15s ease, border-color 0.15s ease; }
+    .profile-action:disabled { cursor: wait; opacity: 0.6; }
+    .profile-action-primary { border: 1px solid rgb(59 130 246 / 0.5); background: rgb(29 78 216 / 0.8); color: white; }
+    .profile-action-primary:hover { background: #2563eb; }
+    .profile-action-secondary { border: 1px solid rgb(239 68 68 / 0.35); background: rgb(127 29 29 / 0.35); color: #fca5a5; }
+    .profile-action-secondary:hover { background: rgb(127 29 29 / 0.58); }
+    .profile-action-success { border: 1px solid rgb(16 185 129 / 0.45); background: #047857; color: white; }
+    .profile-action-success:hover { background: #059669; }
     .dashboard-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.9rem; }
     .kpi-card {
       position: relative;
@@ -425,6 +452,7 @@
       body.sidebar-collapsed .nav-item { justify-content: flex-start; }
       .dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .transfer-grid { grid-template-columns: 1fr; }
+      .profile-page-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 639px) {
       .app-topbar { min-height: 64px; padding: 0.55rem 0.75rem; }
@@ -441,6 +469,8 @@
       .app-dialog-actions .app-button { width: 100%; }
       .transfer-route { grid-template-columns: 1fr; }
       .transfer-actions { grid-template-columns: 1fr 1fr; }
+      .profile-identity-card { grid-template-columns: 1fr; }
+      .profile-avatar-large { width: 7rem; height: 7rem; }
     }
 
     .accordion-content { transition: max-height 0.3s ease-out; overflow: hidden; }
