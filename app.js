@@ -8,6 +8,14 @@
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { estimarLeiturasAgregacao, obterMetricasFirestore, registrarLeituras } from "./js/core/firestore-metrics.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js";
+    import {
+      calcularAreaLeitura,
+      descreverErroCamera,
+      escolherCameraPreferida,
+      extrairCandidatosOcr,
+      limitarZoom,
+      obterCapacidadesVideo
+    } from "./js/core/camera.js";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
 
     let usuarioLogado = null;
@@ -16,6 +24,19 @@
     let bancoTransferencias = [];
     let html5QrcodeScanner = null;
     let cameraAtiva = false;
+    let cameraIniciando = false;
+    let cameraPausadaPorLeitura = false;
+    let cameraRetomarAoVoltar = false;
+    let cameraTrack = null;
+    let cameraIdAtual = '';
+    let camerasDisponiveis = [];
+    let cameraPossuiZoomHardware = false;
+    let cameraTorchAtiva = false;
+    let ocrEmAndamento = false;
+    let leituraCameraEmAndamento = false;
+    let ultimoCodigoLido = '';
+    let instanteUltimoCodigo = 0;
+    let timerOrientacaoCamera = null;
     let itemAtualSelecionado = null;
     let nivelZoomAtual = 1;
     let itensFiltradosCache = [];
@@ -75,14 +96,14 @@
     }
 
     const dicasLista = [
-      { titulo: "🔍 Leitura Óptica por OCR", texto: "Se a etiqueta estiver danificada ou o código de barras ilegível, posicione os números impressos no visor e clique em 'Ler via OCR' para reconhecer o texto automaticamente." },
-      { titulo: "📱 Ângulos Difíceis e Brilho", texto: "Aproxime a câmera e evite reflexos excessivos sobre a película metálica para garantir uma leitura rápida e precisa do patrimônio." },
+      { titulo: "🔍 Leitura Óptica por OCR", texto: "Se o código estiver ilegível, centralize a numeração impressa e use 'Ler via OCR'. O app recorta e melhora a área central antes de procurar a plaqueta." },
+      { titulo: "📱 Câmera, foco e iluminação", texto: "Selecione a câmera traseira, ajuste o zoom e use a lanterna quando o dispositivo oferecer esses recursos. Evite reflexos diretos sobre etiquetas metálicas." },
       { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem em local diferente? Para Conferentes, a mudança seguirá para aprovação. Gestores e Administradores validam a nova localização diretamente." },
       { titulo: "🔄 Gestão Hierárquica", texto: "Administradores gerenciam todo o sistema. Gestores podem atualizar seus dados e cadastrar ou editar os conferentes sob sua alçada." },
       { titulo: "🔄 Ciclo das Transferências", texto: "Mudanças informadas por Conferentes geram pendência na Fila. Quando registradas por Gestor ou Administrador, são efetivadas imediatamente e mantidas no histórico." },
       { titulo: "🔍 Busca Rápida por Digitação", texto: "Na aba 'Leitura', comece a digitar os números da plaqueta para ver sugestões instantâneas e agilizar o preenchimento sem precisar usar a câmera." },
       { titulo: "📋 Acompanhamento por Setor (Relação)", texto: "Utilize a aba 'Relação' para acompanhar o progresso do inventário. Os blocos mostram o total de itens e quantos já foram conferidos em cada divisão." },
-      { titulo: "🔎 Uso de Zoom Dinâmico", texto: "Em etiquetas distantes ou pequenas, utilize os botões de atalho (1x, 2x, 4x) ou faça o movimento de pinça na tela para aproximar o foco da câmera." }
+      { titulo: "🔎 Leitura com alternativas", texto: "Após reconhecer um código, a câmera pausa para evitar duplicidade. Use 'Ler outra plaqueta' para continuar; digitação manual e OCR permanecem disponíveis." }
     ];
     let dicaIndiceAtual = 0;
 
@@ -159,10 +180,7 @@
         await alternarAba('dashboard');
       } else {
         encerrarOuvinteTransferencias();
-        if (cameraAtiva && html5QrcodeScanner) {
-          html5QrcodeScanner.stop().catch(() => {});
-          cameraAtiva = false;
-        }
+        if (cameraAtiva && html5QrcodeScanner) await desligarCamera();
         usuarioLogado = null;
         bancoPatrimonio = [];
         bancoUsuarios = [];
@@ -383,13 +401,7 @@
       if (abaAtiva !== 'transferencias') encerrarOuvinteTransferencias();
       abaAtual = abaAtiva;
 
-      if (abaAtiva !== 'scanner' && cameraAtiva && html5QrcodeScanner) {
-        html5QrcodeScanner.stop().catch(() => {});
-        cameraAtiva = false;
-        document.getElementById('btn-toggle-cam').innerText = "Ligar Câmera";
-        document.getElementById('btn-capturar-frame').classList.add('hidden');
-        document.getElementById('camera-controls-bar').classList.add('hidden');
-      }
+      if (abaAtiva !== 'scanner' && cameraAtiva && html5QrcodeScanner) await desligarCamera();
 
       ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
         const sec = document.getElementById(`sec-${aba}`);
@@ -836,43 +848,290 @@
       }
     });
 
-    window.definirZoom = function(fator) {
-      nivelZoomAtual = fator;
-      document.documentElement.style.setProperty('--camera-zoom', nivelZoomAtual);
+    function obterCameraPreferidaSalva() {
+      try { return sessionStorage.getItem('cmapp-camera-preferida') || ''; }
+      catch (_) { return ''; }
     }
 
-    let distanciaInicialPinça = 0;
-    document.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2 && cameraAtiva) {
-        distanciaInicialPinça = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-      }
-    });
+    function salvarCameraPreferida(cameraId) {
+      if (!cameraId) return;
+      try { sessionStorage.setItem('cmapp-camera-preferida', cameraId); }
+      catch (_) {}
+    }
 
-    document.addEventListener('touchmove', (e) => {
-      if (e.touches.length === 2 && cameraAtiva && distanciaInicialPinça > 0) {
-        const distanciaAtual = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        const diff = distanciaAtual - distanciaInicialPinça;
-        if (Math.abs(diff) > 30) {
-          if (diff > 0 && nivelZoomAtual < 4) nivelZoomAtual += 0.5;
-          else if (diff < 0 && nivelZoomAtual > 1) nivelZoomAtual -= 0.5;
-          definirZoom(nivelZoomAtual);
-          distanciaInicialPinça = distanciaAtual;
+    function definirEstadoCamera(estado, mensagem) {
+      const status = document.getElementById('camera-status');
+      const statusIcon = document.getElementById('camera-status-icon');
+      const statusText = document.getElementById('camera-status-text');
+      const btnCam = document.getElementById('btn-toggle-cam');
+      const controles = document.getElementById('camera-controls-bar');
+      const btnOcr = document.getElementById('btn-capturar-frame');
+      const btnRetomar = document.getElementById('btn-retomar-leitura');
+      const readerContainer = document.getElementById('reader-container');
+      const icones = { idle: '📷', starting: '⏳', running: '🟢', paused: '⏸️', error: '⚠️' };
+
+      status.className = `camera-status camera-status-${estado}`;
+      statusIcon.textContent = icones[estado] || '📷';
+      statusText.textContent = mensagem;
+      btnCam.disabled = estado === 'starting';
+      btnCam.textContent = estado === 'starting'
+        ? 'Iniciando...'
+        : (cameraAtiva ? 'Desligar Câmera' : (estado === 'error' ? 'Tentar novamente' : 'Ligar Câmera'));
+
+      const exibirControles = cameraAtiva && (estado === 'running' || estado === 'paused');
+      controles.classList.toggle('hidden', !exibirControles);
+      btnOcr.classList.toggle('hidden', estado !== 'running');
+      btnRetomar.classList.toggle('hidden', !(estado === 'paused' && cameraPausadaPorLeitura && !ocrEmAndamento));
+      readerContainer.classList.toggle('camera-running', estado === 'running');
+      readerContainer.classList.toggle('camera-paused', estado === 'paused');
+    }
+
+    function exibirFeedbackCamera(mensagem, tipo = 'sucesso') {
+      const feedback = document.getElementById('camera-feedback');
+      feedback.textContent = mensagem;
+      feedback.className = tipo === 'erro'
+        ? 'camera-feedback border-red-500/50 bg-red-950/50 text-red-200'
+        : 'camera-feedback';
+      feedback.classList.remove('hidden');
+      window.setTimeout(() => {
+        if (feedback.textContent === mensagem) feedback.classList.add('hidden');
+      }, 4500);
+    }
+
+    function obterTrackCamera() {
+      const video = document.querySelector('#reader video');
+      return video?.srcObject?.getVideoTracks?.()[0] || null;
+    }
+
+    async function configurarRecursosCamera() {
+      cameraTrack = obterTrackCamera();
+      const capacidades = obterCapacidadesVideo(cameraTrack);
+      const zoomInput = document.getElementById('camera-zoom');
+      const focoStatus = document.getElementById('camera-focus-status');
+      const btnTorch = document.getElementById('btn-camera-torch');
+      const configuracoesTrack = cameraTrack?.getSettings?.() || {};
+
+      if (configuracoesTrack.deviceId) {
+        cameraIdAtual = configuracoesTrack.deviceId;
+        salvarCameraPreferida(cameraIdAtual);
+        atualizarSeletorCameras();
+      }
+
+      cameraPossuiZoomHardware = Boolean(capacidades.zoom);
+      if (capacidades.zoom) {
+        zoomInput.min = capacidades.zoom.min;
+        zoomInput.max = capacidades.zoom.max;
+        zoomInput.step = capacidades.zoom.step;
+        nivelZoomAtual = limitarZoom(configuracoesTrack.zoom || capacidades.zoom.min, capacidades.zoom);
+      } else {
+        zoomInput.min = 1;
+        zoomInput.max = 4;
+        zoomInput.step = 0.1;
+        nivelZoomAtual = 1;
+      }
+      zoomInput.value = nivelZoomAtual;
+      document.getElementById('camera-zoom-value').textContent = `${nivelZoomAtual.toFixed(1)}x${cameraPossuiZoomHardware ? '' : ' digital'}`;
+      document.getElementById('reader-container').style.setProperty('--camera-css-zoom', '1');
+
+      btnTorch.classList.toggle('hidden', !capacidades.torch);
+      btnTorch.setAttribute('aria-pressed', 'false');
+      btnTorch.textContent = '🔦 Lanterna';
+      cameraTorchAtiva = false;
+
+      if (capacidades.focoContinuo) {
+        try { await cameraTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); }
+        catch (_) {}
+        focoStatus.textContent = 'Foco contínuo';
+        focoStatus.classList.remove('unsupported');
+      } else {
+        focoStatus.textContent = 'Foco automático';
+        focoStatus.classList.add('unsupported');
+      }
+    }
+
+    function atualizarSeletorCameras() {
+      const select = document.getElementById('select-camera');
+      select.replaceChildren();
+      camerasDisponiveis.forEach((camera, indice) => {
+        const option = document.createElement('option');
+        option.value = camera.id;
+        option.textContent = camera.label || `Câmera ${indice + 1}`;
+        option.selected = camera.id === cameraIdAtual;
+        select.appendChild(option);
+      });
+      select.disabled = camerasDisponiveis.length < 2;
+      if (camerasDisponiveis.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Câmera em uso';
+        select.appendChild(option);
+      }
+    }
+
+    async function aplicarZoomCamera(valor) {
+      const zoomInput = document.getElementById('camera-zoom');
+      const zoomValue = document.getElementById('camera-zoom-value');
+      if (cameraPossuiZoomHardware && cameraTrack) {
+        const capacidades = obterCapacidadesVideo(cameraTrack).zoom;
+        nivelZoomAtual = limitarZoom(valor, capacidades || {});
+        try {
+          await cameraTrack.applyConstraints({ advanced: [{ zoom: nivelZoomAtual }] });
+        } catch (erro) {
+          console.warn('Zoom óptico indisponível; usando aproximação digital.', erro);
+          cameraPossuiZoomHardware = false;
         }
+      } else {
+        nivelZoomAtual = limitarZoom(valor, { min: 1, max: 4, step: 0.1 });
       }
-    });
+      zoomInput.value = nivelZoomAtual;
+      zoomValue.textContent = `${nivelZoomAtual.toFixed(1)}x${cameraPossuiZoomHardware ? '' : ' digital'}`;
+      document.getElementById('reader-container').style.setProperty(
+        '--camera-css-zoom',
+        cameraPossuiZoomHardware ? '1' : String(nivelZoomAtual)
+      );
+    }
 
-    function preencherEConsultarPlaqueta(codigoLido) {
+    async function desligarCamera({ preservarIntento = false, mensagem = '' } = {}) {
+      cameraRetomarAoVoltar = preservarIntento;
+      cameraPausadaPorLeitura = false;
+      ocrEmAndamento = false;
+      try {
+        if (html5QrcodeScanner && cameraAtiva) await html5QrcodeScanner.stop();
+      } catch (erro) {
+        console.warn('A câmera já estava encerrada.', erro);
+      }
+      cameraAtiva = false;
+      cameraTrack = null;
+      cameraTorchAtiva = false;
+      cameraPossuiZoomHardware = false;
+      try { html5QrcodeScanner?.clear(); } catch (_) {}
+      const reader = document.getElementById('reader');
+      reader.textContent = preservarIntento ? 'Câmera pausada' : 'Câmera desligada';
+      definirEstadoCamera(
+        preservarIntento ? 'paused' : 'idle',
+        mensagem || (preservarIntento
+          ? 'Câmera pausada enquanto o aplicativo está em segundo plano.'
+          : 'Câmera desligada. A digitação manual continua disponível.')
+      );
+    }
+
+    async function iniciarCamera(cameraSolicitada = '') {
+      if (cameraIniciando || cameraAtiva) return;
+      cameraRetomarAoVoltar = false;
+      const ambiente = {
+        contextoSeguro: window.isSecureContext,
+        possuiMediaDevices: Boolean(navigator.mediaDevices?.getUserMedia)
+      };
+      if (!ambiente.contextoSeguro || !ambiente.possuiMediaDevices || typeof Html5Qrcode === 'undefined') {
+        definirEstadoCamera('error', descreverErroCamera(null, ambiente));
+        return;
+      }
+
+      cameraIniciando = true;
+      definirEstadoCamera('starting', 'Solicitando acesso e preparando a câmera...');
+      try {
+        if (!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode('reader');
+        try { camerasDisponiveis = await Html5Qrcode.getCameras(); }
+        catch (_) { camerasDisponiveis = []; }
+
+        const preferida = escolherCameraPreferida(
+          camerasDisponiveis,
+          cameraSolicitada || obterCameraPreferidaSalva()
+        );
+        const origemCamera = preferida?.id || { facingMode: 'environment' };
+        const config = {
+          fps: 12,
+          qrbox: (largura, altura) => calcularAreaLeitura(largura, altura),
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ]
+        };
+
+        await html5QrcodeScanner.start(
+          origemCamera,
+          config,
+          decodedText => processarCodigoDetectado(decodedText),
+          () => {}
+        );
+
+        cameraAtiva = true;
+        cameraRetomarAoVoltar = false;
+        cameraIdAtual = preferida?.id || '';
+        if (abaAtual !== 'scanner' || !usuarioLogado) {
+          await desligarCamera();
+          return;
+        }
+        if (cameraIdAtual) salvarCameraPreferida(cameraIdAtual);
+        if (camerasDisponiveis.length === 0) {
+          try { camerasDisponiveis = await Html5Qrcode.getCameras(); }
+          catch (_) {}
+        }
+        atualizarSeletorCameras();
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await configurarRecursosCamera();
+        definirEstadoCamera('running', 'Câmera ativa. Centralize o código dentro da moldura.');
+      } catch (erro) {
+        console.error('Falha ao iniciar a câmera:', erro);
+        cameraAtiva = false;
+        cameraTrack = null;
+        try { html5QrcodeScanner?.clear(); } catch (_) {}
+        html5QrcodeScanner = null;
+        definirEstadoCamera('error', descreverErroCamera(erro, ambiente));
+      } finally {
+        cameraIniciando = false;
+      }
+    }
+
+    async function pausarLeituraCamera(mensagem) {
+      if (!cameraAtiva || cameraPausadaPorLeitura) return;
+      try { html5QrcodeScanner.pause(true); }
+      catch (_) { return; }
+      cameraPausadaPorLeitura = true;
+      definirEstadoCamera('paused', mensagem);
+    }
+
+    async function retomarLeituraCamera() {
+      if (!cameraAtiva || !cameraPausadaPorLeitura) return;
+      try {
+        html5QrcodeScanner.resume();
+        cameraPausadaPorLeitura = false;
+        document.getElementById('reader-container').classList.remove('camera-success');
+        document.getElementById('camera-feedback').classList.add('hidden');
+        definirEstadoCamera('running', 'Câmera ativa. Centralize o próximo código dentro da moldura.');
+      } catch (erro) {
+        await desligarCamera({ preservarIntento: true, mensagem: 'A câmera foi interrompida. Toque em “Ligar Câmera” para tentar novamente.' });
+      }
+    }
+
+    async function processarCodigoDetectado(codigoLido) {
+      const codigo = limparPlaqueta(codigoLido);
+      const agora = Date.now();
+      if (ocrEmAndamento || leituraCameraEmAndamento || codigo.length < 3
+        || (codigo === ultimoCodigoLido && agora - instanteUltimoCodigo < 2500)) return;
+      leituraCameraEmAndamento = true;
+      ultimoCodigoLido = codigo;
+      instanteUltimoCodigo = agora;
+      try {
+        await pausarLeituraCamera(`Código ${codigo} reconhecido. Confira os dados antes de salvar.`);
+        document.getElementById('reader-container').classList.add('camera-success');
+        exibirFeedbackCamera(`✅ Plaqueta ${codigo} lida com sucesso.`);
+        if (navigator.vibrate) navigator.vibrate([80, 40, 100]);
+        await preencherEConsultarPlaqueta(codigo);
+      } finally {
+        leituraCameraEmAndamento = false;
+      }
+    }
+
+    async function preencherEConsultarPlaqueta(codigoLido) {
       const codLimpo = limparPlaqueta(codigoLido);
       if (!codLimpo) return;
       document.getElementById('input-plaqueta').value = codLimpo;
-      if (navigator.vibrate) navigator.vibrate(100);
-      buscarEExibirItem(codLimpo);
+      await buscarEExibirItem(codLimpo);
     }
 
     const inputPlaqueta = document.getElementById('input-plaqueta');
@@ -954,107 +1213,168 @@
     });
 
     document.getElementById('btn-toggle-cam').addEventListener('click', async () => {
-      const btnCam = document.getElementById('btn-toggle-cam');
-      
-      if (cameraAtiva) {
-        if (html5QrcodeScanner) {
-          try { await html5QrcodeScanner.stop(); } catch(e) {}
-        }
-        cameraAtiva = false;
-        document.getElementById('reader').innerText = "Câmera pausada";
-        btnCam.innerText = "Ligar Câmera";
-        document.getElementById('btn-capturar-frame').classList.add('hidden');
-        document.getElementById('camera-controls-bar').classList.add('hidden');
-      } else {
-        btnCam.innerText = "Iniciando...";
-        
-        if (!html5QrcodeScanner) {
-          html5QrcodeScanner = new Html5Qrcode("reader");
-        }
+      if (cameraAtiva) await desligarCamera();
+      else await iniciarCamera(cameraIdAtual);
+    });
 
-        const config = {
-          fps: 15,
-          qrbox: { width: 300, height: 150 },
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.QR_CODE
-          ]
-        };
+    document.getElementById('select-camera').addEventListener('change', async event => {
+      const cameraSelecionada = event.target.value;
+      if (!cameraSelecionada || cameraSelecionada === cameraIdAtual) return;
+      await desligarCamera({ preservarIntento: true, mensagem: 'Trocando a câmera selecionada...' });
+      cameraIdAtual = cameraSelecionada;
+      salvarCameraPreferida(cameraSelecionada);
+      await iniciarCamera(cameraSelecionada);
+    });
 
-        try {
-          await html5QrcodeScanner.start(
-            { facingMode: "environment" },
-            config,
-            (decodedText) => { preencherEConsultarPlaqueta(decodedText); },
-            (errorMessage) => {}
-          );
-          
-          cameraAtiva = true;
-          btnCam.innerText = "Desligar Câmera";
-          document.getElementById('btn-capturar-frame').classList.remove('hidden');
-          document.getElementById('camera-controls-bar').classList.remove('hidden');
-        } catch (err1) {
-          try {
-            await html5QrcodeScanner.start(
-              { facingMode: "user" },
-              config,
-              (decodedText) => { preencherEConsultarPlaqueta(decodedText); },
-              (err) => {}
-            );
-            cameraAtiva = true;
-            btnCam.innerText = "Desligar Câmera";
-            document.getElementById('btn-capturar-frame').classList.remove('hidden');
-            document.getElementById('camera-controls-bar').classList.remove('hidden');
-          } catch (err2) {
-            alert("Não foi possível acessar a câmera do dispositivo. Verifique as permissões do navegador.");
-            btnCam.innerText = "Ligar Câmera";
-          }
-        }
+    document.getElementById('camera-zoom').addEventListener('input', event => {
+      aplicarZoomCamera(Number(event.target.value));
+    });
+
+    let distanciaInicialPinca = 0;
+    const readerContainer = document.getElementById('reader-container');
+    readerContainer.addEventListener('touchstart', event => {
+      if (event.touches.length !== 2 || !cameraAtiva) return;
+      distanciaInicialPinca = Math.hypot(
+        event.touches[0].clientX - event.touches[1].clientX,
+        event.touches[0].clientY - event.touches[1].clientY
+      );
+    }, { passive: true });
+    readerContainer.addEventListener('touchmove', event => {
+      if (event.touches.length !== 2 || !cameraAtiva || distanciaInicialPinca <= 0) return;
+      const distanciaAtual = Math.hypot(
+        event.touches[0].clientX - event.touches[1].clientX,
+        event.touches[0].clientY - event.touches[1].clientY
+      );
+      const diferenca = distanciaAtual - distanciaInicialPinca;
+      if (Math.abs(diferenca) >= 24) {
+        event.preventDefault();
+        aplicarZoomCamera(nivelZoomAtual + (diferenca > 0 ? 0.25 : -0.25));
+        distanciaInicialPinca = distanciaAtual;
+      }
+    }, { passive: false });
+    readerContainer.addEventListener('touchend', () => { distanciaInicialPinca = 0; }, { passive: true });
+
+    document.getElementById('btn-camera-torch').addEventListener('click', async event => {
+      if (!cameraTrack) return;
+      const proximoEstado = !cameraTorchAtiva;
+      try {
+        await cameraTrack.applyConstraints({ advanced: [{ torch: proximoEstado }] });
+        cameraTorchAtiva = proximoEstado;
+        event.currentTarget.setAttribute('aria-pressed', String(proximoEstado));
+        event.currentTarget.textContent = proximoEstado ? '🔦 Desligar' : '🔦 Lanterna';
+      } catch (_) {
+        exibirFeedbackCamera('A lanterna não pôde ser controlada neste dispositivo.', 'erro');
       }
     });
 
+    document.getElementById('btn-retomar-leitura').addEventListener('click', retomarLeituraCamera);
+
     document.getElementById('btn-capturar-frame').addEventListener('click', async () => {
-      if (!cameraAtiva || !html5QrcodeScanner) return;
-      
+      if (!cameraAtiva || !html5QrcodeScanner || ocrEmAndamento) return;
       const ocrStatus = document.getElementById('ocr-status');
+      const btnOcr = document.getElementById('btn-capturar-frame');
+      ocrEmAndamento = true;
+      btnOcr.disabled = true;
+      ocrStatus.textContent = 'Preparando imagem para leitura...';
       ocrStatus.classList.remove('hidden');
 
       try {
         const videoElement = document.querySelector('#reader video');
-        if (!videoElement) {
-          ocrStatus.classList.add('hidden');
-          return alert("Feed de vídeo indisponível no momento.");
+        if (!videoElement || videoElement.readyState < 2 || !videoElement.videoWidth) {
+          throw new Error('Feed de vídeo indisponível no momento.');
         }
 
+        const origemLargura = videoElement.videoWidth;
+        const origemAltura = videoElement.videoHeight;
+        const recorteLargura = Math.floor(origemLargura * 0.9);
+        const recorteAltura = Math.floor(origemAltura * 0.48);
+        const origemX = Math.floor((origemLargura - recorteLargura) / 2);
+        const origemY = Math.floor((origemAltura - recorteAltura) / 2);
+        const escala = Math.min(1, 1600 / recorteLargura);
         const canvas = document.createElement('canvas');
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        canvas.width = Math.max(1, Math.floor(recorteLargura * escala));
+        canvas.height = Math.max(1, Math.floor(recorteAltura * escala));
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.filter = 'grayscale(1) contrast(1.8)';
+        ctx.drawImage(
+          videoElement,
+          origemX, origemY, recorteLargura, recorteAltura,
+          0, 0, canvas.width, canvas.height
+        );
 
-        const result = await Tesseract.recognize(canvas, 'por+eng', {
-          logger: m => {}
+        await pausarLeituraCamera('Processando a numeração impressa por OCR...');
+        if (typeof Tesseract === 'undefined') {
+          throw new Error('O mecanismo de OCR não foi carregado. Verifique a conexão ou digite a plaqueta manualmente.');
+        }
+        const result = await Tesseract.recognize(canvas, 'eng', {
+          logger: progresso => {
+            if (progresso.status === 'recognizing text') {
+              ocrStatus.textContent = `Processando OCR: ${Math.round((progresso.progress || 0) * 100)}%`;
+            }
+          }
         });
 
-        ocrStatus.classList.add('hidden');
-        const textoExtraido = result.data.text;
-        const numeroLimpo = limparPlaqueta(textoExtraido);
-
-        if (numeroLimpo.length >= 5) {
-          preencherEConsultarPlaqueta(numeroLimpo);
-          alert(`OCR identificou a plaqueta: ${numeroLimpo}`);
+        const [numeroReconhecido] = extrairCandidatosOcr(result.data.text);
+        if (numeroReconhecido) {
+          document.getElementById('reader-container').classList.add('camera-success');
+          exibirFeedbackCamera(`✅ OCR reconheceu a plaqueta ${numeroReconhecido}.`);
+          if (navigator.vibrate) navigator.vibrate([80, 40, 100]);
+          await preencherEConsultarPlaqueta(numeroReconhecido);
+          definirEstadoCamera('paused', `OCR reconheceu ${numeroReconhecido}. Confira os dados antes de salvar.`);
         } else {
-          alert("Nenhuma numeração clara foi reconhecida. Tente aproximar a câmera.");
+          exibirFeedbackCamera('O OCR não encontrou uma numeração clara. Aproxime a etiqueta, melhore a iluminação ou digite a plaqueta.', 'erro');
+          ocrEmAndamento = false;
+          await retomarLeituraCamera();
         }
-      } catch (e) {
+      } catch (erro) {
+        console.error('Erro durante o OCR:', erro);
+        exibirFeedbackCamera(erro.message || 'Não foi possível processar a imagem por OCR.', 'erro');
+        ocrEmAndamento = false;
+        await retomarLeituraCamera();
+      } finally {
+        ocrEmAndamento = false;
+        btnOcr.disabled = false;
         ocrStatus.classList.add('hidden');
-        alert("Erro durante o processamento da imagem por OCR.");
+        if (cameraAtiva && cameraPausadaPorLeitura) {
+          definirEstadoCamera('paused', document.getElementById('camera-status-text').textContent);
+        }
       }
     });
 
     document.getElementById('btn-buscar').addEventListener('click', () => buscarEExibirItem(limparPlaqueta(inputPlaqueta.value)));
+    inputPlaqueta.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      buscarEExibirItem(limparPlaqueta(inputPlaqueta.value));
+    });
+
+    document.addEventListener('visibilitychange', async () => {
+      if (document.hidden && cameraAtiva) {
+        await desligarCamera({
+          preservarIntento: true,
+          mensagem: 'Câmera pausada enquanto o aplicativo está em segundo plano.'
+        });
+      } else if (!document.hidden && cameraRetomarAoVoltar && abaAtual === 'scanner' && usuarioLogado) {
+        const cameraParaRetomar = cameraIdAtual;
+        cameraRetomarAoVoltar = false;
+        await iniciarCamera(cameraParaRetomar);
+      }
+    });
+
+    window.addEventListener('orientationchange', () => {
+      clearTimeout(timerOrientacaoCamera);
+      timerOrientacaoCamera = window.setTimeout(async () => {
+        if (!cameraAtiva || cameraPausadaPorLeitura || abaAtual !== 'scanner') return;
+        const cameraParaRetomar = cameraIdAtual;
+        await desligarCamera({ preservarIntento: true, mensagem: 'Ajustando a câmera à nova orientação...' });
+        cameraRetomarAoVoltar = false;
+        await iniciarCamera(cameraParaRetomar);
+      }, 450);
+    });
+
+    window.addEventListener('pagehide', () => {
+      if (cameraAtiva) desligarCamera();
+    });
 
     async function buscarEExibirItem(plaquetaCod) {
       if (!plaquetaCod) return;
@@ -1188,6 +1508,7 @@
       inputPlaqueta.value = ''; document.getElementById('select-localizacao').value = '';
       document.getElementById('input-observacao').value = ''; document.getElementById('item-details').classList.add('hidden');
       document.getElementById('alerta-transferencia').classList.add('hidden'); itemAtualSelecionado = null;
+      await retomarLeituraCamera();
     });
 
     function encerrarOuvinteTransferencias() {

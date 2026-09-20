@@ -1,18 +1,114 @@
     .accordion-content { transition: max-height 0.3s ease-out; overflow: hidden; }
     .accordion-content.collapsed { max-height: 0 !important; }
     .scanner-laser {
+      display: none;
       position: absolute;
-      top: 50%; left: 5%; right: 5%;
+      top: 32%; left: 10%; right: 10%;
       height: 2px;
       background: #ef4444;
       box-shadow: 0 0 10px #ef4444;
-      animation: pulse 1.2s infinite;
+      animation: scanner-move 1.8s ease-in-out infinite;
       z-index: 50;
       pointer-events: none;
     }
-    @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+    #reader-container.camera-running .scanner-laser { display: block; }
+    #reader-container.camera-paused .scanner-laser { display: none; }
+    @keyframes scanner-move {
+      0%, 100% { top: 32%; opacity: 0.35; }
+      50% { top: 68%; opacity: 1; }
+    }
     #reader video {
-      transform: scale(var(--camera-zoom, 1));
+      width: 100% !important;
+      object-fit: cover;
+      transform: scale(var(--camera-css-zoom, 1));
       transform-origin: center center;
       transition: transform 0.1s ease-out;
+    }
+    #reader-container {
+      --camera-css-zoom: 1;
+      isolation: isolate;
+      touch-action: pan-y;
+    }
+    #reader { min-height: 240px; }
+    #reader > div:first-child { border: 0 !important; }
+    .camera-guide {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 45;
+      width: min(82%, 360px);
+      aspect-ratio: 2 / 1;
+      border: 2px solid rgba(255, 255, 255, 0.72);
+      border-radius: 0.65rem;
+      box-shadow: 0 0 0 999px rgba(2, 6, 23, 0.2);
+      pointer-events: none;
+    }
+    #reader-container.camera-running .camera-guide { display: block; }
+    #reader-container.camera-success .camera-guide {
+      border-color: #34d399;
+      box-shadow: 0 0 0 999px rgba(2, 6, 23, 0.2), 0 0 18px rgba(52, 211, 153, 0.8);
+    }
+    .camera-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-height: 2.25rem;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid rgb(51 65 85);
+      border-radius: 0.5rem;
+      background: rgb(15 23 42 / 0.85);
+      color: rgb(203 213 225);
+      font-size: 0.7rem;
+      line-height: 1.2;
+    }
+    .camera-status-running { border-color: rgb(16 185 129 / 0.5); color: rgb(167 243 208); }
+    .camera-status-paused { border-color: rgb(245 158 11 / 0.5); color: rgb(253 230 138); }
+    .camera-status-error { border-color: rgb(239 68 68 / 0.55); color: rgb(254 202 202); }
+    .camera-status-starting { border-color: rgb(59 130 246 / 0.5); color: rgb(191 219 254); }
+    .camera-controls {
+      grid-template-columns: minmax(0, 1.3fr) minmax(150px, 1fr);
+      gap: 0.65rem;
+      align-items: end;
+    }
+    .camera-controls:not(.hidden) { display: grid; }
+    .camera-control { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+    .camera-control > span { color: rgb(148 163 184); font-size: 0.65rem; font-weight: 700; }
+    .camera-control-wide { grid-column: 1 / -1; }
+    .camera-action-row { align-items: flex-start; }
+    .camera-range { width: 100%; accent-color: #3b82f6; }
+    .camera-action-button,
+    .camera-capability-badge {
+      border: 1px solid rgb(71 85 105);
+      border-radius: 0.375rem;
+      background: rgb(30 41 59);
+      color: rgb(226 232 240);
+      padding: 0.35rem 0.5rem;
+      font-size: 0.65rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .camera-action-button[aria-pressed="true"] { border-color: #f59e0b; color: #fde68a; }
+    .camera-capability-badge.unsupported { color: rgb(148 163 184); opacity: 0.75; }
+    .camera-feedback {
+      border: 1px solid rgb(16 185 129 / 0.45);
+      border-radius: 0.5rem;
+      background: rgb(6 78 59 / 0.45);
+      color: rgb(167 243 208);
+      padding: 0.55rem 0.7rem;
+      text-align: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+    @media (orientation: landscape) and (max-height: 560px) {
+      #reader, #reader-container { min-height: 190px; }
+    }
+    @media (max-width: 480px) {
+      .camera-controls { grid-template-columns: 1fr; }
+      .camera-control-wide { grid-column: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .scanner-laser { animation: none; top: 50%; }
+      #reader video { transition: none; }
     }
