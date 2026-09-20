@@ -1,13 +1,13 @@
     import { signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import {
-      doc, getDoc, setDoc, updateDoc, deleteDoc,
+      doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc,
       collection, getDocs, onSnapshot, writeBatch, query, where,
       and, or, orderBy, startAt, startAfter, endAt, limit, documentId,
       getCountFromServer
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { estimarLeiturasAgregacao, obterMetricasFirestore, registrarLeituras } from "./js/core/firestore-metrics.js";
-    import { ehPerfilValidador, prepararAtualizacaoPatrimonio } from "./js/core/movimentacao.js";
+    import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
 
     let usuarioLogado = null;
@@ -1205,6 +1205,9 @@
         const leituras = primeiraCargaTransferencias ? snapshot.size : snapshot.docChanges().length;
         registrarLeituras('fila_transferencias_realtime', leituras);
         primeiraCargaTransferencias = false;
+        snapshot.docChanges()
+          .filter(alteracao => alteracao.type === 'removed')
+          .forEach(alteracao => cachePatrimonios.delete(alteracao.doc.id));
         bancoTransferencias = snapshot.docs.map(normalizarPatrimonio);
         cachearPatrimonios(bancoTransferencias);
         renderizarFilaTransferencias();
@@ -1246,43 +1249,64 @@
           </div>
           <p class="text-slate-200 text-xs cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">${item.descricao}</p>
           <div class="text-[11px] space-y-1 bg-slate-900 p-2.5 rounded border border-slate-700">
-            <div>🏷️ Divisão Anterior: ${item.divisaoOrigem}</div>
+            <div>📍 Local Atual: ${item.localizacaoAtual || item.divisaoOrigem || item.divisao}</div>
             <div>📍 Novo Local: <span class="text-emerald-400 font-bold">${item.divisaoDestinoSugerida}</span></div>
             ${item.observacaoAtual ? `<div class="pt-1 border-t border-slate-800 text-slate-300">💬 <strong class="text-slate-400">Observação:</strong> ${item.observacaoAtual}</div>` : ''}
           </div>
           <div class="flex gap-2 pt-1">
-            <button onclick="aprovarTransferencia('${item.plaqueta}', '${item.divisaoDestinoSugerida}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition-colors">✅ Aprovar</button>
+            <button onclick="aprovarTransferencia('${item.plaqueta}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition-colors">✅ Aprovar</button>
             <button onclick="rejeitarTransferencia('${item.plaqueta}')" class="bg-red-900/60 hover:bg-red-800 text-red-200 font-bold px-4 py-2 rounded text-xs transition-colors">❌ Rejeitar</button>
           </div>
         </div>
       `).join('');
     }
 
-    window.aprovarTransferencia = async function(plaqueta, novaDivisao) {
-      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
-      if (!confirm(`Deseja aprovar a transferência do patrimônio ${plaqueta} para ${novaDivisao}?`)) return;
-      await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: novaDivisao, statusTransferencia: "aprovado" });
-      invalidarCacheRelacao();
-      alert("Transferência aprovada com sucesso.");
+    async function obterTransferenciaPendente(plaqueta, operacao) {
+      const snapshot = await getDocFromServer(doc(db, "patrimonios", plaqueta));
+      registrarLeituras(operacao, 1);
+      if (!snapshot.exists()) throw new Error("Patrimônio não encontrado.");
+      return normalizarPatrimonio(snapshot);
     }
 
-    window.rejeitarTransferencia = async function(plaqueta) {
-      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
-      if (!confirm(`Deseja rejeitar esta solicitação de transferência?`)) return;
-      let item = cachePatrimonios.get(plaqueta);
-      if (!item) {
-        const snapshot = await getDoc(doc(db, "patrimonios", plaqueta));
-        registrarLeituras('rejeitar_transferencia', 1);
-        if (!snapshot.exists()) return alert("Patrimônio não encontrado.");
-        item = normalizarPatrimonio(snapshot);
-      }
-      await updateDoc(doc(db, "patrimonios", plaqueta), { localizacaoAtual: item.divisaoOrigem, statusTransferencia: "rejeitado" });
+    function atualizarCachesAposResolucao(itemAtualizado) {
+      cachePatrimonios.set(itemAtualizado.plaqueta, itemAtualizado);
+      const indiceRelacao = bancoPatrimonio.findIndex(item => item.plaqueta === itemAtualizado.plaqueta);
+      if (indiceRelacao >= 0) bancoPatrimonio[indiceRelacao] = itemAtualizado;
+      bancoTransferencias = bancoTransferencias.filter(item => item.plaqueta !== itemAtualizado.plaqueta);
+      renderizarFilaTransferencias();
+      aplicarBadgeTransferencias(bancoTransferencias.length);
       invalidarCacheRelacao();
-      alert("Transferência rejeitada.");
     }
+
+    async function resolverTransferencia(plaqueta, decisao) {
+      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
+      try {
+        const item = await obterTransferenciaPendente(plaqueta, `${decisao}_transferencia`);
+        const destino = item.divisaoDestinoSugerida || 'destino não informado';
+        const verbo = decisao === 'aprovar' ? 'aprovar' : 'rejeitar';
+        if (!confirm(`Deseja ${verbo} a transferência do patrimônio ${plaqueta} para ${destino}?`)) return;
+
+        const { dadosAtualizacao } = prepararResolucaoTransferencia({
+          item,
+          usuario: usuarioLogado,
+          decisao,
+          dataHora: new Date().toLocaleString('pt-BR')
+        });
+        await updateDoc(doc(db, "patrimonios", plaqueta), dadosAtualizacao);
+        atualizarCachesAposResolucao({ ...item, ...dadosAtualizacao });
+        alert(decisao === 'aprovar' ? "Transferência aprovada com sucesso." : "Transferência rejeitada; localização anterior mantida.");
+      } catch (erro) {
+        console.error("Erro ao resolver transferência:", erro);
+        alert(erro.message || "Não foi possível resolver a transferência.");
+      }
+    }
+
+    window.aprovarTransferencia = plaqueta => resolverTransferencia(plaqueta, 'aprovar');
+    window.rejeitarTransferencia = plaqueta => resolverTransferencia(plaqueta, 'rejeitar');
 
     window.abrirModalItemPorPlaqueta = async function(plaqueta) {
-      let item = cachePatrimonios.get(plaqueta);
+      let item = bancoPatrimonio.find(patrimonio => patrimonio.plaqueta === plaqueta)
+        || cachePatrimonios.get(plaqueta);
       if (!item) {
         const snapshot = await getDoc(doc(db, "patrimonios", plaqueta));
         registrarLeituras('detalhe_patrimonio', 1);
@@ -1294,19 +1318,31 @@
       const modal = document.getElementById('modal-detalhes-item');
       const conteudo = document.getElementById('modal-item-conteudo');
       const divisaoAnterior = item.divisaoOrigem || item.divisao;
+      const localAtual = item.localizacaoAtual || divisaoAnterior;
+      const sugestaoPendente = item.statusTransferencia === 'pendente'
+        ? item.divisaoDestinoSugerida
+        : '';
       const ehAdminOuGestor = usuarioLogado && usuarioLogado.perfil !== 'conferente';
+      const statusModal = item.statusTransferencia === 'pendente'
+        ? { classe: 'bg-amber-900 text-amber-300', texto: '⏳ AGUARDANDO TRANSF.' }
+        : item.statusTransferencia === 'rejeitado'
+          ? { classe: 'bg-red-950 text-red-300', texto: '↩️ TRANSF. NEGADA' }
+          : item.localizado
+            ? { classe: 'bg-emerald-900 text-emerald-300', texto: '🟢 LOCALIZADO' }
+            : { classe: 'bg-slate-700 text-slate-300', texto: '🔴 PENDENTE' };
 
       conteudo.innerHTML = `
         <div class="space-y-2.5">
           <div class="flex justify-between items-center">
             <span class="font-bold text-blue-400 text-sm">Plaqueta: ${item.plaqueta}</span>
-            <span class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${item.statusTransferencia === 'pendente' ? 'bg-amber-900 text-amber-300' : (item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-300')}">
-              ${item.statusTransferencia === 'pendente' ? '⏳ AGUARDANDO TRANSF.' : (item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE')}
+            <span class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${statusModal.classe}">
+              ${statusModal.texto}
             </span>
           </div>
           <div><strong class="text-slate-400">Descrição:</strong> <span class="text-slate-200">${item.descricao}</span></div>
           <div><strong class="text-slate-400">🏷️ Divisão Anterior:</strong> <span class="text-amber-400 font-semibold">${divisaoAnterior}</span></div>
-          <div><strong class="text-slate-400">📍 Local Atual / Sugerido:</strong> <span class="text-emerald-400 font-semibold">${item.divisaoDestinoSugerida || item.localizacaoAtual || divisaoAnterior}</span></div>
+          <div><strong class="text-slate-400">📍 Local Atual:</strong> <span class="text-emerald-400 font-semibold">${localAtual}</span></div>
+          ${sugestaoPendente ? `<div><strong class="text-slate-400">➡️ Local Sugerido:</strong> <span class="text-amber-300 font-semibold">${sugestaoPendente}</span></div>` : ''}
           ${item.conferidoPor ? `<div><strong class="text-slate-400">👤 Conferido por:</strong> <span class="text-slate-300">${item.conferidoPor}</span></div>` : ''}
           ${item.observacaoAtual ? `<div><strong class="text-slate-400">💬 Observação:</strong> <span class="text-slate-300">${item.observacaoAtual}</span></div>` : ''}
           
@@ -1327,6 +1363,7 @@
                     <span>📍 ${h.local}</span>
                     <span class="text-slate-400 text-[10px]">${h.data}</span>
                   </div>
+                  ${h.acao ? `<div class="text-[10px] text-slate-500">Ação: ${h.acao.replaceAll('_', ' ')}</div>` : ''}
                   <div class="text-slate-400 text-[10px]">Por: ${h.responsavel}${h.obs ? `| Obs: ${h.obs}` : ''}</div>
                 </div>
               `).join('') : '<div class="text-slate-400 text-xs italic">Nenhum registro histórico adicional.</div>'}
