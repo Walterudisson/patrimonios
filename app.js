@@ -6,10 +6,17 @@
       getCountFromServer
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { auth, db, authSecundario } from "./js/config/firebase.js";
-    import { estimarLeiturasAgregacao, obterMetricasFirestore, registrarLeituras } from "./js/core/firestore-metrics.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js";
-    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.9.2";
+    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.10.0";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
+    import { confirmarAcao, notificarMensagem } from "./js/ui/feedback.js?v=1.10.0";
+    import {
+      ativarPagina,
+      atualizarAcessoNavegacao,
+      atualizarUsuarioNavegacao,
+      fecharNavegacaoMovel,
+      inicializarNavegacao
+    } from "./js/ui/navigation.js?v=1.10.0";
 
     let usuarioLogado = null;
     let bancoPatrimonio = [];
@@ -23,7 +30,6 @@
     let relacaoCarregada = false;
     let timerAutocomplete = null;
     let timerFiltroRelacao = null;
-    let primeiraCargaTransferencias = true;
     let catalogoDivisoesCarregado = false;
     let cursorRelacao = null;
     let totalRelacao = 0;
@@ -37,7 +43,6 @@
     const cachePatrimonios = new Map();
     const cacheSugestoes = new Map();
     const catalogoDivisoes = new Set();
-    window.obterMetricasFirestore = obterMetricasFirestore;
 
     const controladorCamera = criarControladorCamera({
       limparPlaqueta,
@@ -46,6 +51,7 @@
       podeManterCamera: () => Boolean(usuarioLogado && abaAtual === 'scanner')
     });
     controladorCamera.inicializar();
+    inicializarNavegacao(aba => alternarAba(aba));
 
     function invalidarCacheRelacao() {
       relacaoBaseCompleta = null;
@@ -146,12 +152,13 @@
       }
     });
 
-    document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
+    ['btn-logout', 'btn-logout-sidebar'].forEach(id => {
+      document.getElementById(id)?.addEventListener('click', () => signOut(auth));
+    });
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-        registrarLeituras('perfil_usuario', 1);
         if (!userDoc.exists()) {
           await signOut(auth);
           return;
@@ -182,7 +189,9 @@
     });
 
     function atualizarCabecalhoUsuario() {
-      document.getElementById('user-info-badge').innerText = `${usuarioLogado.nome} (${usuarioLogado.perfil.toUpperCase()})`;
+      atualizarUsuarioNavegacao(usuarioLogado);
+      atualizarAcessoNavegacao(usuarioLogado.perfil);
+      document.getElementById('profile-menu-name').innerText = usuarioLogado.nome;
       document.getElementById('dash-nome').innerText = usuarioLogado.nome;
       document.getElementById('dash-perfil').innerText = `Perfil: ${usuarioLogado.perfil.toUpperCase()}`;
       document.getElementById('dash-divisoes').innerText = usuarioLogado.perfil === 'conferente'
@@ -222,7 +231,7 @@
 
     }
 
-    async function carregarUsuarios(forcar = false, operacao = 'usuarios_sob_demanda') {
+    async function carregarUsuarios(forcar = false) {
       if (usuariosCarregados && !forcar) {
         renderizarListaUsuarios();
         return bancoUsuarios;
@@ -232,7 +241,6 @@
         ? query(collection(db, "usuarios"), where("perfil", "==", "conferente"))
         : collection(db, "usuarios");
       const snapshot = await getDocs(consultaUsuarios);
-      registrarLeituras(operacao, snapshot.size);
       bancoUsuarios = snapshot.docs.map(docSnap => ({ uid: docSnap.id, ...docSnap.data() }));
       if (usuarioLogado?.perfil === 'gestor' && !bancoUsuarios.some(usuario => usuario.uid === usuarioLogado.uid)) {
         bancoUsuarios.unshift({ ...usuarioLogado });
@@ -256,7 +264,6 @@
 
       try {
         const resultado = await listarDivisoesAtivas();
-        registrarLeituras('catalogo_divisoes', resultado.documentosLidos);
         resultado.nomes.forEach(nome => catalogoDivisoes.add(nome));
         catalogoDivisoesCarregado = true;
       } catch (erro) {
@@ -264,17 +271,16 @@
       }
 
       if (catalogoDivisoes.size === 0 && usuarioLogado?.perfil !== 'conferente' && !usuariosCarregados) {
-        await carregarUsuarios(false, 'catalogo_divisoes_fallback');
+        await carregarUsuarios();
       }
 
       popularSelectsDivisao();
     }
 
-    async function carregarPatrimoniosPermitidos(operacao) {
+    async function carregarPatrimoniosPermitidos() {
       if (!usuarioLogado) return [];
       if (usuarioLogado.perfil === 'admin' || usuarioLogado.perfil === 'gestor') {
         const snapshot = await getDocs(collection(db, "patrimonios"));
-        registrarLeituras(operacao, snapshot.size);
         const itens = snapshot.docs.map(normalizarPatrimonio);
         cachearPatrimonios(itens);
         adicionarDivisoesAoCatalogo(itens);
@@ -285,7 +291,6 @@
       if (divisoes.length === 0) return [];
 
       const resultados = new Map();
-      let leituras = 0;
       for (const lote of dividirEmLotes(divisoes)) {
         const consulta = query(collection(db, "patrimonios"), or(
           where("divisaoOrigem", "in", lote),
@@ -293,11 +298,8 @@
           where("localizacaoAtual", "in", lote)
         ));
         const snapshot = await getDocs(consulta);
-        leituras += snapshot.size;
         snapshot.docs.map(normalizarPatrimonio).forEach(item => resultados.set(item.plaqueta, item));
       }
-
-      registrarLeituras(operacao, leituras);
       const itens = [...resultados.values()];
       cachearPatrimonios(itens);
       adicionarDivisoesAoCatalogo(itens);
@@ -371,11 +373,6 @@
       preencherCheckboxes(editCheckContainer, 'edit-divisao-check', marcadasEdicao);
     }
 
-    ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
-      const btn = document.getElementById(`tab-btn-${aba}`);
-      if (btn) btn.addEventListener('click', () => alternarAba(aba));
-    });
-
     async function alternarAba(abaAtiva) {
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
         if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios') {
@@ -385,6 +382,8 @@
 
       if (abaAtiva !== 'transferencias') encerrarOuvinteTransferencias();
       abaAtual = abaAtiva;
+      ativarPagina(abaAtiva);
+      fecharNavegacaoMovel();
 
       if (abaAtiva !== 'scanner' && controladorCamera.estaAtiva()) {
         await controladorCamera.desligar({ retomarAposSalvar: true });
@@ -392,11 +391,7 @@
 
       ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista'].forEach(aba => {
         const sec = document.getElementById(`sec-${aba}`);
-        const btn = document.getElementById(`tab-btn-${aba}`);
         if (sec) sec.classList.toggle('hidden', aba !== abaAtiva);
-        if (btn) {
-          btn.className = aba === abaAtiva ? "flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold bg-blue-600 text-white transition-all whitespace-nowrap text-center" : "flex-1 py-2 px-3 rounded-lg text-xs md:text-sm font-bold text-slate-400 hover:text-white transition-all whitespace-nowrap text-center";
-        }
       });
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -417,7 +412,7 @@
         if (abaAtiva === 'lista') await carregarRelacaoPatrimonial();
       } catch (erro) {
         console.error(`Erro ao carregar a aba ${abaAtiva}:`, erro);
-        alert("Não foi possível carregar os dados desta tela. Verifique sua conexão e tente novamente.");
+        notificarMensagem("Não foi possível carregar os dados desta tela. Verifique sua conexão e tente novamente.", 'erro');
       }
     }
 
@@ -426,6 +421,11 @@
       document.getElementById('dash-localizados').innerText = localizados;
       document.getElementById('dash-pendentes').innerText = pendentes;
       document.getElementById('dash-aguardando').innerText = aguardando;
+      const percentual = total > 0 ? Math.round((localizados / total) * 100) : 0;
+      document.getElementById('dash-progress-text').innerText = `${percentual}% concluído`;
+      document.getElementById('dash-progress-bar').style.width = `${percentual}%`;
+      const progresso = document.querySelector('.progress-track');
+      progresso?.setAttribute('aria-valuenow', String(percentual));
 
       const badgeFila = document.getElementById('badge-fila-count');
       if (aguardando > 0 && usuarioLogado.perfil !== 'conferente') {
@@ -433,6 +433,18 @@
         badgeFila.classList.remove('hidden');
       } else { badgeFila.classList.add('hidden'); }
     }
+
+    document.querySelectorAll('[data-dashboard-target]').forEach(card => {
+      card.addEventListener('click', async () => {
+        const destino = card.dataset.dashboardTarget;
+        if (destino === 'transferencias') {
+          if (usuarioLogado?.perfil !== 'conferente') await alternarAba('transferencias');
+          return;
+        }
+        document.getElementById('filtro-status').value = destino === 'todos' ? 'todos' : destino;
+        await alternarAba('lista');
+      });
+    });
 
     async function carregarDashboard() {
       if (!usuarioLogado) return;
@@ -452,7 +464,6 @@
         const aguardando = aguardandoSnap.data().count;
         const localizados = Math.max(0, totalMarcadosLocalizados - aguardando);
         const pendentes = Math.max(0, total - totalMarcadosLocalizados);
-        registrarLeituras('dashboard_agregacoes', 0, estimarLeiturasAgregacao(total, totalMarcadosLocalizados, aguardando));
         aplicarNumerosDashboard(total, localizados, pendentes, aguardando);
         return;
       }
@@ -479,7 +490,6 @@
           const total = totalSnap.data().count;
           const totalMarcadosLocalizados = localizadosSnap.data().count;
           const aguardando = aguardandoSnap.data().count;
-          registrarLeituras('dashboard_conferente_agregacoes', 0, estimarLeiturasAgregacao(total, totalMarcadosLocalizados, aguardando));
           aplicarNumerosDashboard(
             total,
             Math.max(0, totalMarcadosLocalizados - aguardando),
@@ -492,7 +502,7 @@
         }
       }
 
-      const itens = await carregarPatrimoniosPermitidos('dashboard_conferente_fallback');
+      const itens = await carregarPatrimoniosPermitidos();
       aplicarNumerosDashboard(
         itens.length,
         itens.filter(item => item.localizado && item.statusTransferencia !== 'pendente').length,
@@ -511,26 +521,31 @@
       }
     }
 
-    async function buscarItensDaDivisao(divisao, operacao) {
+    async function buscarItensDaDivisao(divisao) {
       const consulta = query(collection(db, "patrimonios"), or(
         where("divisaoOrigem", "==", divisao),
         where("divisao", "==", divisao),
         where("localizacaoAtual", "==", divisao)
       ));
       const snapshot = await getDocs(consulta);
-      registrarLeituras(operacao, snapshot.size);
       return snapshot.docs.map(normalizarPatrimonio);
     }
 
     document.getElementById('btn-reverter-divisao').addEventListener('click', async () => {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.");
       const divAlvo = document.getElementById('select-divisao-reversao').value;
-      if (!divAlvo) return alert("Selecione uma divisão para reverter.");
+      if (!divAlvo) return notificarMensagem("Selecione uma divisão para reverter.");
 
-      if (!confirm(`Deseja realmente retornar todos os itens da divisão '${divAlvo}' para o status PENDENTE? O progresso de conferência deste setor será zerado.`)) return;
+      const confirmarReversao = await confirmarAcao({
+        titulo: 'Reverter divisão',
+        mensagem: `Todos os itens de ${divAlvo} voltarão ao status pendente e o progresso do setor será zerado.`,
+        confirmarTexto: 'Reverter divisão',
+        perigosa: true
+      });
+      if (!confirmarReversao) return;
 
-      const itensAfetados = await buscarItensDaDivisao(divAlvo, 'reversao_divisao');
-      if (itensAfetados.length === 0) return alert("Nenhum item encontrado nesta divisão.");
+      const itensAfetados = await buscarItensDaDivisao(divAlvo);
+      if (itensAfetados.length === 0) return notificarMensagem("Nenhum item encontrado nesta divisão.");
 
       try {
         await atualizarItensEmLotes(itensAfetados, {
@@ -541,20 +556,25 @@
           dataLocalizacao: ""
         });
         invalidarCacheRelacao();
-        alert(`Sucesso! ${itensAfetados.length} itens da divisão ${divAlvo} foram retornados para pendentes.`);
+        notificarMensagem(`Sucesso! ${itensAfetados.length} itens da divisão ${divAlvo} foram retornados para pendentes.`);
         document.getElementById('select-divisao-reversao').value = "";
       } catch (e) {
-        alert("Erro ao executar reversão setorial.");
+        notificarMensagem("Erro ao executar reversão setorial.");
       }
     });
 
     document.getElementById('btn-reverter-geral').addEventListener('click', async () => {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
-      if (!confirm("⚠️ ATENÇÃO: Deseja realmente reiniciar o inventário geral? TODOS OS ITENS do sistema retornarão para o status PENDENTE. Esta ação preparará o sistema para um novo ciclo completo.")) return;
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.");
+      const confirmarReinicio = await confirmarAcao({
+        titulo: 'Reiniciar inventário geral',
+        mensagem: 'Todos os patrimônios retornarão ao status pendente. Use esta ação somente ao iniciar um novo ciclo completo.',
+        confirmarTexto: 'Reiniciar inventário',
+        perigosa: true
+      });
+      if (!confirmarReinicio) return;
 
       try {
         const snapshot = await getDocs(collection(db, "patrimonios"));
-        registrarLeituras('reversao_geral', snapshot.size);
         const itens = snapshot.docs.map(normalizarPatrimonio);
         await atualizarItensEmLotes(itens, {
           localizado: false,
@@ -564,15 +584,21 @@
           dataLocalizacao: ""
         });
         invalidarCacheRelacao();
-        alert("Inventário geral reiniciado com sucesso! Todos os itens estão pendentes.");
+        notificarMensagem("Inventário geral reiniciado com sucesso! Todos os itens estão pendentes.");
       } catch (e) {
-        alert("Erro ao reiniciar inventário geral.");
+        notificarMensagem("Erro ao reiniciar inventário geral.");
       }
     });
 
     window.reverterItemIndividual = async function(plaqueta) {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado.");
-      if (!confirm(`Deseja retornar o item ${plaqueta} para o status PENDENTE?`)) return;
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.");
+      const confirmarReversao = await confirmarAcao({
+        titulo: 'Retornar item para pendente',
+        mensagem: `O patrimônio ${plaqueta} voltará ao status pendente.`,
+        confirmarTexto: 'Retornar item',
+        perigosa: true
+      });
+      if (!confirmarReversao) return;
 
       try {
         await updateDoc(doc(db, "patrimonios", plaqueta), {
@@ -585,10 +611,10 @@
         const itemCache = cachePatrimonios.get(plaqueta);
         if (itemCache) cachePatrimonios.set(plaqueta, { ...itemCache, localizado: false, statusTransferencia: "concluido" });
         invalidarCacheRelacao();
-        alert("Item retornado para pendente com sucesso.");
+        notificarMensagem("Item retornado para pendente com sucesso.");
         document.getElementById('modal-detalhes-item').classList.add('hidden');
       } catch (e) {
-        alert("Erro ao reverter item.");
+        notificarMensagem("Erro ao reverter item.");
       }
     };
 
@@ -616,7 +642,7 @@
 
     document.getElementById('form-cad-usuario').addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
+      if (usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.");
 
       const nome = document.getElementById('cad-nome').value.trim();
       const email = document.getElementById('cad-email').value.trim();
@@ -630,7 +656,7 @@
         await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil, divisoesAtribuidas: divisoes });
         await signOut(authSecundario);
 
-        alert(`Colaborador ${nome} cadastrado com sucesso.`);
+        notificarMensagem(`Colaborador ${nome} cadastrado com sucesso.`);
         document.getElementById('form-cad-usuario').reset();
         document.querySelectorAll('input[name="divisao-check"]').forEach(cb => cb.checked = false);
         fecharModalCriacaoUsuario();
@@ -639,7 +665,7 @@
         let msg = "Não foi possível concluir o cadastro.";
         if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já está cadastrado no sistema.";
         else if (err.code === 'auth/weak-password') msg = "A senha deve conter pelo menos 6 caracteres.";
-        alert(msg);
+        notificarMensagem(msg);
       }
     });
 
@@ -730,24 +756,41 @@
       container.innerHTML = htmlConsolidado;
     }
 
-    document.getElementById('filtro-busca-usuarios')?.addEventListener('input', renderizarListaUsuarios);
+    const filtroBuscaUsuarios = document.getElementById('filtro-busca-usuarios');
+    const btnLimparBuscaUsuarios = document.getElementById('btn-limpar-busca-usuarios');
+    filtroBuscaUsuarios?.addEventListener('input', () => {
+      btnLimparBuscaUsuarios?.classList.toggle('hidden', !filtroBuscaUsuarios.value);
+      renderizarListaUsuarios();
+    });
+    btnLimparBuscaUsuarios?.addEventListener('click', () => {
+      filtroBuscaUsuarios.value = '';
+      btnLimparBuscaUsuarios.classList.add('hidden');
+      renderizarListaUsuarios();
+      filtroBuscaUsuarios.focus();
+    });
 
     window.excluirUsuario = async function(uid, nome) {
       const userAlvo = bancoUsuarios.find(u => u.uid === uid);
       if (!userAlvo) return;
 
       if (usuarioLogado.perfil === 'gestor' && userAlvo.perfil !== 'conferente') {
-        return alert("Operação não permitida: Gestores só podem remover usuários com perfil conferente.");
+        return notificarMensagem("Operação não permitida: Gestores só podem remover usuários com perfil conferente.");
       }
 
-      if (!confirm(`Deseja realmente remover o acesso de ${nome}? Esta ação é irreversível.`)) return;
+      const confirmarExclusao = await confirmarAcao({
+        titulo: 'Remover acesso',
+        mensagem: `O acesso de ${nome} será removido. Esta ação não pode ser desfeita.`,
+        confirmarTexto: 'Remover usuário',
+        perigosa: true
+      });
+      if (!confirmarExclusao) return;
 
       try {
         await deleteDoc(doc(db, "usuarios", uid));
-        alert("Usuário removido com sucesso.");
+        notificarMensagem("Usuário removido com sucesso.");
         await carregarUsuarios(true);
       } catch (err) {
-        alert("Erro ao remover o usuário. Tente novamente.");
+        notificarMensagem("Erro ao remover o usuário. Tente novamente.");
       }
     }
 
@@ -757,7 +800,7 @@
 
       if (usuarioLogado.perfil === 'gestor') {
         if (user.uid !== usuarioLogado.uid && user.perfil !== 'conferente') {
-          return alert("Acesso restrito: Gestores não possuem permissão para editar outros gestores ou administradores.");
+          return notificarMensagem("Acesso restrito: Gestores não possuem permissão para editar outros gestores ou administradores.");
         }
       }
 
@@ -809,7 +852,7 @@
 
       if (usuarioLogado.perfil === 'gestor') {
         if (targetUser.uid !== usuarioLogado.uid && targetUser.perfil !== 'conferente') {
-          return alert("Operação negada pelas diretrizes de hierarquia.");
+          return notificarMensagem("Operação negada pelas diretrizes de hierarquia.");
         }
       }
 
@@ -827,11 +870,11 @@
           ? { nome }
           : { nome, perfil: perfilNovo, divisoesAtribuidas: divisoes };
         await updateDoc(doc(db, "usuarios", uid), dadosAtualizacao);
-        alert("Dados atualizados com sucesso.");
+        notificarMensagem("Dados atualizados com sucesso.");
         document.getElementById('modal-edicao-usuario').classList.add('hidden');
         await carregarUsuarios(true);
       } catch (err) {
-        alert("Não foi possível salvar as alterações.");
+        notificarMensagem("Não foi possível salvar as alterações.");
       }
     });
 
@@ -839,14 +882,17 @@
       const codLimpo = limparPlaqueta(codigoLido);
       if (!codLimpo) return false;
       document.getElementById('input-plaqueta').value = codLimpo;
+      document.getElementById('btn-limpar-plaqueta')?.classList.remove('hidden');
       return buscarEExibirItem(codLimpo);
     }
 
     const inputPlaqueta = document.getElementById('input-plaqueta');
     const suggestionsBox = document.getElementById('suggestions-box');
+    const btnLimparPlaqueta = document.getElementById('btn-limpar-plaqueta');
 
     function limparFormularioLeitura() {
       inputPlaqueta.value = '';
+      btnLimparPlaqueta?.classList.add('hidden');
       suggestionsBox.classList.add('hidden');
       document.getElementById('select-localizacao').value = '';
       document.getElementById('input-observacao').value = '';
@@ -857,6 +903,7 @@
 
     inputPlaqueta.addEventListener('input', (e) => {
       const valor = limparPlaqueta(e.target.value);
+      btnLimparPlaqueta?.classList.toggle('hidden', !e.target.value);
       clearTimeout(timerAutocomplete);
       if (valor.length < 3) {
         suggestionsBox.classList.add('hidden');
@@ -895,7 +942,6 @@
             }
 
             const snapshots = await Promise.all(consultas.map(consulta => getDocs(consulta)));
-            registrarLeituras('autocomplete', snapshots.reduce((total, snapshot) => total + snapshot.size, 0));
             const resultados = new Map();
             snapshots.forEach(snapshot => snapshot.docs.map(normalizarPatrimonio)
               .forEach(item => resultados.set(item.plaqueta, item)));
@@ -931,6 +977,10 @@
     });
 
     document.getElementById('btn-buscar').addEventListener('click', () => buscarEExibirItem(limparPlaqueta(inputPlaqueta.value)));
+    btnLimparPlaqueta?.addEventListener('click', () => {
+      limparFormularioLeitura();
+      inputPlaqueta.focus();
+    });
     inputPlaqueta.addEventListener('keydown', event => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
@@ -947,7 +997,6 @@
       }
       else {
         const docSnap = await getDoc(doc(db, "patrimonios", plaquetaCod));
-        registrarLeituras('consulta_plaqueta', 1);
         if (docSnap.exists()) {
           itemAtualSelecionado = normalizarPatrimonio(docSnap);
           cachearPatrimonios([itemAtualSelecionado]);
@@ -957,7 +1006,7 @@
         }
         else {
           document.getElementById('item-details').classList.add('hidden');
-          alert(`Patrimônio com a plaqueta ${plaquetaCod} não foi encontrado.`);
+          notificarMensagem(`Patrimônio com a plaqueta ${plaquetaCod} não foi encontrado.`);
           return false;
         }
       }
@@ -1041,12 +1090,12 @@
     }
 
     document.getElementById('btn-salvar').addEventListener('click', async () => {
-      if (!itemAtualSelecionado) return alert("Selecione um patrimônio válido antes de salvar.");
+      if (!itemAtualSelecionado) return notificarMensagem("Selecione um patrimônio válido antes de salvar.");
       if (usuarioLogado?.perfil === 'conferente' && itemAtualSelecionado.statusTransferencia === 'pendente') {
-        return alert("Este patrimônio já está aguardando aprovação. Somente um Gestor ou Administrador pode concluir a movimentação.");
+        return notificarMensagem("Este patrimônio já está aguardando aprovação. Somente um Gestor ou Administrador pode concluir a movimentação.");
       }
       const locAtual = document.getElementById('select-localizacao').value;
-      if (!locAtual) return alert("Selecione a localização atual do item.");
+      if (!locAtual) return notificarMensagem("Selecione a localização atual do item.");
 
       const obs = document.getElementById('input-observacao').value.trim();
       const dataHora = new Date().toLocaleString('pt-BR');
@@ -1074,7 +1123,7 @@
           ? "✅ Localização atualizada e validada com sucesso."
           : "⚠️ Mudança de localização enviada para aprovação.")
         : (perfilValidador ? "✅ Patrimônio atualizado com sucesso." : "✅ Conferência registrada com sucesso.");
-      alert(mensagemSucesso);
+      notificarMensagem(mensagemSucesso);
       limparFormularioLeitura();
       await controladorCamera.retomarAposSalvar();
     });
@@ -1088,12 +1137,8 @@
 
     function iniciarOuvinteTransferencias() {
       encerrarOuvinteTransferencias();
-      primeiraCargaTransferencias = true;
       const consulta = query(collection(db, "patrimonios"), where("statusTransferencia", "==", "pendente"));
       unsubscribeTransferencias = onSnapshot(consulta, snapshot => {
-        const leituras = primeiraCargaTransferencias ? snapshot.size : snapshot.docChanges().length;
-        registrarLeituras('fila_transferencias_realtime', leituras);
-        primeiraCargaTransferencias = false;
         snapshot.docChanges()
           .filter(alteracao => alteracao.type === 'removed')
           .forEach(alteracao => cachePatrimonios.delete(alteracao.doc.id));
@@ -1123,36 +1168,65 @@
       if (!container) return;
 
       const pendentes = bancoTransferencias;
-      contador.innerText = `${pendentes.length} pendentes`;
+      contador.innerText = `${pendentes.length} ${pendentes.length === 1 ? 'pendente' : 'pendentes'}`;
 
       if (pendentes.length === 0) {
         container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400 md:col-span-2">✨ Nenhuma transferência pendente no momento.</div>`;
         return;
       }
 
-      container.innerHTML = pendentes.map(item => `
-        <div class="bg-slate-800 p-4 rounded-xl border border-amber-500/30 text-xs space-y-2.5 shadow-md">
-          <div class="flex justify-between items-center cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">
-            <span class="font-bold text-blue-400 text-sm hover:underline">Plaqueta: ${item.plaqueta} 🔍</span>
-            <span class="bg-amber-950 text-amber-300 px-2.5 py-0.5 rounded text-[10px] font-bold">AGUARDANDO</span>
-          </div>
-          <p class="text-slate-200 text-xs cursor-pointer" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">${item.descricao}</p>
-          <div class="text-[11px] space-y-1 bg-slate-900 p-2.5 rounded border border-slate-700">
-            <div>📍 Local Atual: ${item.localizacaoAtual || item.divisaoOrigem || item.divisao}</div>
-            <div>📍 Novo Local: <span class="text-emerald-400 font-bold">${item.divisaoDestinoSugerida}</span></div>
-            ${item.observacaoAtual ? `<div class="pt-1 border-t border-slate-800 text-slate-300">💬 <strong class="text-slate-400">Observação:</strong> ${item.observacaoAtual}</div>` : ''}
-          </div>
-          <div class="flex gap-2 pt-1">
-            <button onclick="aprovarTransferencia('${item.plaqueta}')" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded text-xs transition-colors">✅ Aprovar</button>
-            <button onclick="rejeitarTransferencia('${item.plaqueta}')" class="bg-red-900/60 hover:bg-red-800 text-red-200 font-bold px-4 py-2 rounded text-xs transition-colors">❌ Rejeitar</button>
-          </div>
-        </div>
-      `).join('');
+      const grupos = pendentes.reduce((acumulador, item) => {
+        const divisao = item.divisaoDestinoSugerida || 'Divisão não informada';
+        if (!acumulador.has(divisao)) acumulador.set(divisao, []);
+        acumulador.get(divisao).push(item);
+        return acumulador;
+      }, new Map());
+
+      container.innerHTML = [...grupos.entries()]
+        .sort(([divisaoA], [divisaoB]) => divisaoA.localeCompare(divisaoB, 'pt-BR'))
+        .map(([divisao, itens], indice) => `
+          <details class="transfer-group" ${indice === 0 ? 'open' : ''}>
+            <summary class="transfer-group-summary">
+              <span>
+                <strong>${divisao}</strong>
+                <small>${itens.length} ${itens.length === 1 ? 'item' : 'itens'}</small>
+              </span>
+              <span class="transfer-group-chevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div class="transfer-grid">
+              ${itens
+                .sort((itemA, itemB) => String(itemA.plaqueta).localeCompare(String(itemB.plaqueta), 'pt-BR', { numeric: true }))
+                .map(item => `
+                  <article class="transfer-card">
+                    <button type="button" class="transfer-card-link" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">
+                      <span>Plaqueta ${item.plaqueta}</span>
+                      <span class="transfer-status">Aguardando</span>
+                    </button>
+                    <p class="transfer-description">${item.descricao || 'Descrição não informada'}</p>
+                    <dl class="transfer-route">
+                      <div>
+                        <dt>Origem</dt>
+                        <dd>${item.localizacaoAtual || item.divisaoOrigem || item.divisao || 'Não informada'}</dd>
+                      </div>
+                      <div>
+                        <dt>Destino</dt>
+                        <dd>${item.divisaoDestinoSugerida || 'Não informado'}</dd>
+                      </div>
+                    </dl>
+                    ${item.observacaoAtual ? `<p class="transfer-note"><strong>Observação:</strong> ${item.observacaoAtual}</p>` : ''}
+                    <div class="transfer-actions">
+                      <button type="button" onclick="aprovarTransferencia('${item.plaqueta}')" class="transfer-approve">Aprovar</button>
+                      <button type="button" onclick="rejeitarTransferencia('${item.plaqueta}')" class="transfer-reject">Rejeitar</button>
+                    </div>
+                  </article>
+                `).join('')}
+            </div>
+          </details>
+        `).join('');
     }
 
-    async function obterTransferenciaPendente(plaqueta, operacao) {
+    async function obterTransferenciaPendente(plaqueta) {
       const snapshot = await getDocFromServer(doc(db, "patrimonios", plaqueta));
-      registrarLeituras(operacao, 1);
       if (!snapshot.exists()) throw new Error("Patrimônio não encontrado.");
       return normalizarPatrimonio(snapshot);
     }
@@ -1168,12 +1242,18 @@
     }
 
     async function resolverTransferencia(plaqueta, decisao) {
-      if (usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
+      if (usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.");
       try {
-        const item = await obterTransferenciaPendente(plaqueta, `${decisao}_transferencia`);
+        const item = await obterTransferenciaPendente(plaqueta);
         const destino = item.divisaoDestinoSugerida || 'destino não informado';
         const verbo = decisao === 'aprovar' ? 'aprovar' : 'rejeitar';
-        if (!confirm(`Deseja ${verbo} a transferência do patrimônio ${plaqueta} para ${destino}?`)) return;
+        const confirmado = await confirmarAcao({
+          titulo: `${decisao === 'aprovar' ? 'Aprovar' : 'Rejeitar'} transferência`,
+          mensagem: `Deseja ${verbo} a transferência do patrimônio ${plaqueta} para ${destino}?`,
+          confirmarTexto: decisao === 'aprovar' ? 'Aprovar' : 'Rejeitar',
+          perigosa: decisao !== 'aprovar'
+        });
+        if (!confirmado) return;
 
         const { dadosAtualizacao } = prepararResolucaoTransferencia({
           item,
@@ -1183,10 +1263,10 @@
         });
         await updateDoc(doc(db, "patrimonios", plaqueta), dadosAtualizacao);
         atualizarCachesAposResolucao({ ...item, ...dadosAtualizacao });
-        alert(decisao === 'aprovar' ? "Transferência aprovada com sucesso." : "Transferência rejeitada; localização anterior mantida.");
+        notificarMensagem(decisao === 'aprovar' ? "Transferência aprovada com sucesso." : "Transferência rejeitada; localização anterior mantida.");
       } catch (erro) {
         console.error("Erro ao resolver transferência:", erro);
-        alert(erro.message || "Não foi possível resolver a transferência.");
+        notificarMensagem(erro.message || "Não foi possível resolver a transferência.");
       }
     }
 
@@ -1198,7 +1278,6 @@
         || cachePatrimonios.get(plaqueta);
       if (!item) {
         const snapshot = await getDoc(doc(db, "patrimonios", plaqueta));
-        registrarLeituras('detalhe_patrimonio', 1);
         if (!snapshot.exists()) return;
         item = normalizarPatrimonio(snapshot);
         cachearPatrimonios([item]);
@@ -1400,7 +1479,7 @@
         return;
       }
       if (configuracao.fallback) {
-        bancoPatrimonio = await carregarPatrimoniosPermitidos('relacao_fallback_mais_de_10_divisoes');
+        bancoPatrimonio = await carregarPatrimoniosPermitidos();
         totalRelacao = bancoPatrimonio.length;
         relacaoTemMais = false;
         relacaoCarregada = true;
@@ -1419,11 +1498,9 @@
           const configuracaoContagem = criarConsultaRelacao(null, true);
           const contagemSnap = await getCountFromServer(configuracaoContagem.consulta);
           totalRelacao = contagemSnap.data().count;
-          registrarLeituras('relacao_contagem', 0, estimarLeiturasAgregacao(totalRelacao));
         }
 
         const snapshot = await getDocs(configuracao.consulta);
-        registrarLeituras('relacao_pagina', snapshot.size);
         const novosItens = snapshot.docs.map(normalizarPatrimonio);
         const porPlaqueta = new Map(bancoPatrimonio.map(item => [item.plaqueta, item]));
         novosItens.forEach(item => porPlaqueta.set(item.plaqueta, item));
@@ -1492,7 +1569,7 @@
 
       container.innerHTML = '';
       
-      Object.keys(gruposTotal).sort().forEach((divNome, idx) => {
+      Object.keys(gruposTotal).sort((a, b) => a.localeCompare(b, 'pt-BR')).forEach((divNome, idx) => {
         const todosDaDiv = gruposTotal[divNome];
         const visiveisDaDiv = gruposFiltrados[divNome] || [];
         
@@ -1535,16 +1612,26 @@
       atualizarPaginacaoRelacao();
     }
 
-    document.getElementById('filtro-busca').addEventListener('input', () => {
+    const filtroBuscaRelacao = document.getElementById('filtro-busca');
+    const btnLimparFiltroRelacao = document.getElementById('btn-limpar-filtro-relacao');
+    filtroBuscaRelacao.addEventListener('input', () => {
       clearTimeout(timerFiltroRelacao);
       relacaoCarregada = false;
-      const termo = limparPlaqueta(document.getElementById('filtro-busca').value);
+      btnLimparFiltroRelacao?.classList.toggle('hidden', !filtroBuscaRelacao.value);
+      const termo = limparPlaqueta(filtroBuscaRelacao.value);
       if (!relacaoBaseCompleta && termo.length > 0 && termo.length < 3) {
         relacaoTemMais = false;
         document.getElementById('relacao-paginacao-info').innerText = 'Digite ao menos três números para pesquisar';
         return;
       }
       timerFiltroRelacao = setTimeout(() => carregarRelacaoPatrimonial({ reiniciar: true }), 400);
+    });
+    btnLimparFiltroRelacao?.addEventListener('click', () => {
+      clearTimeout(timerFiltroRelacao);
+      filtroBuscaRelacao.value = '';
+      btnLimparFiltroRelacao.classList.add('hidden');
+      carregarRelacaoPatrimonial({ reiniciar: true });
+      filtroBuscaRelacao.focus();
     });
     document.getElementById('filtro-status').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
     document.getElementById('filtro-divisao').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
@@ -1559,8 +1646,8 @@
     document.getElementById('btn-exportar-filtrados').addEventListener('click', () => exportarCSV(itensFiltradosCache, 'relatorio_filtrado'));
 
     function exportarCSV(dados, nomeArquivo) {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return alert("Acesso negado para esta operação.");
-      if (dados.length === 0) return alert("Não há registros disponíveis para exportação com os filtros atuais.");
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.");
+      if (dados.length === 0) return notificarMensagem("Não há registros disponíveis para exportação com os filtros atuais.");
       let csv = 'Plaqueta;Divisao Anterior;Local Atual;Status;Conferido Por;Descricao;Data Ultima Atualizacao\n';
       dados.forEach(i => {
         csv += `"${i.plaqueta}";"${i.divisaoOrigem || i.divisao}";"${i.localizacaoAtual || i.divisao}";"${i.localizado ? 'LOCALIZADO' : 'PENDENTE'}";"${i.conferidoPor || ''}";"${i.descricao.replace(/"/g, '""')}";"${i.dataLocalizacao || ''}"\n`;
