@@ -7,16 +7,22 @@
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js";
-    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.10.0";
+    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.10.1";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
-    import { confirmarAcao, notificarMensagem } from "./js/ui/feedback.js?v=1.10.0";
+    import {
+      configurarHistoricoFeedback,
+      confirmarAcao,
+      fecharConfirmacaoAtiva,
+      notificarMensagem
+    } from "./js/ui/feedback.js?v=1.10.1";
     import {
       ativarPagina,
       atualizarAcessoNavegacao,
       atualizarUsuarioNavegacao,
+      fecharCamadasNavegacao,
       fecharNavegacaoMovel,
       inicializarNavegacao
-    } from "./js/ui/navigation.js?v=1.10.0";
+    } from "./js/ui/navigation.js?v=1.10.1";
 
     let usuarioLogado = null;
     let bancoPatrimonio = [];
@@ -43,6 +49,7 @@
     const cachePatrimonios = new Map();
     const cacheSugestoes = new Map();
     const catalogoDivisoes = new Set();
+    const resolvedoresHistorico = [];
 
     const controladorCamera = criarControladorCamera({
       limparPlaqueta,
@@ -51,7 +58,90 @@
       podeManterCamera: () => Boolean(usuarioLogado && abaAtual === 'scanner')
     });
     controladorCamera.inicializar();
-    inicializarNavegacao(aba => alternarAba(aba));
+    inicializarNavegacao(aba => alternarAba(aba), {
+      aoAbrirCamada: registrarCamadaHistorico,
+      aoFecharCamada: removerCamadaHistorico
+    });
+    configurarHistoricoFeedback({
+      aoAbrirCamada: registrarCamadaHistorico,
+      aoFecharCamada: removerCamadaHistorico
+    });
+    window.addEventListener('popstate', tratarPopstate);
+
+    function urlDaAba(aba) {
+      return `#${aba || 'dashboard'}`;
+    }
+
+    function registrarAbaHistorico(aba, { substituir = false } = {}) {
+      const estado = { cmApp: true, aba };
+      if (substituir || !history.state?.cmApp || history.state?.camada) {
+        history.replaceState(estado, '', urlDaAba(aba));
+      } else if (history.state.aba !== aba) {
+        history.pushState(estado, '', urlDaAba(aba));
+      }
+    }
+
+    function registrarCamadaHistorico(camada) {
+      if (!usuarioLogado || history.state?.camada === camada) return;
+      const estado = { cmApp: true, aba: abaAtual, camada };
+      const camadasNavegacao = new Set(['menu', 'perfil']);
+      if (history.state?.cmApp && camadasNavegacao.has(camada) && camadasNavegacao.has(history.state.camada)) {
+        history.replaceState(estado, '', urlDaAba(abaAtual));
+      } else {
+        history.pushState(estado, '', urlDaAba(abaAtual));
+      }
+    }
+
+    function removerCamadaHistorico(camada) {
+      if (!history.state?.cmApp || history.state.camada !== camada) return Promise.resolve();
+      const conclusao = new Promise(resolve => resolvedoresHistorico.push({ camada, resolve }));
+      history.back();
+      return conclusao;
+    }
+
+    function consumirRemocoesHistorico() {
+      return resolvedoresHistorico.splice(0);
+    }
+
+    function abrirModalHistorico(id, camada) {
+      document.getElementById(id)?.classList.remove('hidden');
+      registrarCamadaHistorico(camada);
+    }
+
+    function fecharModalHistorico(id, camada, { sincronizarHistorico = true } = {}) {
+      const modal = document.getElementById(id);
+      const estavaAberto = Boolean(modal && !modal.classList.contains('hidden'));
+      modal?.classList.add('hidden');
+      if (estavaAberto && sincronizarHistorico) return removerCamadaHistorico(camada);
+      return Promise.resolve();
+    }
+
+    function fecharCamadaSobreposta() {
+      if (fecharConfirmacaoAtiva()) return true;
+      const camadas = [
+        ['modal-detalhes-item', 'detalhes-item'],
+        ['modal-edicao-usuario', 'edicao-usuario'],
+        ['modal-criacao-usuario', 'criacao-usuario']
+      ];
+      for (const [id, camada] of camadas) {
+        const modal = document.getElementById(id);
+        if (modal && !modal.classList.contains('hidden')) {
+          fecharModalHistorico(id, camada, { sincronizarHistorico: false });
+          return true;
+        }
+      }
+      return fecharCamadasNavegacao();
+    }
+
+    async function tratarPopstate(evento) {
+      const remocoesProgramaticas = consumirRemocoesHistorico();
+      const fechouCamada = remocoesProgramaticas.length === 0 && fecharCamadaSobreposta();
+      const destino = evento.state?.cmApp ? evento.state.aba : null;
+      if (!fechouCamada && destino && destino !== abaAtual) {
+        await alternarAba(destino, { registrarHistorico: false });
+      }
+      remocoesProgramaticas.forEach(({ resolve }) => resolve());
+    }
 
     function invalidarCacheRelacao() {
       relacaoBaseCompleta = null;
@@ -169,7 +259,7 @@
         document.getElementById('view-app').classList.remove('hidden');
         atualizarCabecalhoUsuario();
         atualizarCarrossel();
-        await alternarAba('dashboard');
+        await alternarAba('dashboard', { substituirHistorico: true });
       } else {
         encerrarOuvinteTransferencias();
         if (controladorCamera.estaAtiva()) await controladorCamera.desligar({ limparResultado: true });
@@ -183,6 +273,10 @@
         usuariosCarregados = false;
         invalidarCacheRelacao();
         catalogoDivisoesCarregado = false;
+        fecharCamadaSobreposta();
+        if (history.state?.cmApp) {
+          history.replaceState({ cmAppLogin: true }, '', `${location.pathname}${location.search}`);
+        }
         document.getElementById('view-app').classList.add('hidden');
         document.getElementById('view-login').classList.remove('hidden');
       }
@@ -192,11 +286,6 @@
       atualizarUsuarioNavegacao(usuarioLogado);
       atualizarAcessoNavegacao(usuarioLogado.perfil);
       document.getElementById('profile-menu-name').innerText = usuarioLogado.nome;
-      document.getElementById('dash-nome').innerText = usuarioLogado.nome;
-      document.getElementById('dash-perfil').innerText = `Perfil: ${usuarioLogado.perfil.toUpperCase()}`;
-      document.getElementById('dash-divisoes').innerText = usuarioLogado.perfil === 'conferente'
-        ? (usuarioLogado.divisoesAtribuidas || []).join(', ') || 'Nenhuma'
-        : `Todas (${usuarioLogado.perfil === 'admin' ? 'Admin' : 'Gestor'})`;
       
       const btnTransf = document.getElementById('tab-btn-transferencias');
       const btnUsuarios = document.getElementById('tab-btn-usuarios');
@@ -373,7 +462,7 @@
       preencherCheckboxes(editCheckContainer, 'edit-divisao-check', marcadasEdicao);
     }
 
-    async function alternarAba(abaAtiva) {
+    async function alternarAba(abaAtiva, { registrarHistorico = true, substituirHistorico = false } = {}) {
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
         if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios') {
           return;
@@ -381,6 +470,7 @@
       }
 
       if (abaAtiva !== 'transferencias') encerrarOuvinteTransferencias();
+      if (registrarHistorico) registrarAbaHistorico(abaAtiva, { substituir: substituirHistorico });
       abaAtual = abaAtiva;
       ativarPagina(abaAtiva);
       fecharNavegacaoMovel();
@@ -532,9 +622,9 @@
     }
 
     document.getElementById('btn-reverter-divisao').addEventListener('click', async () => {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.");
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.", 'erro');
       const divAlvo = document.getElementById('select-divisao-reversao').value;
-      if (!divAlvo) return notificarMensagem("Selecione uma divisão para reverter.");
+      if (!divAlvo) return notificarMensagem("Selecione uma divisão para reverter.", 'aviso');
 
       const confirmarReversao = await confirmarAcao({
         titulo: 'Reverter divisão',
@@ -545,7 +635,7 @@
       if (!confirmarReversao) return;
 
       const itensAfetados = await buscarItensDaDivisao(divAlvo);
-      if (itensAfetados.length === 0) return notificarMensagem("Nenhum item encontrado nesta divisão.");
+      if (itensAfetados.length === 0) return notificarMensagem("Nenhum item encontrado nesta divisão.", 'aviso');
 
       try {
         await atualizarItensEmLotes(itensAfetados, {
@@ -556,15 +646,15 @@
           dataLocalizacao: ""
         });
         invalidarCacheRelacao();
-        notificarMensagem(`Sucesso! ${itensAfetados.length} itens da divisão ${divAlvo} foram retornados para pendentes.`);
+        notificarMensagem(`Sucesso! ${itensAfetados.length} itens da divisão ${divAlvo} foram retornados para pendentes.`, 'sucesso');
         document.getElementById('select-divisao-reversao').value = "";
       } catch (e) {
-        notificarMensagem("Erro ao executar reversão setorial.");
+        notificarMensagem("Erro ao executar reversão setorial.", 'erro');
       }
     });
 
     document.getElementById('btn-reverter-geral').addEventListener('click', async () => {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.");
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.", 'erro');
       const confirmarReinicio = await confirmarAcao({
         titulo: 'Reiniciar inventário geral',
         mensagem: 'Todos os patrimônios retornarão ao status pendente. Use esta ação somente ao iniciar um novo ciclo completo.',
@@ -584,14 +674,14 @@
           dataLocalizacao: ""
         });
         invalidarCacheRelacao();
-        notificarMensagem("Inventário geral reiniciado com sucesso! Todos os itens estão pendentes.");
+        notificarMensagem("Inventário geral reiniciado com sucesso! Todos os itens estão pendentes.", 'sucesso');
       } catch (e) {
-        notificarMensagem("Erro ao reiniciar inventário geral.");
+        notificarMensagem("Erro ao reiniciar inventário geral.", 'erro');
       }
     });
 
     window.reverterItemIndividual = async function(plaqueta) {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.");
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.", 'erro');
       const confirmarReversao = await confirmarAcao({
         titulo: 'Retornar item para pendente',
         mensagem: `O patrimônio ${plaqueta} voltará ao status pendente.`,
@@ -611,10 +701,10 @@
         const itemCache = cachePatrimonios.get(plaqueta);
         if (itemCache) cachePatrimonios.set(plaqueta, { ...itemCache, localizado: false, statusTransferencia: "concluido" });
         invalidarCacheRelacao();
-        notificarMensagem("Item retornado para pendente com sucesso.");
-        document.getElementById('modal-detalhes-item').classList.add('hidden');
+        notificarMensagem("Item retornado para pendente com sucesso.", 'sucesso');
+        await fecharModalHistorico('modal-detalhes-item', 'detalhes-item');
       } catch (e) {
-        notificarMensagem("Erro ao reverter item.");
+        notificarMensagem("Erro ao reverter item.", 'erro');
       }
     };
 
@@ -633,16 +723,16 @@
 
     window.abrirModalCriacaoUsuario = function() {
       atualizarDivisoesCadastro();
-      document.getElementById('modal-criacao-usuario').classList.remove('hidden');
+      abrirModalHistorico('modal-criacao-usuario', 'criacao-usuario');
     }
 
     window.fecharModalCriacaoUsuario = function() {
-      document.getElementById('modal-criacao-usuario').classList.add('hidden');
+      return fecharModalHistorico('modal-criacao-usuario', 'criacao-usuario');
     }
 
     document.getElementById('form-cad-usuario').addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.");
+      if (usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.", 'erro');
 
       const nome = document.getElementById('cad-nome').value.trim();
       const email = document.getElementById('cad-email').value.trim();
@@ -656,16 +746,22 @@
         await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil, divisoesAtribuidas: divisoes });
         await signOut(authSecundario);
 
-        notificarMensagem(`Colaborador ${nome} cadastrado com sucesso.`);
+        notificarMensagem(`Colaborador ${nome} cadastrado com sucesso.`, 'sucesso');
         document.getElementById('form-cad-usuario').reset();
         document.querySelectorAll('input[name="divisao-check"]').forEach(cb => cb.checked = false);
-        fecharModalCriacaoUsuario();
+        await fecharModalCriacaoUsuario();
         await carregarUsuarios(true);
       } catch (err) {
         let msg = "Não foi possível concluir o cadastro.";
-        if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já está cadastrado no sistema.";
-        else if (err.code === 'auth/weak-password') msg = "A senha deve conter pelo menos 6 caracteres.";
-        notificarMensagem(msg);
+        let tipo = 'erro';
+        if (err.code === 'auth/email-already-in-use') {
+          msg = "Este e-mail já está cadastrado no sistema.";
+          tipo = 'aviso';
+        } else if (err.code === 'auth/weak-password') {
+          msg = "A senha deve conter pelo menos 6 caracteres.";
+          tipo = 'aviso';
+        }
+        notificarMensagem(msg, tipo);
       }
     });
 
@@ -774,7 +870,7 @@
       if (!userAlvo) return;
 
       if (usuarioLogado.perfil === 'gestor' && userAlvo.perfil !== 'conferente') {
-        return notificarMensagem("Operação não permitida: Gestores só podem remover usuários com perfil conferente.");
+        return notificarMensagem("Operação não permitida: Gestores só podem remover usuários com perfil conferente.", 'erro');
       }
 
       const confirmarExclusao = await confirmarAcao({
@@ -787,10 +883,10 @@
 
       try {
         await deleteDoc(doc(db, "usuarios", uid));
-        notificarMensagem("Usuário removido com sucesso.");
+        notificarMensagem("Usuário removido com sucesso.", 'sucesso');
         await carregarUsuarios(true);
       } catch (err) {
-        notificarMensagem("Erro ao remover o usuário. Tente novamente.");
+        notificarMensagem("Erro ao remover o usuário. Tente novamente.", 'erro');
       }
     }
 
@@ -800,7 +896,7 @@
 
       if (usuarioLogado.perfil === 'gestor') {
         if (user.uid !== usuarioLogado.uid && user.perfil !== 'conferente') {
-          return notificarMensagem("Acesso restrito: Gestores não possuem permissão para editar outros gestores ou administradores.");
+          return notificarMensagem("Acesso restrito: Gestores não possuem permissão para editar outros gestores ou administradores.", 'erro');
         }
       }
 
@@ -827,7 +923,7 @@
       const gestorEditandoProprioPerfil = usuarioLogado.perfil === 'gestor' && user.uid === usuarioLogado.uid;
       campoDivisoesEdit.classList.toggle('hidden', gestorEditandoProprioPerfil || user.perfil !== 'conferente');
 
-      document.getElementById('modal-edicao-usuario').classList.remove('hidden');
+      abrirModalHistorico('modal-edicao-usuario', 'edicao-usuario');
     }
 
     document.getElementById('edit-perfil')?.addEventListener('change', (evento) => {
@@ -839,7 +935,7 @@
     });
 
     document.getElementById('btn-fechar-modal').addEventListener('click', () => {
-      document.getElementById('modal-edicao-usuario').classList.add('hidden');
+      fecharModalHistorico('modal-edicao-usuario', 'edicao-usuario');
     });
 
     document.getElementById('form-editar-usuario').addEventListener('submit', async (e) => {
@@ -852,7 +948,7 @@
 
       if (usuarioLogado.perfil === 'gestor') {
         if (targetUser.uid !== usuarioLogado.uid && targetUser.perfil !== 'conferente') {
-          return notificarMensagem("Operação negada pelas diretrizes de hierarquia.");
+          return notificarMensagem("Operação negada pelas diretrizes de hierarquia.", 'erro');
         }
       }
 
@@ -870,11 +966,11 @@
           ? { nome }
           : { nome, perfil: perfilNovo, divisoesAtribuidas: divisoes };
         await updateDoc(doc(db, "usuarios", uid), dadosAtualizacao);
-        notificarMensagem("Dados atualizados com sucesso.");
-        document.getElementById('modal-edicao-usuario').classList.add('hidden');
+        notificarMensagem("Dados atualizados com sucesso.", 'sucesso');
+        await fecharModalHistorico('modal-edicao-usuario', 'edicao-usuario');
         await carregarUsuarios(true);
       } catch (err) {
-        notificarMensagem("Não foi possível salvar as alterações.");
+        notificarMensagem("Não foi possível salvar as alterações.", 'erro');
       }
     });
 
@@ -889,6 +985,29 @@
     const inputPlaqueta = document.getElementById('input-plaqueta');
     const suggestionsBox = document.getElementById('suggestions-box');
     const btnLimparPlaqueta = document.getElementById('btn-limpar-plaqueta');
+    const painelPatrimonioNaoEncontrado = document.getElementById('patrimonio-nao-encontrado');
+    const formularioAtualizacaoPatrimonio = document.getElementById('patrimonio-atualizacao-form');
+
+    function ocultarPatrimonioNaoEncontrado() {
+      painelPatrimonioNaoEncontrado?.classList.add('hidden');
+      formularioAtualizacaoPatrimonio?.classList.remove('hidden');
+    }
+
+    function exibirPatrimonioNaoEncontrado(plaqueta) {
+      document.getElementById('patrimonio-nao-encontrado-codigo').textContent = `Plaqueta ${plaqueta}`;
+      painelPatrimonioNaoEncontrado?.classList.remove('hidden');
+      formularioAtualizacaoPatrimonio?.classList.add('hidden');
+      document.getElementById('select-localizacao').value = '';
+      document.getElementById('input-observacao').value = '';
+      document.getElementById('alerta-transferencia').classList.add('hidden');
+      itemAtualSelecionado = null;
+      requestAnimationFrame(() => {
+        painelPatrimonioNaoEncontrado?.scrollIntoView({
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+          block: 'center'
+        });
+      });
+    }
 
     function limparFormularioLeitura() {
       inputPlaqueta.value = '';
@@ -898,11 +1017,17 @@
       document.getElementById('input-observacao').value = '';
       document.getElementById('item-details').classList.add('hidden');
       document.getElementById('alerta-transferencia').classList.add('hidden');
+      ocultarPatrimonioNaoEncontrado();
       itemAtualSelecionado = null;
     }
 
     inputPlaqueta.addEventListener('input', (e) => {
       const valor = limparPlaqueta(e.target.value);
+      ocultarPatrimonioNaoEncontrado();
+      if (itemAtualSelecionado && valor !== String(itemAtualSelecionado.plaqueta)) {
+        itemAtualSelecionado = null;
+        document.getElementById('item-details').classList.add('hidden');
+      }
       btnLimparPlaqueta?.classList.toggle('hidden', !e.target.value);
       clearTimeout(timerAutocomplete);
       if (valor.length < 3) {
@@ -981,6 +1106,11 @@
       limparFormularioLeitura();
       inputPlaqueta.focus();
     });
+    document.getElementById('btn-corrigir-plaqueta')?.addEventListener('click', () => {
+      ocultarPatrimonioNaoEncontrado();
+      inputPlaqueta.focus();
+      inputPlaqueta.select();
+    });
     inputPlaqueta.addEventListener('keydown', event => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
@@ -1006,13 +1136,15 @@
         }
         else {
           document.getElementById('item-details').classList.add('hidden');
-          notificarMensagem(`Patrimônio com a plaqueta ${plaquetaCod} não foi encontrado.`);
+          exibirPatrimonioNaoEncontrado(plaquetaCod);
+          notificarMensagem(`Patrimônio com a plaqueta ${plaquetaCod} não foi encontrado.`, 'aviso');
           return false;
         }
       }
     }
 
     function exibirDetalhes(item) {
+      ocultarPatrimonioNaoEncontrado();
       document.getElementById('item-details').classList.remove('hidden');
       document.getElementById('det-plaqueta').innerText = `Plaqueta: ${item.plaqueta}`;
       document.getElementById('det-descricao').innerText = item.descricao;
@@ -1090,12 +1222,12 @@
     }
 
     document.getElementById('btn-salvar').addEventListener('click', async () => {
-      if (!itemAtualSelecionado) return notificarMensagem("Selecione um patrimônio válido antes de salvar.");
+      if (!itemAtualSelecionado) return notificarMensagem("Selecione um patrimônio válido antes de salvar.", 'aviso');
       if (usuarioLogado?.perfil === 'conferente' && itemAtualSelecionado.statusTransferencia === 'pendente') {
-        return notificarMensagem("Este patrimônio já está aguardando aprovação. Somente um Gestor ou Administrador pode concluir a movimentação.");
+        return notificarMensagem("Este patrimônio já está aguardando aprovação. Somente um Gestor ou Administrador pode concluir a movimentação.", 'aviso');
       }
       const locAtual = document.getElementById('select-localizacao').value;
-      if (!locAtual) return notificarMensagem("Selecione a localização atual do item.");
+      if (!locAtual) return notificarMensagem("Selecione a localização atual do item.", 'aviso');
 
       const obs = document.getElementById('input-observacao').value.trim();
       const dataHora = new Date().toLocaleString('pt-BR');
@@ -1123,7 +1255,7 @@
           ? "✅ Localização atualizada e validada com sucesso."
           : "⚠️ Mudança de localização enviada para aprovação.")
         : (perfilValidador ? "✅ Patrimônio atualizado com sucesso." : "✅ Conferência registrada com sucesso.");
-      notificarMensagem(mensagemSucesso);
+      notificarMensagem(mensagemSucesso, ehTransferencia && !perfilValidador ? 'aviso' : 'sucesso');
       limparFormularioLeitura();
       await controladorCamera.retomarAposSalvar();
     });
@@ -1242,7 +1374,7 @@
     }
 
     async function resolverTransferencia(plaqueta, decisao) {
-      if (usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.");
+      if (usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.", 'erro');
       try {
         const item = await obterTransferenciaPendente(plaqueta);
         const destino = item.divisaoDestinoSugerida || 'destino não informado';
@@ -1263,10 +1395,10 @@
         });
         await updateDoc(doc(db, "patrimonios", plaqueta), dadosAtualizacao);
         atualizarCachesAposResolucao({ ...item, ...dadosAtualizacao });
-        notificarMensagem(decisao === 'aprovar' ? "Transferência aprovada com sucesso." : "Transferência rejeitada; localização anterior mantida.");
+        notificarMensagem(decisao === 'aprovar' ? "Transferência aprovada com sucesso." : "Transferência rejeitada; localização anterior mantida.", 'sucesso');
       } catch (erro) {
         console.error("Erro ao resolver transferência:", erro);
-        notificarMensagem(erro.message || "Não foi possível resolver a transferência.");
+        notificarMensagem(erro.message || "Não foi possível resolver a transferência.", 'erro');
       }
     }
 
@@ -1283,7 +1415,6 @@
         cachearPatrimonios([item]);
       }
 
-      const modal = document.getElementById('modal-detalhes-item');
       const conteudo = document.getElementById('modal-item-conteudo');
       const divisaoAnterior = item.divisaoOrigem || item.divisao;
       const localAtual = item.localizacaoAtual || divisaoAnterior;
@@ -1339,11 +1470,11 @@
           </div>
         </div>
       `;
-      modal.classList.remove('hidden');
+      abrirModalHistorico('modal-detalhes-item', 'detalhes-item');
     }
 
     document.getElementById('btn-fechar-modal-item').addEventListener('click', () => {
-      document.getElementById('modal-detalhes-item').classList.add('hidden');
+      fecharModalHistorico('modal-detalhes-item', 'detalhes-item');
     });
 
     function criarConsultaRelacao(cursor = null, paraContagem = false) {
@@ -1646,8 +1777,8 @@
     document.getElementById('btn-exportar-filtrados').addEventListener('click', () => exportarCSV(itensFiltradosCache, 'relatorio_filtrado'));
 
     function exportarCSV(dados, nomeArquivo) {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.");
-      if (dados.length === 0) return notificarMensagem("Não há registros disponíveis para exportação com os filtros atuais.");
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.", 'erro');
+      if (dados.length === 0) return notificarMensagem("Não há registros disponíveis para exportação com os filtros atuais.", 'aviso');
       let csv = 'Plaqueta;Divisao Anterior;Local Atual;Status;Conferido Por;Descricao;Data Ultima Atualizacao\n';
       dados.forEach(i => {
         csv += `"${i.plaqueta}";"${i.divisaoOrigem || i.divisao}";"${i.localizacaoAtual || i.divisao}";"${i.localizado ? 'LOCALIZADO' : 'PENDENTE'}";"${i.conferidoPor || ''}";"${i.descricao.replace(/"/g, '""')}";"${i.dataLocalizacao || ''}"\n`;

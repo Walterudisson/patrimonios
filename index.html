@@ -14,7 +14,7 @@
   <!-- Motor de OCR (Tesseract.js) -->
   <script src="https://unpkg.com/tesseract.js@v5.1.0/dist/tesseract.min.js"></script>
 
-  <link rel="stylesheet" href="./app.css?v=1.10.0">
+  <link rel="stylesheet" href="./app.css?v=1.10.1">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
@@ -36,13 +36,13 @@
           <input type="password" id="login-senha" required placeholder="••••••••" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
         </div>
         <button type="submit" id="btn-submit-login" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-          🔐 Entrar no Sistema
+          🔐 ENTRAR
         </button>
       </form>
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.10.0 • Sprint 1.0</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.10.1 • Sprint 1.0</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -97,8 +97,8 @@
       </nav>
 
       <div class="sidebar-footer sidebar-label">
-        <span>v1.10.0</span>
-        <button id="btn-logout-sidebar" type="button">Sair</button>
+        <span>v1.10.1</span>
+        <button id="btn-logout-sidebar" type="button">SAIR</button>
       </div>
     </aside>
 
@@ -131,7 +131,7 @@
               <strong id="profile-menu-name">Usuário</strong>
               <span>Preferências do perfil estarão disponíveis em uma próxima sprint.</span>
             </div>
-            <button id="btn-logout" type="button" role="menuitem">Sair do CM APP</button>
+            <button id="btn-logout" type="button" role="menuitem">SAIR</button>
           </div>
         </div>
       </header>
@@ -173,17 +173,6 @@
           </div>
         </div>
 
-        <div class="dashboard-secondary-grid">
-          <div class="app-card profile-summary-card">
-            <div id="dash-avatar" class="user-avatar user-avatar-large" aria-hidden="true">CM</div>
-            <div class="profile-summary-copy">
-              <span class="eyebrow">Usuário conectado</span>
-              <h2 id="dash-nome">---</h2>
-              <span id="dash-perfil" class="status-pill status-pill-blue">---</span>
-              <p><span>Divisões de atuação:</span> <strong id="dash-divisoes">---</strong></p>
-            </div>
-          </div>
-
         <!-- CARROSSEL DE DICAS -->
         <div class="app-card space-y-3">
           <div class="flex justify-between items-center border-b border-slate-700/50 pb-2.5">
@@ -199,7 +188,6 @@
             <div id="carrossel-titulo" class="text-xs md:text-sm font-bold text-amber-300">---</div>
             <div id="carrossel-texto" class="text-xs md:text-sm text-slate-300 leading-relaxed">---</div>
           </div>
-        </div>
         </div>
       </section>
 
@@ -308,7 +296,19 @@
             </div>
           </div>
 
-          <div class="space-y-2.5 pt-2 border-t border-slate-700/50">
+          <div id="patrimonio-nao-encontrado" class="hidden patrimonio-nao-encontrado" role="status" aria-live="polite">
+            <div class="patrimonio-nao-encontrado-heading">
+              <span class="patrimonio-nao-encontrado-icon" aria-hidden="true">?</span>
+              <div>
+                <span class="eyebrow">Plaqueta não localizada</span>
+                <strong id="patrimonio-nao-encontrado-codigo">---</strong>
+              </div>
+            </div>
+            <p>Confira o número informado. Se a plaqueta estiver correta, comunique um Gestor ou Administrador para verificação da base patrimonial.</p>
+            <button id="btn-corrigir-plaqueta" type="button">CORRIGIR PLAQUETA</button>
+          </div>
+
+          <div id="patrimonio-atualizacao-form" class="space-y-2.5 pt-2 border-t border-slate-700/50">
             <div>
               <label class="text-xs text-slate-400 font-semibold block mb-1">📍 LOCALIZAÇÃO ATUAL (DIVISÃO DESTINO) *</label>
               <select id="select-localizacao" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
@@ -458,7 +458,7 @@
 
       <footer class="app-footer">
         <span>CM APP · Patrimônio</span>
-        <span>v1.10.0 · Sprint 1.0</span>
+        <span>v1.10.1 · Sprint 1.0</span>
       </footer>
     </div>
   </div>
@@ -565,6 +565,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=1.10.0"></script>
+  <script type="module" src="./app.js?v=1.10.1"></script>
 </body>
 </html>

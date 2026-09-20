@@ -7,6 +7,8 @@ const PAGINAS = {
 };
 
 let navegar = () => {};
+let registrarCamada = () => {};
+let removerCamada = () => {};
 
 function iniciais(nome = '') {
   const partes = String(nome).trim().split(/\s+/).filter(Boolean);
@@ -18,18 +20,22 @@ function ehDesktop() {
   return window.matchMedia('(min-width: 1024px)').matches;
 }
 
-export function fecharNavegacaoMovel() {
+export function fecharNavegacaoMovel({ sincronizarHistorico = false } = {}) {
+  const estavaAberta = document.body.classList.contains('sidebar-open');
   document.body.classList.remove('sidebar-open');
   const overlay = document.getElementById('sidebar-overlay');
   overlay?.classList.add('hidden');
   overlay?.setAttribute('aria-hidden', 'true');
   document.getElementById('btn-menu')?.setAttribute('aria-expanded', 'false');
+  if (estavaAberta && sincronizarHistorico) removerCamada('menu');
+  return estavaAberta;
 }
 
 function alternarSidebar() {
   if (ehDesktop()) {
     const recolhida = document.body.classList.toggle('sidebar-collapsed');
     try { localStorage.setItem('cmapp-sidebar-recolhida', String(recolhida)); } catch (_) {}
+    document.getElementById('btn-menu')?.setAttribute('aria-expanded', String(!recolhida));
     return;
   }
   const aberta = document.body.classList.toggle('sidebar-open');
@@ -37,23 +43,45 @@ function alternarSidebar() {
   overlay?.classList.toggle('hidden', !aberta);
   overlay?.setAttribute('aria-hidden', String(!aberta));
   document.getElementById('btn-menu')?.setAttribute('aria-expanded', String(aberta));
+  if (aberta) registrarCamada('menu');
+  else removerCamada('menu');
 }
 
-function fecharPerfil() {
-  document.getElementById('profile-menu')?.classList.add('hidden');
+function fecharPerfil({ sincronizarHistorico = false } = {}) {
+  const menu = document.getElementById('profile-menu');
+  const estavaAberto = Boolean(menu && !menu.classList.contains('hidden'));
+  menu?.classList.add('hidden');
   document.getElementById('btn-profile-menu')?.setAttribute('aria-expanded', 'false');
+  if (estavaAberto && sincronizarHistorico) removerCamada('perfil');
+  return estavaAberto;
 }
 
-export function inicializarNavegacao(aoNavegar) {
+export function fecharCamadasNavegacao() {
+  const perfilFechado = fecharPerfil();
+  const menuFechado = fecharNavegacaoMovel();
+  return perfilFechado || menuFechado;
+}
+
+export function inicializarNavegacao(aoNavegar, opcoes = {}) {
   navegar = aoNavegar;
+  registrarCamada = opcoes.aoAbrirCamada || (() => {});
+  removerCamada = opcoes.aoFecharCamada || (() => {});
   try {
     if (localStorage.getItem('cmapp-sidebar-recolhida') === 'true') {
       document.body.classList.add('sidebar-collapsed');
     }
   } catch (_) {}
+  if (ehDesktop()) {
+    document.getElementById('btn-menu')?.setAttribute(
+      'aria-expanded',
+      String(!document.body.classList.contains('sidebar-collapsed'))
+    );
+  }
 
   document.getElementById('btn-menu')?.addEventListener('click', alternarSidebar);
-  document.getElementById('sidebar-overlay')?.addEventListener('click', fecharNavegacaoMovel);
+  document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
+    fecharNavegacaoMovel({ sincronizarHistorico: true });
+  });
   document.querySelectorAll('[data-nav-page]').forEach(botao => {
     botao.addEventListener('click', () => {
       navegar(botao.dataset.navPage);
@@ -62,18 +90,21 @@ export function inicializarNavegacao(aoNavegar) {
   });
 
   const profileButton = document.getElementById('btn-profile-menu');
+  document.getElementById('profile-menu')?.addEventListener('click', event => event.stopPropagation());
   profileButton?.addEventListener('click', event => {
     event.stopPropagation();
     const menu = document.getElementById('profile-menu');
     const abrir = menu.classList.contains('hidden');
     menu.classList.toggle('hidden', !abrir);
     profileButton.setAttribute('aria-expanded', String(abrir));
+    if (abrir) registrarCamada('perfil');
+    else removerCamada('perfil');
   });
-  document.addEventListener('click', fecharPerfil);
+  document.addEventListener('click', () => fecharPerfil({ sincronizarHistorico: true }));
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
-      fecharPerfil();
-      fecharNavegacaoMovel();
+      if (fecharPerfil({ sincronizarHistorico: true })) return;
+      fecharNavegacaoMovel({ sincronizarHistorico: true });
     }
   });
 }
@@ -93,7 +124,7 @@ export function ativarPagina(aba) {
 
 export function atualizarUsuarioNavegacao(usuario) {
   const letras = iniciais(usuario?.nome);
-  ['sidebar-avatar', 'header-avatar', 'dash-avatar'].forEach(id => {
+  ['sidebar-avatar', 'header-avatar'].forEach(id => {
     const elemento = document.getElementById(id);
     if (elemento) elemento.textContent = letras;
   });
