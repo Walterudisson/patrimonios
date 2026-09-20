@@ -101,6 +101,52 @@
       font-size: 0.7rem;
       font-weight: 700;
     }
+    .camera-assistance {
+      border: 1px solid rgb(245 158 11 / 0.45);
+      border-radius: 0.6rem;
+      background: rgb(120 53 15 / 0.35);
+      padding: 0.7rem;
+    }
+    .camera-assistance:not(.hidden) { display: grid; gap: 0.55rem; }
+    .camera-assistance-button {
+      border: 1px solid rgb(245 158 11 / 0.45);
+      border-radius: 0.4rem;
+      background: rgb(146 64 14 / 0.75);
+      color: rgb(255 251 235);
+      padding: 0.45rem 0.55rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .camera-assistance-button:hover,
+    .camera-assistance-button:focus-visible {
+      background: rgb(180 83 9);
+      border-color: rgb(251 191 36);
+      box-shadow: 0 0 0 2px rgb(15 23 42), 0 0 0 4px rgb(251 191 36);
+      outline: none;
+    }
+    .camera-assistance-secondary { background: rgb(30 41 59 / 0.8); border-color: rgb(71 85 105); color: rgb(203 213 225); }
+    .scanner-form-stack { min-width: 0; }
+    .leitura-resultado {
+      border: 1px solid rgb(16 185 129 / 0.5);
+      border-radius: 0.75rem;
+      background: linear-gradient(145deg, rgb(6 78 59 / 0.55), rgb(15 23 42 / 0.96));
+      padding: 0.8rem;
+      box-shadow: 0 12px 30px rgb(2 6 23 / 0.28);
+    }
+    .leitura-resultado:not(.hidden) { display: grid; gap: 0.65rem; }
+    .leitura-resultado:focus { outline: 2px solid rgb(52 211 153); outline-offset: 2px; }
+    .leitura-preview-container {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgb(51 65 85);
+      border-radius: 0.55rem;
+      background: #020617;
+      min-height: 110px;
+    }
+    #leitura-preview { display: block; width: 100%; height: auto; }
+    #scanner-camera-card,
+    #leitura-resultado { scroll-margin-top: 1rem; }
     @media (orientation: landscape) and (max-height: 560px) {
       #reader, #reader-container { min-height: 190px; }
     }
@@ -110,5 +156,6 @@
     }
     @media (prefers-reduced-motion: reduce) {
       .scanner-laser { animation: none; top: 50%; }
-      #reader video { transition: none; }
+      #reader video,
+      .camera-assistance-button { transition: none; }
     }

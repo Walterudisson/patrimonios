@@ -2,6 +2,8 @@ const TERMOS_CAMERA_TRASEIRA = [
   'back', 'rear', 'environment', 'traseira', 'posterior', 'externa'
 ];
 
+export const TEMPO_AJUDA_LEITURA_MS = 5000;
+
 export function calcularAreaLeitura(largura, altura) {
   const larguraSegura = Math.max(0, Number(largura) || 0);
   const alturaSegura = Math.max(0, Number(altura) || 0);
@@ -35,6 +37,28 @@ export function limitarZoom(valor, capacidades = {}) {
   const limitado = Math.min(maximo, Math.max(minimo, solicitado));
   const ajustado = minimo + Math.round((limitado - minimo) / passo) * passo;
   return Number(Math.min(maximo, Math.max(minimo, ajustado)).toFixed(2));
+}
+
+export function calcularMolduraSobreposicao(largura, altura) {
+  const larguraSegura = Math.max(1, Number(largura) || 1);
+  const alturaSegura = Math.max(1, Number(altura) || 1);
+  const width = Math.round(larguraSegura * 0.8);
+  const height = Math.round(alturaSegura * 0.36);
+  return {
+    x: Math.round((larguraSegura - width) / 2),
+    y: Math.round((alturaSegura - height) / 2),
+    width,
+    height
+  };
+}
+
+export function criarTextoResultado(codigo, origem = 'codigo') {
+  const tipo = origem === 'ocr' ? 'OCR' : 'Código de barras';
+  return `${tipo} reconheceu a plaqueta ${codigo}. Confira a localização antes de salvar.`;
+}
+
+export function obterComportamentoRolagem(reduzirMovimento = false) {
+  return reduzirMovimento ? 'auto' : 'smooth';
 }
 
 export function extrairCandidatosOcr(texto = '', minimo = 5, maximo = 16) {
