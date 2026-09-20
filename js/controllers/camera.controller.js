@@ -9,7 +9,7 @@ import {
   limitarZoom,
   obterCapacidadesVideo,
   obterComportamentoRolagem
-} from '../core/camera.js?v=1.9.1';
+} from '../core/camera.js?v=1.9.2';
 
 export function criarControladorCamera({
   limparPlaqueta,
@@ -94,7 +94,12 @@ export function criarControladorCamera({
     const readerContainer = porId('reader-container');
     const icones = { idle: '📷', starting: '⏳', running: '🟢', paused: '⏸️', error: '⚠️' };
 
-    status.className = `camera-status camera-status-${estado}`;
+    const resultadoVisivel = !porId('leitura-resultado')?.classList.contains('hidden');
+    const ocultarStatusDuplicado = estado === 'paused'
+      && cameraPausadaPorLeitura
+      && resultadoVisivel
+      && !ocrEmAndamento;
+    status.className = `camera-status camera-status-${estado}${ocultarStatusDuplicado ? ' camera-status-result' : ''}`;
     statusIcon.textContent = icones[estado] || '📷';
     statusText.textContent = mensagem;
     btnCam.disabled = estado === 'starting';
@@ -252,6 +257,7 @@ export function criarControladorCamera({
   function limparResultadoLeitura() {
     const resultado = porId('leitura-resultado');
     resultado.classList.add('hidden');
+    porId('camera-status').classList.remove('camera-status-result');
     porId('leitura-resultado-codigo').textContent = '---';
     const canvas = porId('leitura-preview');
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
@@ -265,6 +271,7 @@ export function criarControladorCamera({
     porId('leitura-resultado-texto').textContent = criarTextoResultado(codigo, origem);
     desenharPreviewRecortado(quadroFonte);
     resultado.classList.remove('hidden');
+    porId('camera-status').classList.add('camera-status-result');
     resultado.focus({ preventScroll: true });
     rolarPara(resultado, 'start');
   }

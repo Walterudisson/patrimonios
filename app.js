@@ -8,7 +8,7 @@
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { estimarLeiturasAgregacao, obterMetricasFirestore, registrarLeituras } from "./js/core/firestore-metrics.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js";
-    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.9.1";
+    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.9.2";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
 
     let usuarioLogado = null;

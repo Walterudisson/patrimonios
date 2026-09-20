@@ -65,6 +65,7 @@
     }
     .camera-status-running { border-color: rgb(16 185 129 / 0.5); color: rgb(167 243 208); }
     .camera-status-paused { border-color: rgb(245 158 11 / 0.5); color: rgb(253 230 138); }
+    .camera-status-result { display: none; }
     .camera-status-error { border-color: rgb(239 68 68 / 0.55); color: rgb(254 202 202); }
     .camera-status-starting { border-color: rgb(59 130 246 / 0.5); color: rgb(191 219 254); }
     .camera-controls {
