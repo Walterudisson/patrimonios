@@ -8,7 +8,7 @@
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { estimarLeiturasAgregacao, obterMetricasFirestore, registrarLeituras } from "./js/core/firestore-metrics.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js";
-    import { criarControladorCamera } from "./js/controllers/camera.controller.js";
+    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.9.1";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
 
     let usuarioLogado = null;
@@ -81,7 +81,7 @@
     }
 
     const dicasLista = [
-      { titulo: "🔍 Leitura Óptica por OCR", texto: "Se o código estiver ilegível, centralize a numeração impressa e use 'Ler via OCR'. Após cinco segundos, o app também oferece OCR, digitação manual ou a opção de continuar tentando." },
+      { titulo: "🔍 Leitura Óptica por OCR", texto: "Se o código estiver ilegível, centralize a numeração impressa e use 'Ler via OCR'. Após dez segundos, o app também oferece OCR, digitação manual ou a opção de continuar tentando." },
       { titulo: "📱 Câmera, foco e iluminação", texto: "Ao ligar a câmera, o app centraliza o visor. Depois de reconhecer a plaqueta, congela a imagem e leva você ao resultado e ao formulário de confirmação." },
       { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem em local diferente? Para Conferentes, a mudança seguirá para aprovação. Gestores e Administradores validam a nova localização diretamente." },
       { titulo: "🔄 Gestão Hierárquica", texto: "Administradores gerenciam todo o sistema. Gestores podem atualizar seus dados e cadastrar ou editar os conferentes sob sua alçada." },

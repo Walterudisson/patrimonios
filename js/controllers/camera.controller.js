@@ -1,7 +1,7 @@
 import {
   TEMPO_AJUDA_LEITURA_MS,
   calcularAreaLeitura,
-  calcularMolduraSobreposicao,
+  calcularRecortePreview,
   criarTextoResultado,
   descreverErroCamera,
   escolherCameraPreferida,
@@ -9,7 +9,7 @@ import {
   limitarZoom,
   obterCapacidadesVideo,
   obterComportamentoRolagem
-} from '../core/camera.js';
+} from '../core/camera.js?v=1.9.1';
 
 export function criarControladorCamera({
   limparPlaqueta,
@@ -227,43 +227,26 @@ export function criarControladorCamera({
     return canvas;
   }
 
-  function desenharQuadroReconhecido(codigo, quadroFonte) {
+  function desenharPreviewRecortado(quadroFonte) {
     const canvas = porId('leitura-preview');
     const largura = quadroFonte?.width || 640;
     const altura = quadroFonte?.height || 360;
-    canvas.width = largura;
-    canvas.height = altura;
+    const recorte = calcularRecortePreview(largura, altura);
+    canvas.width = recorte.width;
+    canvas.height = recorte.height;
     const ctx = canvas.getContext('2d');
 
-    if (quadroFonte) ctx.drawImage(quadroFonte, 0, 0, largura, altura);
+    if (quadroFonte) {
+      ctx.drawImage(
+        quadroFonte,
+        recorte.x, recorte.y, recorte.width, recorte.height,
+        0, 0, canvas.width, canvas.height
+      );
+    }
     else {
       ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 0, largura, altura);
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
-
-    const moldura = calcularMolduraSobreposicao(largura, altura);
-    ctx.fillStyle = 'rgba(2, 6, 23, 0.32)';
-    ctx.fillRect(0, 0, largura, moldura.y);
-    ctx.fillRect(0, moldura.y + moldura.height, largura, altura - moldura.y - moldura.height);
-    ctx.fillRect(0, moldura.y, moldura.x, moldura.height);
-    ctx.fillRect(moldura.x + moldura.width, moldura.y, largura - moldura.x - moldura.width, moldura.height);
-    ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = Math.max(3, Math.round(largura * 0.005));
-    ctx.strokeRect(moldura.x, moldura.y, moldura.width, moldura.height);
-
-    const texto = String(codigo);
-    const tamanhoFonte = Math.max(18, Math.round(largura * 0.035));
-    ctx.font = `700 ${tamanhoFonte}px system-ui, sans-serif`;
-    const larguraTexto = ctx.measureText(texto).width;
-    const padding = Math.max(8, Math.round(tamanhoFonte * 0.45));
-    const etiquetaLargura = Math.min(moldura.width, larguraTexto + padding * 2);
-    const etiquetaAltura = tamanhoFonte + padding * 1.4;
-    const etiquetaY = Math.max(0, moldura.y - etiquetaAltura);
-    ctx.fillStyle = '#2563eb';
-    ctx.fillRect(moldura.x, etiquetaY, etiquetaLargura, etiquetaAltura);
-    ctx.fillStyle = '#ffffff';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(texto, moldura.x + padding, etiquetaY + etiquetaAltura / 2, etiquetaLargura - padding * 2);
   }
 
   function limparResultadoLeitura() {
@@ -280,7 +263,7 @@ export function criarControladorCamera({
     porId('leitura-resultado-origem').textContent = origem === 'ocr' ? 'RECONHECIDO POR OCR' : 'RECONHECIDO PELO CÓDIGO';
     porId('leitura-resultado-codigo').textContent = codigo;
     porId('leitura-resultado-texto').textContent = criarTextoResultado(codigo, origem);
-    desenharQuadroReconhecido(codigo, quadroFonte);
+    desenharPreviewRecortado(quadroFonte);
     resultado.classList.remove('hidden');
     resultado.focus({ preventScroll: true });
     rolarPara(resultado, 'start');

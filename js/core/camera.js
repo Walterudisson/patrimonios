@@ -2,7 +2,7 @@ const TERMOS_CAMERA_TRASEIRA = [
   'back', 'rear', 'environment', 'traseira', 'posterior', 'externa'
 ];
 
-export const TEMPO_AJUDA_LEITURA_MS = 5000;
+export const TEMPO_AJUDA_LEITURA_MS = 10000;
 
 export function calcularAreaLeitura(largura, altura) {
   const larguraSegura = Math.max(0, Number(largura) || 0);
@@ -49,6 +49,24 @@ export function calcularMolduraSobreposicao(largura, altura) {
     y: Math.round((alturaSegura - height) / 2),
     width,
     height
+  };
+}
+
+export function calcularRecortePreview(largura, altura) {
+  const larguraSegura = Math.max(1, Number(largura) || 1);
+  const alturaSegura = Math.max(1, Number(altura) || 1);
+  const moldura = calcularMolduraSobreposicao(larguraSegura, alturaSegura);
+  const margemHorizontal = Math.round(moldura.width * 0.04);
+  const margemVertical = Math.round(moldura.height * 0.12);
+  const x = Math.max(0, moldura.x - margemHorizontal);
+  const y = Math.max(0, moldura.y - margemVertical);
+  const limiteX = Math.min(larguraSegura, moldura.x + moldura.width + margemHorizontal);
+  const limiteY = Math.min(alturaSegura, moldura.y + moldura.height + margemVertical);
+  return {
+    x,
+    y,
+    width: Math.max(1, limiteX - x),
+    height: Math.max(1, limiteY - y)
   };
 }
 
