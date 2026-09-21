@@ -16,7 +16,7 @@
       getCountFromServer
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { auth, db, authSecundario } from "./js/config/firebase.js";
-    import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js";
+    import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js?v=1.12.1";
     import { validarNovaSenha } from "./js/core/perfil.js";
     import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.12.0";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
@@ -197,9 +197,9 @@
     const dicasLista = [
       { titulo: "🔍 Leitura Óptica por OCR", texto: "Se o código estiver ilegível, centralize a numeração impressa e use 'Ler via OCR'. Após dez segundos, o app também oferece OCR, digitação manual ou a opção de continuar tentando." },
       { titulo: "📱 Câmera, foco e iluminação", texto: "Ao ligar a câmera, o app centraliza o visor. Depois de reconhecer a plaqueta, congela a imagem e leva você ao resultado e ao formulário de confirmação." },
-      { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem em local diferente? Para Conferentes, a mudança seguirá para aprovação. Gestores e Administradores validam a nova localização diretamente." },
+      { titulo: "⚠️ Divergências de Setor", texto: "Achou um bem em local diferente? A mudança seguirá para a Fila de aprovação, qualquer que seja seu perfil. O local atual permanece até a decisão." },
       { titulo: "🔄 Gestão Hierárquica", texto: "Administradores gerenciam todo o sistema. Gestores podem atualizar seus dados e cadastrar ou editar os conferentes sob sua alçada." },
-      { titulo: "🔄 Ciclo das Transferências", texto: "Mudanças informadas por Conferentes geram pendência na Fila. Quando registradas por Gestor ou Administrador, são efetivadas imediatamente e mantidas no histórico." },
+      { titulo: "🔄 Ciclo das Transferências", texto: "Toda mudança de divisão registrada na leitura gera pendência na Fila. Gestores e Administradores aprovam ou rejeitam a transferência depois da leitura." },
       { titulo: "🔍 Busca Rápida por Digitação", texto: "Na aba 'Leitura', comece a digitar os números da plaqueta para ver sugestões instantâneas e agilizar o preenchimento sem precisar usar a câmera." },
       { titulo: "📋 Acompanhamento por Setor (Relação)", texto: "Utilize a aba 'Relação' para acompanhar o progresso do inventário. Os blocos mostram o total de itens e quantos já foram conferidos em cada divisão." },
       { titulo: "🔎 Leitura com alternativas", texto: "Após reconhecer um código, a câmera pausa para evitar duplicidade. Use 'Ler outra plaqueta' para continuar; digitação manual e OCR permanecem disponíveis." }
@@ -794,8 +794,11 @@
       });
       if (!confirmarReversao) return;
 
-      const itensAfetados = await buscarItensDaDivisao(divAlvo);
-      if (itensAfetados.length === 0) return notificarMensagem("Nenhum item encontrado nesta divisão.", 'aviso');
+      const itensDaDivisao = await buscarItensDaDivisao(divAlvo);
+      const itensAfetados = itensDaDivisao.filter(item => item.statusTransferencia !== 'pendente');
+      if (itensAfetados.length === 0) {
+        return notificarMensagem('Nenhum item disponível para reinício nesta divisão. Resolva as transferências pendentes na Fila.', 'aviso');
+      }
 
       try {
         await atualizarItensEmLotes(itensAfetados, {
@@ -806,7 +809,8 @@
           dataLocalizacao: ""
         });
         invalidarCacheRelacao();
-        notificarMensagem(`Sucesso! ${itensAfetados.length} itens da divisão ${divAlvo} foram retornados para pendentes.`, 'sucesso');
+        const ignorados = itensDaDivisao.length - itensAfetados.length;
+        notificarMensagem(`${itensAfetados.length} itens da divisão ${divAlvo} retornados para pendentes.${ignorados ? ` ${ignorados} transferência(s) aguardam decisão na Fila.` : ''}`, 'sucesso');
         document.getElementById('select-divisao-reversao').value = "";
       } catch (e) {
         notificarMensagem("Erro ao executar reversão setorial.", 'erro');
@@ -825,7 +829,10 @@
 
       try {
         const snapshot = await getDocs(collection(db, "patrimonios"));
-        const itens = snapshot.docs.map(normalizarPatrimonio);
+        const itens = snapshot.docs.map(normalizarPatrimonio).filter(item => item.statusTransferencia !== 'pendente');
+        if (itens.length === 0) {
+          return notificarMensagem('Nenhum item disponível para reinício. Resolva as transferências pendentes na Fila.', 'aviso');
+        }
         await atualizarItensEmLotes(itens, {
           localizado: false,
           statusTransferencia: "concluido",
@@ -834,7 +841,8 @@
           dataLocalizacao: ""
         });
         invalidarCacheRelacao();
-        notificarMensagem("Inventário geral reiniciado com sucesso! Todos os itens estão pendentes.", 'sucesso');
+        const ignorados = snapshot.size - itens.length;
+        notificarMensagem(`${itens.length} itens reiniciados com sucesso.${ignorados ? ` ${ignorados} transferência(s) aguardam decisão na Fila.` : ''}`, 'sucesso');
       } catch (e) {
         notificarMensagem("Erro ao reiniciar inventário geral.", 'erro');
       }
@@ -851,6 +859,11 @@
       if (!confirmarReversao) return;
 
       try {
+        const atual = await getDocFromServer(doc(db, 'patrimonios', plaqueta));
+        if (!atual.exists()) return notificarMensagem('Patrimônio não encontrado.', 'aviso');
+        if (atual.data().statusTransferencia === 'pendente') {
+          return notificarMensagem('Este patrimônio aguarda decisão na Fila de aprovação antes de poder ser reiniciado.', 'aviso');
+        }
         await updateDoc(doc(db, "patrimonios", plaqueta), {
           localizado: false,
           statusTransferencia: "concluido",
@@ -1355,8 +1368,7 @@
 
       const badgeStatus = document.getElementById('det-status');
       const btnSalvar = document.getElementById('btn-salvar');
-      const pendenteBloqueado = usuarioLogado?.perfil === 'conferente'
-        && item.statusTransferencia === 'pendente';
+      const pendenteBloqueado = item.statusTransferencia === 'pendente';
       btnSalvar.disabled = pendenteBloqueado;
       btnSalvar.classList.toggle('opacity-50', pendenteBloqueado);
       btnSalvar.classList.toggle('cursor-not-allowed', pendenteBloqueado);
@@ -1411,55 +1423,74 @@
         return;
       }
 
-      const perfilValidador = ehPerfilValidador(usuarioLogado?.perfil);
-      alerta.className = perfilValidador
-        ? 'bg-blue-950/60 border border-blue-500/40 p-2.5 rounded-lg text-[11px] text-blue-200 space-y-1'
-        : 'bg-amber-950/60 border border-amber-500/40 p-2.5 rounded-lg text-[11px] text-amber-200 space-y-1';
-      titulo.innerText = perfilValidador
-        ? '✅ Alteração validada pelo perfil'
-        : '⚠️ ATENÇÃO: Transferência detectada';
-      texto.innerHTML = perfilValidador
-        ? 'Ao salvar, a localização será <strong>atualizada imediatamente</strong> e registrada no histórico.'
-        : 'Ao salvar, a mudança ficará <strong>aguardando aprovação</strong> de um Gestor ou Administrador.';
+      alerta.className = 'bg-amber-950/60 border border-amber-500/40 p-2.5 rounded-lg text-[11px] text-amber-200 space-y-1';
+      titulo.innerText = '⚠️ ATENÇÃO: Transferência detectada';
+      texto.innerHTML = 'Ao salvar, a mudança ficará <strong>aguardando aprovação</strong> na Fila. O local atual será mantido até a decisão.';
     }
 
     document.getElementById('btn-salvar').addEventListener('click', async () => {
       if (!itemAtualSelecionado) return notificarMensagem("Selecione um patrimônio válido antes de salvar.", 'aviso');
-      if (usuarioLogado?.perfil === 'conferente' && itemAtualSelecionado.statusTransferencia === 'pendente') {
-        return notificarMensagem("Este patrimônio já está aguardando aprovação. Somente um Gestor ou Administrador pode concluir a movimentação.", 'aviso');
+      if (itemAtualSelecionado.statusTransferencia === 'pendente') {
+        return notificarMensagem("Este patrimônio já está aguardando aprovação. Conclua a movimentação na Fila antes de registrar outra leitura.", 'aviso');
       }
       const locAtual = document.getElementById('select-localizacao').value;
       if (!locAtual) return notificarMensagem("Selecione a localização atual do item.", 'aviso');
 
       const obs = document.getElementById('input-observacao').value.trim();
       const dataHora = new Date().toLocaleString('pt-BR');
-      const {
-        dadosAtualizacao,
-        houveMudanca: ehTransferencia,
-        perfilValidador
-      } = prepararAtualizacaoPatrimonio({
-        item: itemAtualSelecionado,
-        localizacaoDestino: locAtual,
-        usuario: usuarioLogado,
-        observacao: obs,
-        dataHora
-      });
+      const btnSalvar = document.getElementById('btn-salvar');
+      btnSalvar.disabled = true;
+      try {
+        const {
+          dadosAtualizacao,
+          houveMudanca: ehTransferencia,
+          perfilValidador
+        } = prepararAtualizacaoPatrimonio({
+          item: itemAtualSelecionado,
+          localizacaoDestino: locAtual,
+          usuario: usuarioLogado,
+          observacao: obs,
+          dataHora
+        });
 
-      const docRef = doc(db, "patrimonios", itemAtualSelecionado.plaqueta);
-      await updateDoc(docRef, dadosAtualizacao);
-      const itemAtualizado = { ...itemAtualSelecionado, ...dadosAtualizacao };
-      cachePatrimonios.set(itemAtualizado.plaqueta, itemAtualizado);
-      const indiceRelacao = bancoPatrimonio.findIndex(item => item.plaqueta === itemAtualizado.plaqueta);
-      if (indiceRelacao >= 0) bancoPatrimonio[indiceRelacao] = itemAtualizado;
-      invalidarCacheRelacao();
-      const mensagemSucesso = ehTransferencia
-        ? (perfilValidador
-          ? "✅ Localização atualizada e validada com sucesso."
-          : "⚠️ Mudança de localização enviada para aprovação.")
-        : (perfilValidador ? "✅ Patrimônio atualizado com sucesso." : "✅ Conferência registrada com sucesso.");
-      notificarMensagem(mensagemSucesso, ehTransferencia && !perfilValidador ? 'aviso' : 'sucesso');
-      limparFormularioLeitura();
-      await controladorCamera.retomarAposSalvar();
+        const docRef = doc(db, "patrimonios", itemAtualSelecionado.plaqueta);
+        await updateDoc(docRef, dadosAtualizacao);
+        const itemAtualizado = { ...itemAtualSelecionado, ...dadosAtualizacao };
+        cachePatrimonios.set(itemAtualizado.plaqueta, itemAtualizado);
+        const indiceRelacao = bancoPatrimonio.findIndex(item => item.plaqueta === itemAtualizado.plaqueta);
+        if (indiceRelacao >= 0) bancoPatrimonio[indiceRelacao] = itemAtualizado;
+        invalidarCacheRelacao();
+        const mensagemSucesso = ehTransferencia
+          ? "⚠️ Mudança de localização enviada para aprovação."
+          : (perfilValidador ? "✅ Patrimônio atualizado com sucesso." : "✅ Conferência registrada com sucesso.");
+        notificarMensagem(mensagemSucesso, ehTransferencia ? 'aviso' : 'sucesso');
+        limparFormularioLeitura();
+        try {
+          await controladorCamera.retomarAposSalvar();
+        } catch (erroCamera) {
+          console.warn('Leitura salva, mas a câmera não pôde ser retomada:', erroCamera);
+          notificarMensagem('Leitura salva. Ligue a câmera novamente para continuar.', 'info');
+        }
+      } catch (erro) {
+        console.error('Erro ao registrar leitura:', erro);
+        if (erro?.code === 'permission-denied') {
+          try {
+            const atual = await getDocFromServer(doc(db, 'patrimonios', itemAtualSelecionado.plaqueta));
+            if (atual.exists()) {
+              itemAtualSelecionado = normalizarPatrimonio(atual);
+              cachearPatrimonios([itemAtualSelecionado]);
+              exibirDetalhes(itemAtualSelecionado);
+            }
+          } catch (erroConsulta) {
+            console.error('Erro ao consultar o patrimônio após a falha:', erroConsulta);
+          }
+        }
+        notificarMensagem(erro?.code === 'permission-denied'
+          ? 'Leitura não autorizada. Confira se já existe uma transferência pendente e se as regras atualizadas do Firestore foram publicadas.'
+          : (erro?.message || 'Não foi possível registrar a leitura.'), 'erro');
+      } finally {
+        if (itemAtualSelecionado?.statusTransferencia !== 'pendente') btnSalvar.disabled = false;
+      }
     });
 
     function encerrarOuvinteTransferencias() {
