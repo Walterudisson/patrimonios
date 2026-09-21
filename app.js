@@ -17,6 +17,7 @@
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js?v=1.12.1";
+    import { situacaoPatrimonio, divisoesVisiveisPatrimonio, patrimonioVisivelParaDivisoes, correspondeSituacaoPatrimonio, contarSituacoesPatrimonio } from "./js/core/relacao.js?v=1.12.2";
     import { validarNovaSenha } from "./js/core/perfil.js";
     import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.12.0";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
@@ -188,7 +189,7 @@
       popularSelectsDivisao();
     }
 
-    function dividirEmLotes(lista, tamanho = 10) {
+    function dividirEmLotes(lista, tamanho = 7) {
       const lotes = [];
       for (let i = 0; i < lista.length; i += tamanho) lotes.push(lista.slice(i, i + tamanho));
       return lotes;
@@ -316,6 +317,8 @@
       const boxExportacao = document.getElementById('container-botoes-exportacao');
       const panelCiclo = document.getElementById('panel-gestao-ciclo');
       const btnSalvar = document.getElementById('btn-salvar');
+      document.getElementById('dash-aguardando-acao').innerText = usuarioLogado.perfil === 'conferente'
+        ? 'Ver na relação →' : 'Abrir fila →';
 
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
@@ -541,7 +544,8 @@
         const consulta = query(collection(db, "patrimonios"), or(
           where("divisaoOrigem", "in", lote),
           where("divisao", "in", lote),
-          where("localizacaoAtual", "in", lote)
+          where("localizacaoAtual", "in", lote),
+          and(where("statusTransferencia", "==", "pendente"), where("divisaoDestinoSugerida", "in", lote))
         ));
         const snapshot = await getDocs(consulta);
         snapshot.docs.map(normalizarPatrimonio).forEach(item => resultados.set(item.plaqueta, item));
@@ -688,10 +692,17 @@
       card.addEventListener('click', async () => {
         const destino = card.dataset.dashboardTarget;
         if (destino === 'transferencias') {
-          if (usuarioLogado?.perfil !== 'conferente') await alternarAba('transferencias');
+          if (usuarioLogado?.perfil !== 'conferente') {
+            await alternarAba('transferencias');
+            return;
+          }
+          document.getElementById('filtro-status').value = 'aguardando';
+          if (!aplicarFiltrosNaBaseCompleta()) relacaoCarregada = false;
+          await alternarAba('lista');
           return;
         }
         document.getElementById('filtro-status').value = destino === 'todos' ? 'todos' : destino;
+        if (!aplicarFiltrosNaBaseCompleta()) relacaoCarregada = false;
         await alternarAba('lista');
       });
     });
@@ -713,7 +724,7 @@
         const totalMarcadosLocalizados = localizadosSnap.data().count;
         const aguardando = aguardandoSnap.data().count;
         const localizados = Math.max(0, totalMarcadosLocalizados - aguardando);
-        const pendentes = Math.max(0, total - totalMarcadosLocalizados);
+        const pendentes = Math.max(0, total - localizados - aguardando);
         aplicarNumerosDashboard(total, localizados, pendentes, aguardando);
         return;
       }
@@ -724,7 +735,7 @@
         return;
       }
 
-      if (divisoes.length <= 10) {
+      if (divisoes.length <= 7) {
         try {
           const patrimoniosRef = collection(db, "patrimonios");
           const filtroAcesso = or(
@@ -732,18 +743,27 @@
             where("divisao", "in", divisoes),
             where("localizacaoAtual", "in", divisoes)
           );
-          const [totalSnap, localizadosSnap, aguardandoSnap] = await Promise.all([
+          const filtroDestinosPendentes = and(
+            where("statusTransferencia", "==", "pendente"),
+            where("divisaoDestinoSugerida", "in", divisoes)
+          );
+          const [totalSnap, localizadosSnap, aguardandoSnap, destinosSnap] = await Promise.all([
             getCountFromServer(query(patrimoniosRef, filtroAcesso)),
             getCountFromServer(query(patrimoniosRef, and(filtroAcesso, where("localizado", "==", true)))),
-            getCountFromServer(query(patrimoniosRef, and(filtroAcesso, where("statusTransferencia", "==", "pendente"))))
+            getCountFromServer(query(patrimoniosRef, and(filtroAcesso, where("statusTransferencia", "==", "pendente")))),
+            getDocs(query(patrimoniosRef, filtroDestinosPendentes))
           ]);
-          const total = totalSnap.data().count;
+          const extras = destinosSnap.docs.map(normalizarPatrimonio).filter(item =>
+            ![item.divisaoOrigem, item.divisao, item.localizacaoAtual].some(divisao => divisoes.includes(divisao))
+          ).length;
+          const total = totalSnap.data().count + extras;
           const totalMarcadosLocalizados = localizadosSnap.data().count;
-          const aguardando = aguardandoSnap.data().count;
+          const aguardando = aguardandoSnap.data().count + extras;
+          const localizados = Math.max(0, totalMarcadosLocalizados - aguardandoSnap.data().count);
           aplicarNumerosDashboard(
             total,
-            Math.max(0, totalMarcadosLocalizados - aguardando),
-            Math.max(0, total - totalMarcadosLocalizados),
+            localizados,
+            Math.max(0, total - localizados - aguardando),
             aguardando
           );
           return;
@@ -753,12 +773,8 @@
       }
 
       const itens = await carregarPatrimoniosPermitidos();
-      aplicarNumerosDashboard(
-        itens.length,
-        itens.filter(item => item.localizado && item.statusTransferencia !== 'pendente').length,
-        itens.filter(item => !item.localizado).length,
-        itens.filter(item => item.statusTransferencia === 'pendente').length
-      );
+      const contagens = contarSituacoesPatrimonio(itens);
+      aplicarNumerosDashboard(contagens.total, contagens.localizados, contagens.pendentes, contagens.aguardando);
     }
 
     async function atualizarItensEmLotes(itens, dadosAtualizacao) {
@@ -1263,7 +1279,8 @@
                   or(
                     where("divisaoOrigem", "in", lote),
                     where("divisao", "in", lote),
-                    where("localizacaoAtual", "in", lote)
+                    where("localizacaoAtual", "in", lote),
+                    and(where("statusTransferencia", "==", "pendente"), where("divisaoDestinoSugerida", "in", lote))
                   ),
                   orderBy(documentId()),
                   startAt(valor),
@@ -1726,21 +1743,24 @@
         filtros.push(or(
           where("divisaoOrigem", "==", divisaoFiltro),
           where("divisao", "==", divisaoFiltro),
-          where("localizacaoAtual", "==", divisaoFiltro)
+          where("localizacaoAtual", "==", divisaoFiltro),
+          and(where("statusTransferencia", "==", "pendente"), where("divisaoDestinoSugerida", "==", divisaoFiltro))
         ));
       } else if (usuarioLogado.perfil === 'conferente') {
         const divisoes = [...new Set(usuarioLogado.divisoesAtribuidas || [])];
         if (divisoes.length === 0) return { vazia: true };
-        if (divisoes.length > 10) return { fallback: true };
+        if (divisoes.length > 7) return { fallback: true };
         filtros.push(or(
           where("divisaoOrigem", "in", divisoes),
           where("divisao", "in", divisoes),
-          where("localizacaoAtual", "in", divisoes)
+          where("localizacaoAtual", "in", divisoes),
+          and(where("statusTransferencia", "==", "pendente"), where("divisaoDestinoSugerida", "in", divisoes))
         ));
       }
 
       if (statusFiltro === 'localizados') filtros.push(where("localizado", "==", true));
       if (statusFiltro === 'pendentes') filtros.push(where("localizado", "==", false));
+      if (statusFiltro === 'aguardando') filtros.push(where("statusTransferencia", "==", "pendente"));
 
       const restricoes = [];
       if (filtros.length === 1) restricoes.push(filtros[0]);
@@ -1769,10 +1789,9 @@
     }
 
     function itemCorrespondeAosFiltros(item, filtros) {
-      const divisoesItem = [item.divisaoOrigem, item.divisao, item.localizacaoAtual].filter(Boolean);
+      const divisoesItem = divisoesVisiveisPatrimonio(item);
       const correspondeTermo = !filtros.termo || String(item.plaqueta).startsWith(filtros.termo);
-      const correspondeStatus = filtros.status === 'todos'
-        || (filtros.status === 'localizados' ? item.localizado : !item.localizado);
+      const correspondeStatus = correspondeSituacaoPatrimonio(item, filtros.status);
       const correspondeDivisao = filtros.divisao === 'todas' || divisoesItem.includes(filtros.divisao);
       return correspondeTermo && correspondeStatus && correspondeDivisao;
     }
@@ -1797,7 +1816,9 @@
       if (info) {
         info.innerText = relacaoUsandoBaseCompleta
           ? `Filtro local: ${bancoPatrimonio.length} item(ns) • base completa com ${relacaoBaseCompleta.length}`
-          : `${bancoPatrimonio.length} de ${totalRelacao} item(ns) carregado(s)`;
+          : ['localizados', 'pendentes'].includes(document.getElementById('filtro-status').value)
+            ? `${itensFiltradosCache.length} exibido(s) • ${bancoPatrimonio.length} de ${totalRelacao} consultado(s)`
+            : `${bancoPatrimonio.length} de ${totalRelacao} item(ns) carregado(s)`;
       }
       if (botao) {
         botao.classList.toggle('hidden', !relacaoTemMais || bancoPatrimonio.length === 0);
@@ -1900,9 +1921,7 @@
       const minhasDivs = usuarioLogado.divisoesAtribuidas || [];
 
       const itensPermitidos = bancoPatrimonio.filter(i => {
-        const origem = i.divisaoOrigem || i.divisao;
-        const atual = i.localizacaoAtual || origem;
-        if (usuarioLogado.perfil === 'conferente' && !minhasDivs.includes(origem) && !minhasDivs.includes(atual)) return false;
+        if (usuarioLogado.perfil === 'conferente' && !patrimonioVisivelParaDivisoes(i, minhasDivs)) return false;
         return true;
       });
 
@@ -1914,11 +1933,10 @@
       });
 
       const itensFiltrados = itensPermitidos.filter(i => {
-        const atual = i.localizacaoAtual || i.divisaoOrigem || i.divisao;
         const matchTermo = !termo || i.plaqueta.startsWith(termo);
-        const matchStatus = statusFiltro === 'todos' || (statusFiltro === 'localizados' ? i.localizado : !i.localizado);
+        const matchStatus = correspondeSituacaoPatrimonio(i, statusFiltro);
         const matchDivisao = divisaoFiltro === 'todas'
-          || [i.divisaoOrigem, i.divisao, i.localizacaoAtual].filter(Boolean).includes(divisaoFiltro);
+          || divisoesVisiveisPatrimonio(i).includes(divisaoFiltro);
         return matchTermo && matchStatus && matchDivisao;
       });
 
@@ -1939,7 +1957,7 @@
         
         if (visiveisDaDiv.length === 0 && (termo || statusFiltro !== 'todos' || divisaoFiltro !== 'todas')) return;
 
-        const locCount = todosDaDiv.filter(i => i.localizado).length;
+        const locCount = todosDaDiv.filter(i => situacaoPatrimonio(i) === 'localizados').length;
         const totalCount = todosDaDiv.length;
 
         const accordion = document.createElement('div');
@@ -1954,14 +1972,15 @@
               <div onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')" class="bg-slate-800/90 p-3 rounded-lg border border-slate-700 text-xs space-y-1.5 cursor-pointer hover:border-blue-500/60 transition-colors shadow-sm">
                 <div class="flex justify-between items-center">
                   <span class="font-bold text-white text-sm">Plaqueta: ${item.plaqueta}</span>
-                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.localizado ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">
-                    ${item.localizado ? '🟢 LOCALIZADO' : '🔴 PENDENTE'}
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${situacaoPatrimonio(item) === 'aguardando' ? 'bg-amber-900 text-amber-300' : situacaoPatrimonio(item) === 'localizados' ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">
+                    ${situacaoPatrimonio(item) === 'aguardando' ? '⏳ AGUARDANDO APROVAÇÃO' : situacaoPatrimonio(item) === 'localizados' ? '🟢 LOCALIZADO' : '🔴 PENDENTE'}
                   </span>
                 </div>
                 <p class="text-slate-300 text-xs">${item.descricao}</p>
                 <div class="mt-1.5 pt-1.5 border-t border-slate-700/50 text-[11px] space-y-0.5 text-slate-400">
                   <div>🏷️ Divisão Anterior: ${item.divisaoOrigem || item.divisao}</div>
                   <div>📍 Local Atual: <span class="text-emerald-400 font-bold">${item.localizacaoAtual || item.divisaoOrigem || item.divisao}</span></div>
+                  ${situacaoPatrimonio(item) === 'aguardando' ? `<div>➡️ Local sugerido: <span class="text-amber-300 font-bold">${item.divisaoDestinoSugerida}</span></div>` : ''}
                 </div>
               </div>
             `).join('')}
@@ -1971,7 +1990,7 @@
       });
 
       if (container.children.length === 0) {
-        container.innerHTML = `<div class="bg-slate-800 p-5 rounded-xl border border-slate-700 text-center text-xs text-slate-400">Nenhum patrimônio encontrado com os filtros atuais.</div>`;
+        container.innerHTML = `<div class="bg-slate-800 p-5 rounded-xl border border-slate-700 text-center text-xs text-slate-400">${relacaoTemMais ? 'Nenhum item correspondente nesta página. Use Carregar mais para continuar.' : 'Nenhum patrimônio encontrado com os filtros atuais.'}</div>`;
       }
       atualizarPaginacaoRelacao();
     }
@@ -2006,7 +2025,7 @@
     document.getElementById('btn-carregar-mais')?.addEventListener('click', () => carregarRelacaoPatrimonial({ carregarMais: true }));
 
     document.getElementById('btn-exportar-csv').addEventListener('click', () => exportarCSV(bancoPatrimonio, 'relatorio_geral'));
-    document.getElementById('btn-exportar-divergencias').addEventListener('click', () => exportarCSV(bancoPatrimonio.filter(i => !i.localizado), 'relatorio_pendentes'));
+    document.getElementById('btn-exportar-divergencias').addEventListener('click', () => exportarCSV(bancoPatrimonio.filter(i => situacaoPatrimonio(i) !== 'localizados'), 'relatorio_pendentes'));
     document.getElementById('btn-exportar-filtrados').addEventListener('click', () => exportarCSV(itensFiltradosCache, 'relatorio_filtrado'));
 
     function exportarCSV(dados, nomeArquivo) {
@@ -2014,7 +2033,7 @@
       if (dados.length === 0) return notificarMensagem("Não há registros disponíveis para exportação com os filtros atuais.", 'aviso');
       let csv = 'Plaqueta;Divisao Anterior;Local Atual;Status;Conferido Por;Descricao;Data Ultima Atualizacao\n';
       dados.forEach(i => {
-        csv += `"${i.plaqueta}";"${i.divisaoOrigem || i.divisao}";"${i.localizacaoAtual || i.divisao}";"${i.localizado ? 'LOCALIZADO' : 'PENDENTE'}";"${i.conferidoPor || ''}";"${i.descricao.replace(/"/g, '""')}";"${i.dataLocalizacao || ''}"\n`;
+        csv += `"${i.plaqueta}";"${i.divisaoOrigem || i.divisao}";"${i.localizacaoAtual || i.divisaoOrigem || i.divisao}";"${situacaoPatrimonio(i) === 'aguardando' ? 'AGUARDANDO APROVAÇÃO' : situacaoPatrimonio(i) === 'localizados' ? 'LOCALIZADO' : 'PENDENTE'}";"${i.conferidoPor || ''}";"${i.descricao.replace(/"/g, '""')}";"${i.dataLocalizacao || ''}"\n`;
       });
       const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);

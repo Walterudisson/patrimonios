@@ -52,7 +52,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.12.1 • Sprint 1.2</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.12.2 • Sprint 1.2</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -111,7 +111,7 @@
       </nav>
 
       <div class="sidebar-footer sidebar-label">
-        <span>v1.12.1</span>
+        <span>v1.12.2</span>
         <button id="btn-logout-sidebar" type="button">SAIR</button>
       </div>
     </aside>
@@ -177,10 +177,10 @@
             <strong id="dash-pendentes">0</strong>
             <span class="kpi-action">Ver pendências <span aria-hidden="true">→</span></span>
           </button>
-          <button type="button" class="kpi-card kpi-card-purple" data-dashboard-target="transferencias" data-perfis="admin,gestor">
+          <button type="button" class="kpi-card kpi-card-purple" data-dashboard-target="transferencias">
             <span class="kpi-label">Aguardando aprovação</span>
             <strong id="dash-aguardando">0</strong>
-            <span class="kpi-action">Abrir fila <span aria-hidden="true">→</span></span>
+            <span class="kpi-action" id="dash-aguardando-acao">Abrir fila <span aria-hidden="true">→</span></span>
           </button>
         </div>
 
@@ -516,6 +516,7 @@
                 <option value="todos">Todos Status</option>
                 <option value="localizados">🟢 Localizados</option>
                 <option value="pendentes">🔴 Pendentes</option>
+                <option value="aguardando">⏳ Aguardando aprovação</option>
               </select>
             </div>
             <div>
@@ -553,7 +554,7 @@
 
       <footer class="app-footer">
         <span>CM APP · Patrimônio</span>
-        <span>v1.12.1 · Sprint 1.2</span>
+        <span>v1.12.2 · Sprint 1.2</span>
       </footer>
     </div>
   </div>
@@ -660,6 +661,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=1.12.1"></script>
+    <script type="module" src="./app.js?v=1.12.2"></script>
 </body>
 </html>
