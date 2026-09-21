@@ -35,7 +35,7 @@
       fecharCamadasNavegacao,
       fecharNavegacaoMovel,
       inicializarNavegacao
-    } from "./js/ui/navigation.js?v=1.11.0";
+    } from "./js/ui/navigation.js?v=1.11.2";
 
     let usuarioLogado = null;
     let bancoPatrimonio = [];
@@ -308,6 +308,7 @@
       
       const btnTransf = document.getElementById('tab-btn-transferencias');
       const btnUsuarios = document.getElementById('tab-btn-usuarios');
+      const btnInventarios = document.getElementById('tab-btn-inventarios');
       const campoPerfil = document.getElementById('campo-perfil-container');
       const tituloCad = document.getElementById('titulo-cad-usuario');
       const boxExportacao = document.getElementById('container-botoes-exportacao');
@@ -317,6 +318,7 @@
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
         btnUsuarios.classList.add('hidden');
+        btnInventarios.classList.add('hidden');
         if (boxExportacao) boxExportacao.classList.add('hidden');
         if (panelCiclo) panelCiclo.classList.add('hidden');
         if (btnSalvar) btnSalvar.innerText = '✅ Registrar Conferência';
@@ -327,11 +329,13 @@
         if (usuarioLogado.perfil === 'gestor') {
           btnTransf.classList.remove('hidden');
           btnUsuarios.classList.remove('hidden');
+          btnInventarios.classList.remove('hidden');
           campoPerfil.classList.add('hidden');
           tituloCad.innerText = "👥 Cadastrar Novo Conferente";
         } else if (usuarioLogado.perfil === 'admin') {
           btnTransf.classList.remove('hidden');
           btnUsuarios.classList.remove('hidden');
+          btnInventarios.classList.remove('hidden');
           campoPerfil.classList.remove('hidden');
           tituloCad.innerText = "👥 Cadastrar Novo Gestor ou Conferente";
         }
@@ -615,7 +619,7 @@
 
     async function alternarAba(abaAtiva, { registrarHistorico = true, substituirHistorico = false } = {}) {
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
-        if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios') {
+        if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios' || abaAtiva === 'inventarios') {
           return;
         }
       }
@@ -630,7 +634,7 @@
         await controladorCamera.desligar({ retomarAposSalvar: true });
       }
 
-      ['dashboard', 'scanner', 'transferencias', 'usuarios', 'lista', 'perfil'].forEach(aba => {
+      ['dashboard', 'scanner', 'transferencias', 'usuarios', 'inventarios', 'lista', 'perfil'].forEach(aba => {
         const sec = document.getElementById(`sec-${aba}`);
         if (sec) sec.classList.toggle('hidden', aba !== abaAtiva);
       });
@@ -640,6 +644,7 @@
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
         document.getElementById('tab-btn-transferencias').classList.add('hidden');
         document.getElementById('tab-btn-usuarios').classList.add('hidden');
+        document.getElementById('tab-btn-inventarios').classList.add('hidden');
       }
 
       try {
@@ -650,6 +655,7 @@
           await carregarUsuarios();
           await carregarCatalogoDivisoes();
         }
+        if (abaAtiva === 'inventarios') await carregarCatalogoDivisoes();
         if (abaAtiva === 'perfil') atualizarDadosTelaPerfil();
         if (abaAtiva === 'lista') await carregarRelacaoPatrimonial();
       } catch (erro) {
