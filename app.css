@@ -12,8 +12,8 @@
       --topbar-height: 72px;
     }
     * { box-sizing: border-box; }
-    html { background: var(--app-bg); }
-    body { background: var(--app-bg); color: var(--app-text); }
+    html { min-height: 100%; background: var(--app-bg); }
+    body { min-height: 100dvh; background: var(--app-bg); color: var(--app-text); padding-bottom: env(safe-area-inset-bottom, 0px); }
     body.modal-open { overflow: hidden; }
     .hidden { display: none !important; }
     button, input, select, textarea { font: inherit; }
@@ -39,6 +39,16 @@
       font-weight: 800;
     }
     .skip-link:focus { transform: translateY(0); }
+    .login-offline {
+      border: 1px solid rgb(245 158 11 / 0.45);
+      border-radius: 0.65rem;
+      background: rgb(120 53 15 / 0.35);
+      color: #fde68a;
+      padding: 0.7rem;
+      font-size: 0.7rem;
+      line-height: 1.45;
+      text-align: center;
+    }
     .app-shell {
       min-height: 100vh;
       display: grid;
@@ -233,6 +243,24 @@
     .profile-dropdown button:hover { background: rgb(127 29 29 / 0.4); }
     .profile-dropdown button.profile-dropdown-primary { color: #bfdbfe; }
     .profile-dropdown button.profile-dropdown-primary:hover { background: rgb(30 64 175 / 0.35); }
+    .profile-dropdown button.profile-dropdown-install { color: #a7f3d0; }
+    .profile-dropdown button.profile-dropdown-install:hover { background: rgb(6 78 59 / 0.42); }
+    .app-offline-banner {
+      position: sticky;
+      top: var(--topbar-height);
+      z-index: 35;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      border-bottom: 1px solid rgb(245 158 11 / 0.45);
+      background: rgb(120 53 15 / 0.96);
+      color: #fef3c7;
+      padding: 0.55rem 1rem;
+      font-size: 0.68rem;
+      text-align: center;
+      box-shadow: 0 8px 24px rgb(2 6 23 / 0.24);
+    }
     .app-content { flex: 1; width: 100%; max-width: 1440px; margin: 0 auto; padding: clamp(1rem, 2.6vw, 2rem); }
     .app-footer { display: flex; justify-content: space-between; gap: 1rem; padding: 1rem clamp(1rem, 2.6vw, 2rem); color: #64748b; font-size: 0.62rem; }
     .app-card {
@@ -266,6 +294,15 @@
     .profile-action-secondary:hover { background: rgb(127 29 29 / 0.58); }
     .profile-action-success { border: 1px solid rgb(16 185 129 / 0.45); background: #047857; color: white; }
     .profile-action-success:hover { background: #059669; }
+    .pwa-install-card {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(10rem, 15rem);
+      align-items: center;
+      gap: 1rem;
+    }
+    .pwa-install-card h2 { margin-top: 0.35rem; color: white; font-size: 1rem; font-weight: 850; }
+    .pwa-install-card p { margin-top: 0.4rem; color: #94a3b8; font-size: 0.68rem; line-height: 1.55; }
     .dashboard-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.9rem; }
     .kpi-card {
       position: relative;
@@ -347,6 +384,17 @@
     .app-toast-icon { width: 1.45rem; height: 1.45rem; display: grid; place-items: center; border-radius: 999px; background: #334155; color: white; font-size: 0.72rem; font-weight: 900; }
     .app-toast-content strong { display: block; margin-bottom: 0.15rem; color: white; font-size: 0.72rem; }
     .app-toast-content p { color: #cbd5e1; font-size: 0.7rem; line-height: 1.45; }
+    .app-toast-action {
+      margin-top: 0.6rem;
+      border: 1px solid rgb(96 165 250 / 0.45);
+      border-radius: 0.45rem;
+      background: rgb(29 78 216 / 0.75);
+      color: white;
+      padding: 0.45rem 0.65rem;
+      font-size: 0.62rem;
+      font-weight: 900;
+    }
+    .app-toast-action:hover { background: #2563eb; }
     .app-toast-close { color: #94a3b8; font-size: 1rem; line-height: 1; }
     .app-toast-close:hover { color: white; }
     .app-modal-backdrop {
@@ -471,6 +519,13 @@
       .transfer-actions { grid-template-columns: 1fr 1fr; }
       .profile-identity-card { grid-template-columns: 1fr; }
       .profile-avatar-large { width: 7rem; height: 7rem; }
+      .app-offline-banner { top: 64px; flex-direction: column; gap: 0.15rem; }
+      .pwa-install-card { grid-template-columns: 1fr; }
+    }
+
+    @media (display-mode: standalone) {
+      .app-topbar { padding-top: max(0.65rem, env(safe-area-inset-top, 0px)); }
+      .app-sidebar { padding-top: env(safe-area-inset-top, 0px); }
     }
 
     .accordion-content { transition: max-height 0.3s ease-out; overflow: hidden; }

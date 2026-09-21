@@ -43,6 +43,17 @@ export function notificarMensagem(mensagem, tipo = 'auto', opcoes = {}) {
     toast.classList.add('app-toast-leaving');
     window.setTimeout(() => toast.remove(), 180);
   };
+  if (opcoes.acaoTexto && typeof opcoes.aoAcao === 'function') {
+    const acao = document.createElement('button');
+    acao.type = 'button';
+    acao.className = 'app-toast-action';
+    acao.textContent = opcoes.acaoTexto;
+    acao.addEventListener('click', () => {
+      opcoes.aoAcao();
+      fechar();
+    });
+    toast.querySelector('.app-toast-content').appendChild(acao);
+  }
   toast.querySelector('.app-toast-close').addEventListener('click', fechar);
   container.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add('app-toast-visible'));

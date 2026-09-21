@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>CM APP — sem conexão</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #0b1220; color: #e2e8f0; padding: 1.25rem; }
+    main { width: min(28rem, 100%); border: 1px solid #334155; border-radius: 1rem; background: #1e293b; padding: 1.5rem; text-align: center; box-shadow: 0 24px 70px rgb(2 6 23 / .55); }
+    .mark { width: 4.5rem; height: 4.5rem; display: grid; place-items: center; margin: 0 auto 1rem; border-radius: 1.1rem; background: linear-gradient(145deg, #3b82f6, #1d4ed8); color: white; font-weight: 900; }
+    h1 { margin: 0; font-size: 1.25rem; }
+    p { margin: .75rem 0 0; color: #cbd5e1; font-size: .88rem; line-height: 1.55; }
+    button { width: 100%; margin-top: 1.25rem; border: 0; border-radius: .7rem; background: #2563eb; color: white; padding: .8rem; font: inherit; font-size: .8rem; font-weight: 800; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true">CM</div>
+    <h1>CM APP está sem conexão</h1>
+    <p>Conecte-se à internet para consultar ou atualizar os dados patrimoniais. Nenhuma alteração será armazenada offline.</p>
+    <button type="button" onclick="location.reload()">TENTAR NOVAMENTE</button>
+  </main>
+</body>
+</html>

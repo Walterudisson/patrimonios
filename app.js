@@ -18,7 +18,7 @@
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js";
     import { validarNovaSenha } from "./js/core/perfil.js";
-    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.11.0";
+    import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.12.0";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
     import { obterUrlFotoPerfil, removerFotoPerfil, salvarFotoPerfil } from "./js/services/perfil.service.js";
     import {
@@ -26,7 +26,7 @@
       confirmarAcao,
       fecharConfirmacaoAtiva,
       notificarMensagem
-    } from "./js/ui/feedback.js?v=1.11.0";
+    } from "./js/ui/feedback.js?v=1.12.0";
     import {
       ativarPagina,
       atualizarAcessoNavegacao,
@@ -35,7 +35,8 @@
       fecharCamadasNavegacao,
       fecharNavegacaoMovel,
       inicializarNavegacao
-    } from "./js/ui/navigation.js?v=1.11.2";
+    } from "./js/ui/navigation.js?v=1.12.0";
+    import { inicializarPwa } from "./js/pwa.js?v=1.12.0";
 
     let usuarioLogado = null;
     let bancoPatrimonio = [];
@@ -82,6 +83,7 @@
       aoAbrirCamada: registrarCamadaHistorico,
       aoFecharCamada: removerCamadaHistorico
     });
+    inicializarPwa({ notificarMensagem });
     window.addEventListener('popstate', tratarPopstate);
 
     function urlDaAba(aba) {
@@ -397,7 +399,7 @@
       } catch (erro) {
         console.error('Erro ao atualizar foto de perfil:', erro);
         const mensagem = erro?.code === 'storage/unauthorized'
-          ? 'O Firebase Storage recusou o envio. Confira se o serviço e as regras da Sprint 1.1 foram publicados.'
+          ? 'O Firebase Storage recusou o envio. Confira se o serviço está ativo e se as regras do Storage foram publicadas.'
           : (erro?.message || 'Não foi possível atualizar a foto de perfil.');
         notificarMensagem(mensagem, erro?.message ? 'aviso' : 'erro');
       } finally {
