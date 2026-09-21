@@ -15,11 +15,12 @@ export function prepararAtualizacaoPatrimonio({
 
   const divisaoOriginal = item.divisaoOrigem || item.divisao;
   const localizacaoAnterior = item.localizacaoAtual || divisaoOriginal;
+  if (item.statusTransferencia === 'pendente') {
+    throw new Error('Este patrimônio já possui uma transferência aguardando aprovação.');
+  }
   const houveMudanca = localizacaoAnterior !== localizacaoDestino;
   const perfilValidador = ehPerfilValidador(usuario.perfil);
-  const acao = houveMudanca
-    ? (perfilValidador ? 'transferencia_validada' : 'transferencia_solicitada')
-    : 'conferencia';
+  const acao = houveMudanca ? 'transferencia_solicitada' : 'conferencia';
 
   const historico = [
     ...(item.historico || []),
@@ -41,13 +42,13 @@ export function prepararAtualizacaoPatrimonio({
     historico
   };
 
-  if (houveMudanca && !perfilValidador) {
+  if (houveMudanca) {
     dadosAtualizacao.statusTransferencia = 'pendente';
     dadosAtualizacao.divisaoDestinoSugerida = localizacaoDestino;
   } else {
     dadosAtualizacao.localizacaoAtual = localizacaoDestino;
     dadosAtualizacao.divisaoDestinoSugerida = '';
-    dadosAtualizacao.statusTransferencia = houveMudanca ? 'aprovado' : 'concluido';
+    dadosAtualizacao.statusTransferencia = 'concluido';
   }
 
   return {
