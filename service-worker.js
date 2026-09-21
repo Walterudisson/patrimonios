@@ -1,4 +1,4 @@
-const VERSAO = 'v1.12.2';
+const VERSAO = 'v1.12.4';
 const CACHE_SHELL = `cmapp-shell-${VERSAO}`;
 const CACHE_RUNTIME = `cmapp-runtime-${VERSAO}`;
 const PREFIXO_CACHE = 'cmapp-';
@@ -19,6 +19,7 @@ const ARQUIVOS_SHELL = [
   './js/controllers/camera.controller.js',
   './js/core/camera.js',
   './js/core/movimentacao.js',
+  './js/core/paginacao.js',
   './js/core/relacao.js',
   './js/core/perfil.js',
   './js/services/divisoes.service.js',

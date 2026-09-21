@@ -18,6 +18,7 @@
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js?v=1.12.1";
     import { situacaoPatrimonio, divisoesVisiveisPatrimonio, patrimonioVisivelParaDivisoes, correspondeSituacaoPatrimonio, contarSituacoesPatrimonio } from "./js/core/relacao.js?v=1.12.2";
+    import { carregarPaginaIntercalada } from "./js/core/paginacao.js?v=1.12.4";
     import { validarNovaSenha } from "./js/core/perfil.js";
     import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.12.0";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
@@ -58,6 +59,7 @@
     let relacaoCarregando = false;
     let relacaoBaseCompleta = null;
     let relacaoUsandoBaseCompleta = false;
+    let lotesRelacao = null;
     let fotoPerfilUrl = '';
 
     const TAMANHO_PAGINA_RELACAO = 50;
@@ -165,6 +167,7 @@
     function invalidarCacheRelacao() {
       relacaoBaseCompleta = null;
       relacaoUsandoBaseCompleta = false;
+      lotesRelacao = null;
       relacaoCarregada = false;
       cursorRelacao = null;
       totalRelacao = 0;
@@ -735,7 +738,7 @@
         return;
       }
 
-      if (divisoes.length <= 7) {
+      if (divisoes.length <= 10) {
         try {
           const patrimoniosRef = collection(db, "patrimonios");
           const filtroAcesso = or(
@@ -747,15 +750,29 @@
             where("statusTransferencia", "==", "pendente"),
             where("divisaoDestinoSugerida", "in", divisoes)
           );
-          const [totalSnap, localizadosSnap, aguardandoSnap, destinosSnap] = await Promise.all([
+          const [totalSnap, localizadosSnap, aguardandoSnap] = await Promise.all([
             getCountFromServer(query(patrimoniosRef, filtroAcesso)),
             getCountFromServer(query(patrimoniosRef, and(filtroAcesso, where("localizado", "==", true)))),
-            getCountFromServer(query(patrimoniosRef, and(filtroAcesso, where("statusTransferencia", "==", "pendente")))),
-            getDocs(query(patrimoniosRef, filtroDestinosPendentes))
+            getCountFromServer(query(patrimoniosRef, and(filtroAcesso, where("statusTransferencia", "==", "pendente"))))
           ]);
-          const extras = destinosSnap.docs.map(normalizarPatrimonio).filter(item =>
-            ![item.divisaoOrigem, item.divisao, item.localizacaoAtual].some(divisao => divisoes.includes(divisao))
-          ).length;
+          let extras;
+          if (divisoes.length <= 3) {
+            try {
+              const [destinosSnap, sobreposicaoSnap] = await Promise.all([
+                getCountFromServer(query(patrimoniosRef, filtroDestinosPendentes)),
+                getCountFromServer(query(patrimoniosRef, and(filtroDestinosPendentes, filtroAcesso)))
+              ]);
+              extras = Math.max(0, destinosSnap.data().count - sobreposicaoSnap.data().count);
+            } catch (erroContagem) {
+              console.warn('Contagem das pendências de entrada indisponível; consultando somente pendências.', erroContagem);
+            }
+          }
+          if (extras === undefined) {
+            const destinosSnap = await getDocs(query(patrimoniosRef, filtroDestinosPendentes));
+            extras = destinosSnap.docs.map(normalizarPatrimonio).filter(item =>
+              ![item.divisaoOrigem, item.divisao, item.localizacaoAtual].some(divisao => divisoes.includes(divisao))
+            ).length;
+          }
           const total = totalSnap.data().count + extras;
           const totalMarcadosLocalizados = localizadosSnap.data().count;
           const aguardando = aguardandoSnap.data().count + extras;
@@ -770,6 +787,16 @@
         } catch (erro) {
           console.warn("Agregação filtrada indisponível; usando fallback documental.", erro);
         }
+      }
+
+      if (divisoes.length > 10) {
+        ['dash-total', 'dash-localizados', 'dash-pendentes', 'dash-aguardando']
+          .forEach(id => document.getElementById(id).innerText = '—');
+        document.getElementById('dash-progress-text').innerText = 'Consulte a Relação paginada';
+        document.getElementById('dash-progress-bar').style.width = '0%';
+        document.querySelector('.progress-track')?.setAttribute('aria-valuenow', '0');
+        document.getElementById('badge-fila-count').classList.add('hidden');
+        return;
       }
 
       const itens = await carregarPatrimoniosPermitidos();
@@ -1727,12 +1754,14 @@
       fecharModalHistorico('modal-detalhes-item', 'detalhes-item');
     });
 
-    function criarConsultaRelacao(cursor = null, paraContagem = false) {
+    function criarConsultaRelacao(cursor = null, paraContagem = false, { divisoesLote = null, tamanhoPagina = TAMANHO_PAGINA_RELACAO } = {}) {
       const patrimoniosRef = collection(db, "patrimonios");
       const termo = limparPlaqueta(document.getElementById('filtro-busca').value);
       const statusFiltro = document.getElementById('filtro-status').value;
       const divisaoFiltro = document.getElementById('filtro-divisao').value;
       const filtros = [];
+      let relacaoFragmentada = false;
+      let divisoesDoConferente = [];
 
       if (termo.length > 0 && termo.length < 3) return { invalida: true };
 
@@ -1747,15 +1776,23 @@
           and(where("statusTransferencia", "==", "pendente"), where("divisaoDestinoSugerida", "==", divisaoFiltro))
         ));
       } else if (usuarioLogado.perfil === 'conferente') {
-        const divisoes = [...new Set(usuarioLogado.divisoesAtribuidas || [])];
+        const divisoes = divisoesLote || [...new Set(usuarioLogado.divisoesAtribuidas || [])];
         if (divisoes.length === 0) return { vazia: true };
-        if (divisoes.length > 7) return { fallback: true };
-        filtros.push(or(
+        if (divisoes.length > 10) return { multiconsulta: true, grupos: dividirEmLotes(divisoes) };
+        relacaoFragmentada = divisoes.length > 7;
+        divisoesDoConferente = divisoes;
+        const origensEAtuais = [
           where("divisaoOrigem", "in", divisoes),
           where("divisao", "in", divisoes),
-          where("localizacaoAtual", "in", divisoes),
-          and(where("statusTransferencia", "==", "pendente"), where("divisaoDestinoSugerida", "in", divisoes))
-        ));
+          where("localizacaoAtual", "in", divisoes)
+        ];
+        if (!relacaoFragmentada) {
+          origensEAtuais.push(and(
+            where("statusTransferencia", "==", "pendente"),
+            where("divisaoDestinoSugerida", "in", divisoes)
+          ));
+        }
+        filtros.push(or(...origensEAtuais));
       }
 
       if (statusFiltro === 'localizados') filtros.push(where("localizado", "==", true));
@@ -1770,9 +1807,9 @@
       if (cursor) restricoes.push(startAfter(cursor));
       else if (termo) restricoes.push(startAt(termo));
       if (termo) restricoes.push(endAt(`${termo}\uf8ff`));
-      if (!paraContagem) restricoes.push(limit(TAMANHO_PAGINA_RELACAO));
+      if (!paraContagem) restricoes.push(limit(tamanhoPagina));
 
-      return { consulta: query(patrimoniosRef, ...restricoes), termo };
+      return { consulta: query(patrimoniosRef, ...restricoes), termo, relacaoFragmentada, divisoesDoConferente };
     }
 
     function obterFiltrosRelacao() {
@@ -1816,6 +1853,8 @@
       if (info) {
         info.innerText = relacaoUsandoBaseCompleta
           ? `Filtro local: ${bancoPatrimonio.length} item(ns) • base completa com ${relacaoBaseCompleta.length}`
+          : lotesRelacao
+            ? `${bancoPatrimonio.length} item(ns) carregado(s)${relacaoTemMais ? ' • mais disponíveis' : ' • consulta concluída'}`
           : ['localizados', 'pendentes'].includes(document.getElementById('filtro-status').value)
             ? `${itensFiltradosCache.length} exibido(s) • ${bancoPatrimonio.length} de ${totalRelacao} consultado(s)`
             : `${bancoPatrimonio.length} de ${totalRelacao} item(ns) carregado(s)`;
@@ -1839,6 +1878,7 @@
       const container = document.getElementById('container-accordions');
       if (reiniciar || !relacaoCarregada) {
         relacaoUsandoBaseCompleta = false;
+        lotesRelacao = null;
         bancoPatrimonio = [];
         itensFiltradosCache = [];
         cursorRelacao = null;
@@ -1863,16 +1903,50 @@
         renderizarRelaçãoBD();
         return;
       }
-      if (configuracao.fallback) {
-        bancoPatrimonio = await carregarPatrimoniosPermitidos();
-        totalRelacao = bancoPatrimonio.length;
-        relacaoTemMais = false;
-        relacaoCarregada = true;
-        if (consultaBaseRelacaoAtiva()) {
-          relacaoBaseCompleta = [...bancoPatrimonio];
-          relacaoUsandoBaseCompleta = true;
+      if (configuracao.multiconsulta) {
+        relacaoCarregando = true;
+        try {
+          if (!lotesRelacao) {
+            lotesRelacao = configuracao.grupos.map(divisoes => ({ divisoes, cursor: null, buffer: [], esgotada: false }));
+          }
+          const tamanhoLote = Math.ceil(TAMANHO_PAGINA_RELACAO / lotesRelacao.length);
+          const { pagina, temMais } = await carregarPaginaIntercalada({
+            fontes: lotesRelacao,
+            tamanhoPagina: TAMANHO_PAGINA_RELACAO,
+            carregarLote: async fonte => {
+              const consulta = criarConsultaRelacao(fonte.cursor, false, { divisoesLote: fonte.divisoes, tamanhoPagina: tamanhoLote });
+              const snapshot = await getDocs(consulta.consulta);
+              return {
+                itens: snapshot.docs,
+                cursor: snapshot.docs.at(-1) || fonte.cursor,
+                esgotada: snapshot.size < tamanhoLote
+              };
+            },
+            incluirItem: docSnap => correspondeSituacaoPatrimonio(
+              normalizarPatrimonio(docSnap), document.getElementById('filtro-status').value
+            )
+          });
+          const novosItens = pagina.map(normalizarPatrimonio);
+          bancoPatrimonio.push(...novosItens);
+          cachearPatrimonios(novosItens);
+          adicionarDivisoesAoCatalogo(novosItens);
+          relacaoTemMais = temMais;
+          relacaoCarregada = true;
+          if (!temMais && consultaBaseRelacaoAtiva()) {
+            relacaoBaseCompleta = [...bancoPatrimonio];
+            relacaoUsandoBaseCompleta = true;
+          }
+          renderizarRelaçãoBD();
+        } catch (erro) {
+          console.error('Erro na consulta paginada por divisões:', erro);
+          lotesRelacao = null;
+          relacaoTemMais = false;
+          relacaoCarregada = false;
+          container.innerHTML = `<div class="bg-red-950/40 p-5 rounded-xl border border-red-500/30 text-center text-xs text-red-300">Não foi possível carregar esta página. Verifique as regras e os índices do Firestore.</div>`;
+        } finally {
+          relacaoCarregando = false;
+          atualizarPaginacaoRelacao();
         }
-        renderizarRelaçãoBD();
         return;
       }
 
@@ -1883,6 +1957,21 @@
           const configuracaoContagem = criarConsultaRelacao(null, true);
           const contagemSnap = await getCountFromServer(configuracaoContagem.consulta);
           totalRelacao = contagemSnap.data().count;
+          if (configuracao.relacaoFragmentada && ['todos', 'aguardando'].includes(document.getElementById('filtro-status').value)) {
+            const divisoes = configuracao.divisoesDoConferente;
+            const pendenciasDestino = await getDocs(query(collection(db, 'patrimonios'),
+              where('statusTransferencia', '==', 'pendente'),
+              where('divisaoDestinoSugerida', 'in', divisoes)
+            ));
+            const filtros = obterFiltrosRelacao();
+            const extras = pendenciasDestino.docs.map(normalizarPatrimonio).filter(item =>
+              ![item.divisaoOrigem, item.divisao, item.localizacaoAtual].some(divisao => divisoes.includes(divisao))
+                && itemCorrespondeAosFiltros(item, filtros)
+            );
+            bancoPatrimonio = extras;
+            totalRelacao += extras.length;
+            cachearPatrimonios(extras);
+          }
         }
 
         const snapshot = await getDocs(configuracao.consulta);
