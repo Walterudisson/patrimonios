@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CM APP">
-  <rect width="512" height="512" fill="#0f172a"/>
-  <rect x="96" y="126" width="320" height="260" rx="42" fill="#172554"/>
-  <path d="M96 126h320v78H96z" fill="#2563eb"/>
-  <path d="M96 204h320v182H96z" fill="#1e3a8a" opacity=".34"/>
-  <text x="256" y="326" fill="#e2e8f0" font-family="Arial, sans-serif" font-size="142" font-weight="700" text-anchor="middle">CM</text>
-</svg>
