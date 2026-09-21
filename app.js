@@ -16,7 +16,7 @@
       getCountFromServer
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { auth, db, authSecundario } from "./js/config/firebase.js";
-    import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js?v=1.12.1";
+    import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js?v=1.12.5";
     import { situacaoPatrimonio, divisoesVisiveisPatrimonio, patrimonioVisivelParaDivisoes, correspondeSituacaoPatrimonio, contarSituacoesPatrimonio } from "./js/core/relacao.js?v=1.12.2";
     import { carregarPaginaIntercalada } from "./js/core/paginacao.js?v=1.12.4";
     import { validarNovaSenha } from "./js/core/perfil.js";
@@ -45,6 +45,7 @@
     let bancoUsuarios = [];
     let bancoTransferencias = [];
     let itemAtualSelecionado = null;
+    let metodoLocalizacaoSelecionado = 'digitacao';
     let itensFiltradosCache = [];
     let unsubscribeTransferencias = null;
     let abaAtual = 'dashboard';
@@ -63,6 +64,18 @@
     let fotoPerfilUrl = '';
 
     const TAMANHO_PAGINA_RELACAO = 50;
+    const nomeMetodoLocalizacao = metodo => ({
+      codigo_barras: 'Código de barras',
+      ocr: 'OCR',
+      digitacao: 'Digitação'
+    })[metodo] || 'Não registrado';
+    const detalheMetodoHistorico = evento => !evento.acao
+      || ['conferencia', 'transferencia_solicitada'].includes(evento.acao)
+      ? ` · Método: ${nomeMetodoLocalizacao(evento.metodoLocalizacao)}`
+      : '';
+    const escaparHtml = valor => String(valor ?? '').replace(/[&<>"']/g, caractere => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[caractere]);
 
     auth.languageCode = 'pt-BR';
 
@@ -1232,12 +1245,12 @@
       }
     });
 
-    async function preencherEConsultarPlaqueta(codigoLido) {
+    async function preencherEConsultarPlaqueta(codigoLido, origem = 'digitacao') {
       const codLimpo = limparPlaqueta(codigoLido);
       if (!codLimpo) return false;
       document.getElementById('input-plaqueta').value = codLimpo;
       document.getElementById('btn-limpar-plaqueta')?.classList.remove('hidden');
-      return buscarEExibirItem(codLimpo);
+      return buscarEExibirItem(codLimpo, origem);
     }
 
     const inputPlaqueta = document.getElementById('input-plaqueta');
@@ -1268,6 +1281,7 @@
     }
 
     function limparFormularioLeitura() {
+      metodoLocalizacaoSelecionado = 'digitacao';
       inputPlaqueta.value = '';
       btnLimparPlaqueta?.classList.add('hidden');
       suggestionsBox.classList.add('hidden');
@@ -1280,6 +1294,7 @@
     }
 
     inputPlaqueta.addEventListener('input', (e) => {
+      metodoLocalizacaoSelecionado = 'digitacao';
       const valor = limparPlaqueta(e.target.value);
       ocultarPatrimonioNaoEncontrado();
       if (itemAtualSelecionado && valor !== String(itemAtualSelecionado.plaqueta)) {
@@ -1360,7 +1375,7 @@
       if (item) { preencherEConsultarPlaqueta(item.getAttribute('data-plaqueta')); suggestionsBox.classList.add('hidden'); }
     });
 
-    document.getElementById('btn-buscar').addEventListener('click', () => buscarEExibirItem(limparPlaqueta(inputPlaqueta.value)));
+    document.getElementById('btn-buscar').addEventListener('click', () => buscarEExibirItem(limparPlaqueta(inputPlaqueta.value), 'digitacao'));
     btnLimparPlaqueta?.addEventListener('click', () => {
       limparFormularioLeitura();
       inputPlaqueta.focus();
@@ -1373,11 +1388,12 @@
     inputPlaqueta.addEventListener('keydown', event => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
-      buscarEExibirItem(limparPlaqueta(inputPlaqueta.value));
+      buscarEExibirItem(limparPlaqueta(inputPlaqueta.value), 'digitacao');
     });
 
-    async function buscarEExibirItem(plaquetaCod) {
+    async function buscarEExibirItem(plaquetaCod, origem = 'digitacao') {
       if (!plaquetaCod) return false;
+      metodoLocalizacaoSelecionado = origem === 'codigo' ? 'codigo_barras' : origem === 'ocr' ? 'ocr' : 'digitacao';
       const itemLocal = cachePatrimonios.get(plaquetaCod);
       if (itemLocal) {
         itemAtualSelecionado = itemLocal;
@@ -1397,6 +1413,7 @@
           document.getElementById('item-details').classList.add('hidden');
           exibirPatrimonioNaoEncontrado(plaquetaCod);
           notificarMensagem(`Patrimônio com a plaqueta ${plaquetaCod} não foi encontrado.`, 'aviso');
+          metodoLocalizacaoSelecionado = 'digitacao';
           return false;
         }
       }
@@ -1435,10 +1452,10 @@
         histLista.innerHTML = [...item.historico].reverse().map(h => `
           <div class="p-1.5 rounded bg-slate-950/60 border border-slate-800 text-[10px] space-y-0.5">
             <div class="flex justify-between font-bold text-blue-300">
-              <span>📍 ${h.local}</span>
-              <span class="text-slate-400">${h.data}</span>
+              <span>📍 ${escaparHtml(h.local)}</span>
+              <span class="text-slate-400">${escaparHtml(h.data)}</span>
             </div>
-            <div class="text-slate-400">Por: ${h.responsavel} ${h.obs ? `| Obs: ${h.obs}` : ''}</div>
+            <div class="text-slate-400">Por: ${escaparHtml(h.responsavel || 'Não registrado')}${detalheMetodoHistorico(h)}${h.obs ? ` · Obs: ${escaparHtml(h.obs)}` : ''}</div>
           </div>
         `).join('');
         document.getElementById('det-historico-box').classList.remove('hidden');
@@ -1494,6 +1511,7 @@
           localizacaoDestino: locAtual,
           usuario: usuarioLogado,
           observacao: obs,
+          metodoLocalizacao: metodoLocalizacaoSelecionado,
           dataHora
         });
 
@@ -1622,7 +1640,10 @@
                         <dd>${item.divisaoDestinoSugerida || 'Não informado'}</dd>
                       </div>
                     </dl>
-                    ${item.observacaoAtual ? `<p class="transfer-note"><strong>Observação:</strong> ${item.observacaoAtual}</p>` : ''}
+                    <div class="transfer-note">
+                      <strong>💬 Observação da conferência</strong>
+                      <p>${escaparHtml(item.observacaoAtual || 'Nenhuma observação informada.')}</p>
+                    </div>
                     <div class="transfer-actions">
                       <button type="button" onclick="aprovarTransferencia('${item.plaqueta}')" class="transfer-approve">Aprovar</button>
                       <button type="button" onclick="rejeitarTransferencia('${item.plaqueta}')" class="transfer-reject">Rejeitar</button>
@@ -1736,11 +1757,11 @@
               ${item.historico && item.historico.length > 0 ? [...item.historico].reverse().map(h => `
                 <div class="p-2 rounded bg-slate-950/60 border border-slate-800 space-y-0.5">
                   <div class="flex justify-between font-bold text-blue-300">
-                    <span>📍 ${h.local}</span>
-                    <span class="text-slate-400 text-[10px]">${h.data}</span>
+                    <span>📍 ${escaparHtml(h.local)}</span>
+                    <span class="text-slate-400 text-[10px]">${escaparHtml(h.data)}</span>
                   </div>
-                  ${h.acao ? `<div class="text-[10px] text-slate-500">Ação: ${h.acao.replaceAll('_', ' ')}</div>` : ''}
-                  <div class="text-slate-400 text-[10px]">Por: ${h.responsavel}${h.obs ? `| Obs: ${h.obs}` : ''}</div>
+                  ${h.acao ? `<div class="text-[10px] text-slate-500">Ação: ${escaparHtml(h.acao.replaceAll('_', ' '))}</div>` : ''}
+                  <div class="text-slate-400 text-[10px]">Por: ${escaparHtml(h.responsavel || 'Não registrado')}${detalheMetodoHistorico(h)}${h.obs ? ` · Obs: ${escaparHtml(h.obs)}` : ''}</div>
                 </div>
               `).join('') : '<div class="text-slate-400 text-xs italic">Nenhum registro histórico adicional.</div>'}
             </div>
@@ -2058,7 +2079,7 @@
           </button>
           <div id="acc-${idx}" class="accordion-content collapsed p-3 grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-900/50">
             ${visiveisDaDiv.map(item => `
-              <div onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')" class="bg-slate-800/90 p-3 rounded-lg border border-slate-700 text-xs space-y-1.5 cursor-pointer hover:border-blue-500/60 transition-colors shadow-sm">
+              <div onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')" class="patrimonio-card patrimonio-card--${situacaoPatrimonio(item)} bg-slate-800/90 p-3 rounded-lg border text-xs space-y-1.5 cursor-pointer transition-colors shadow-sm">
                 <div class="flex justify-between items-center">
                   <span class="font-bold text-white text-sm">Plaqueta: ${item.plaqueta}</span>
                   <span class="px-2 py-0.5 rounded text-[10px] font-bold ${situacaoPatrimonio(item) === 'aguardando' ? 'bg-amber-900 text-amber-300' : situacaoPatrimonio(item) === 'localizados' ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">

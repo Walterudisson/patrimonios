@@ -455,7 +455,15 @@
     .transfer-route dt { color: #64748b; font-size: 0.54rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; }
     .transfer-route dd { margin-top: 0.18rem; overflow-wrap: anywhere; color: #cbd5e1; font-size: 0.66rem; font-weight: 700; }
     .transfer-route div:last-child dd { color: #6ee7b7; }
-    .transfer-note { border-top: 1px solid #334155; padding-top: 0.65rem; color: #cbd5e1; font-size: 0.65rem; line-height: 1.45; }
+    .transfer-note { border: 1px solid rgb(245 158 11 / 0.6); border-left: 4px solid #f59e0b; border-radius: 0.6rem; background: rgb(120 53 15 / 0.24); padding: 0.75rem; line-height: 1.5; }
+    .transfer-note strong { display: block; margin-bottom: 0.25rem; color: #fde68a; font-size: 0.7rem; }
+    .transfer-note p { color: #f8fafc; font-size: 0.72rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .patrimonio-card--localizados { border-color: #10b981; }
+    .patrimonio-card--localizados:hover { border-color: #6ee7b7; }
+    .patrimonio-card--aguardando { border-color: #f59e0b; }
+    .patrimonio-card--aguardando:hover { border-color: #fcd34d; }
+    .patrimonio-card--pendentes { border-color: #ef4444; }
+    .patrimonio-card--pendentes:hover { border-color: #fca5a5; }
     .transfer-actions { display: grid; grid-template-columns: 1fr auto; gap: 0.55rem; margin-top: auto; }
     .transfer-actions button { min-height: 2.35rem; border-radius: 0.55rem; padding: 0.45rem 0.8rem; font-size: 0.67rem; font-weight: 900; }
     .transfer-approve { background: #059669; color: white; }

@@ -7,6 +7,7 @@ export function prepararAtualizacaoPatrimonio({
   localizacaoDestino,
   usuario,
   observacao = '',
+  metodoLocalizacao,
   dataHora
 }) {
   if (!item || !localizacaoDestino || !usuario || !dataHora) {
@@ -18,6 +19,9 @@ export function prepararAtualizacaoPatrimonio({
   if (item.statusTransferencia === 'pendente') {
     throw new Error('Este patrimônio já possui uma transferência aguardando aprovação.');
   }
+  if (!['codigo_barras', 'ocr', 'digitacao'].includes(metodoLocalizacao)) {
+    throw new Error('Informe como a plaqueta foi localizada.');
+  }
   const houveMudanca = localizacaoAnterior !== localizacaoDestino;
   const perfilValidador = ehPerfilValidador(usuario.perfil);
   const acao = houveMudanca ? 'transferencia_solicitada' : 'conferencia';
@@ -28,6 +32,7 @@ export function prepararAtualizacaoPatrimonio({
       local: localizacaoDestino,
       data: dataHora,
       responsavel: `${usuario.nome} (${usuario.email})`,
+      metodoLocalizacao,
       obs: observacao,
       acao
     }
