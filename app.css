@@ -262,6 +262,10 @@
       box-shadow: 0 8px 24px rgb(2 6 23 / 0.24);
     }
     .app-content { flex: 1; width: 100%; max-width: 1440px; margin: 0 auto; padding: clamp(1rem, 2.6vw, 2rem); }
+    .escopo-barra { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; padding: 0.85rem 1rem; border: 1px solid rgb(96 165 250 / 0.4); border-radius: 0.85rem; background: #162339; }
+    .escopo-barra label { display: block; color: #bfdbfe; font-size: 0.78rem; font-weight: 800; }
+    .escopo-barra p { margin-top: 0.2rem; color: #94a3b8; font-size: 0.66rem; line-height: 1.4; }
+    .escopo-barra select { flex: 0 1 22rem; min-width: 12rem; max-width: 100%; padding: 0.65rem; border: 1px solid #64748b; border-radius: 0.6rem; background: #0f172a; color: #fff; font-size: 0.75rem; }
     .app-footer { display: flex; justify-content: space-between; gap: 1rem; padding: 1rem clamp(1rem, 2.6vw, 2rem); color: #64748b; font-size: 0.62rem; }
     .app-card {
       border: 1px solid rgb(51 65 85 / 0.8);
@@ -511,6 +515,8 @@
       .profile-page-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 639px) {
+      .escopo-barra { flex-direction: column; align-items: stretch; gap: 0.65rem; }
+      .escopo-barra select { flex: none; width: 100%; }
       .app-topbar { min-height: 64px; padding: 0.55rem 0.75rem; }
       .profile-trigger-copy, .breadcrumb { display: none; }
       .app-content { padding: 0.85rem; }

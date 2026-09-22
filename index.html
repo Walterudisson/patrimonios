@@ -20,7 +20,7 @@
   <!-- Motor de OCR (Tesseract.js) -->
   <script src="https://unpkg.com/tesseract.js@v5.1.0/dist/tesseract.min.js"></script>
 
-  <link rel="stylesheet" href="./app.css?v=1.12.5">
+  <link rel="stylesheet" href="./app.css?v=1.13.0">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
@@ -52,7 +52,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.12.5 • Sprint 1.2</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.13.0 • Sprint 1.3A</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -111,7 +111,7 @@
       </nav>
 
       <div class="sidebar-footer sidebar-label">
-        <span>v1.12.5</span>
+        <span>v1.13.0</span>
         <button id="btn-logout-sidebar" type="button">SAIR</button>
       </div>
     </aside>
@@ -158,6 +158,13 @@
       </div>
 
       <main id="main-content" class="app-content" tabindex="-1">
+        <div id="escopo-barra" class="hidden escopo-barra">
+          <div>
+            <label for="escopo-divisao">Divisão em foco</label>
+            <p id="escopo-descricao">O Painel e a Relação mostram os itens vinculados à divisão escolhida.</p>
+          </div>
+          <select id="escopo-divisao" aria-describedby="escopo-descricao"></select>
+        </div>
 
       <!-- ABA 0: DASHBOARD -->
       <section id="sec-dashboard" class="space-y-5">
@@ -519,11 +526,6 @@
                 <option value="aguardando">⏳ Aguardando aprovação</option>
               </select>
             </div>
-            <div>
-              <select id="filtro-divisao" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
-                <option value="todas">Todas as Divisões permitidas</option>
-              </select>
-            </div>
           </div>
 
           <div class="pt-2 border-t border-slate-700/60">
@@ -554,7 +556,7 @@
 
       <footer class="app-footer">
         <span>CM APP · Patrimônio</span>
-        <span>v1.12.5 · Sprint 1.2</span>
+        <span>v1.13.0 · Sprint 1.3A</span>
       </footer>
     </div>
   </div>
@@ -661,6 +663,6 @@
     </div>
   </div>
 
-    <script type="module" src="./app.js?v=1.12.5"></script>
+    <script type="module" src="./app.js?v=1.13.0"></script>
 </body>
 </html>

@@ -19,6 +19,7 @@
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js?v=1.12.5";
     import { situacaoPatrimonio, divisoesVisiveisPatrimonio, patrimonioVisivelParaDivisoes, correspondeSituacaoPatrimonio, contarSituacoesPatrimonio } from "./js/core/relacao.js?v=1.12.2";
     import { carregarPaginaIntercalada } from "./js/core/paginacao.js?v=1.12.4";
+    import { divisoesDisponiveis, escopoInicial } from "./js/core/escopo.js?v=1.13.0";
     import { validarNovaSenha } from "./js/core/perfil.js";
     import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.12.0";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
@@ -62,6 +63,8 @@
     let relacaoUsandoBaseCompleta = false;
     let lotesRelacao = null;
     let fotoPerfilUrl = '';
+    let escopoVisualizacao = '';
+    let revisaoEscopo = 0;
 
     const TAMANHO_PAGINA_RELACAO = 50;
     const nomeMetodoLocalizacao = metodo => ({
@@ -293,6 +296,9 @@
         document.getElementById('view-login').classList.add('hidden');
         document.getElementById('view-app').classList.remove('hidden');
         atualizarCabecalhoUsuario();
+        try { await carregarCatalogoDivisoes(); }
+        catch (erro) { console.warn('Catálogo indisponível ao abrir o aplicativo.', erro); }
+        inicializarEscopoVisualizacao();
         await carregarFotoPerfilAtual();
         atualizarCarrossel();
         await alternarAba('dashboard', { substituirHistorico: true });
@@ -300,6 +306,8 @@
         encerrarOuvinteTransferencias();
         if (controladorCamera.estaAtiva()) await controladorCamera.desligar({ limparResultado: true });
         usuarioLogado = null;
+        escopoVisualizacao = '';
+        revisaoEscopo++;
         bancoPatrimonio = [];
         bancoUsuarios = [];
         bancoTransferencias = [];
@@ -334,7 +342,7 @@
       const panelCiclo = document.getElementById('panel-gestao-ciclo');
       const btnSalvar = document.getElementById('btn-salvar');
       document.getElementById('dash-aguardando-acao').innerText = usuarioLogado.perfil === 'conferente'
-        ? 'Ver na relação →' : 'Abrir fila →';
+        ? 'Ver na relação →' : 'Abrir fila geral →';
 
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
@@ -585,7 +593,6 @@
 
     function popularSelectsDivisao() {
       const selectLocalizacao = document.getElementById('select-localizacao');
-      const selectFiltro = document.getElementById('filtro-divisao');
       const selectReversao = document.getElementById('select-divisao-reversao');
       const checkContainer = document.getElementById('cad-divisoes-checkboxes');
       const editCheckContainer = document.getElementById('edit-divisoes-checkboxes');
@@ -611,8 +618,8 @@
       };
 
       reconstruirSelect(selectLocalizacao, usuarioTemAcessoDivisao);
-      reconstruirSelect(selectFiltro, usuarioTemAcessoDivisao);
       reconstruirSelect(selectReversao);
+      atualizarSeletorEscopo();
 
       const marcadasCadastro = new Set([...document.querySelectorAll('input[name="divisao-check"]:checked')].map(cb => cb.value));
       const marcadasEdicao = new Set([...document.querySelectorAll('input[name="edit-divisao-check"]:checked')].map(cb => cb.value));
@@ -639,6 +646,59 @@
       preencherCheckboxes(editCheckContainer, 'edit-divisao-check', marcadasEdicao);
     }
 
+    function atualizarSeletorEscopo() {
+      const select = document.getElementById('escopo-divisao');
+      if (!select || !usuarioLogado) return;
+      const divisoes = divisoesDisponiveis(usuarioLogado, [...catalogoDivisoes]);
+      const opcoes = [];
+      if (usuarioLogado.perfil === 'conferente' && divisoes.length > 1) {
+        opcoes.push({ valor: '', texto: 'Escolha uma divisão para começar' });
+      }
+      if (usuarioLogado.perfil !== 'conferente' || divisoes.length > 1) {
+        opcoes.push({ valor: 'todas', texto: 'Todas as divisões permitidas' });
+      }
+      divisoes.forEach(divisao => opcoes.push({ valor: divisao, texto: divisao }));
+      select.replaceChildren(...opcoes.map(({ valor, texto }) => {
+        const opcao = document.createElement('option');
+        opcao.value = valor;
+        opcao.textContent = texto;
+        return opcao;
+      }));
+      select.value = escopoVisualizacao;
+      document.getElementById('escopo-descricao').textContent = !escopoVisualizacao
+        ? 'Escolha uma divisão para consultar o Painel e a Relação.'
+        : escopoVisualizacao === 'todas'
+          ? 'Painel e Relação: todas as divisões permitidas. A Fila de aprovação mantém a visão geral.'
+          : `Painel e Relação: itens vinculados a ${escopoVisualizacao}. A Fila de aprovação mantém a visão geral.`;
+    }
+
+    function inicializarEscopoVisualizacao() {
+      let salvo = '';
+      try { salvo = sessionStorage.getItem(`cmapp-escopo-${usuarioLogado.uid}`) || ''; }
+      catch (_) {}
+      escopoVisualizacao = escopoInicial(usuarioLogado, [...catalogoDivisoes], salvo);
+      revisaoEscopo++;
+      atualizarSeletorEscopo();
+    }
+
+    document.getElementById('escopo-divisao').addEventListener('change', async evento => {
+      if (!usuarioLogado) return;
+      const valor = evento.target.value;
+      const permitidas = divisoesDisponiveis(usuarioLogado, [...catalogoDivisoes]);
+      if (valor !== 'todas' && !permitidas.includes(valor)) return;
+      if (valor === escopoVisualizacao) return;
+      escopoVisualizacao = valor;
+      revisaoEscopo++;
+      try { sessionStorage.setItem(`cmapp-escopo-${usuarioLogado.uid}`, valor); }
+      catch (_) {}
+      invalidarCacheRelacao();
+      bancoPatrimonio = [];
+      itensFiltradosCache = [];
+      atualizarSeletorEscopo();
+      if (abaAtual === 'dashboard') await carregarDashboard();
+      if (abaAtual === 'lista') await carregarRelacaoPatrimonial({ reiniciar: true });
+    });
+
     async function alternarAba(abaAtiva, { registrarHistorico = true, substituirHistorico = false } = {}) {
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
         if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios' || abaAtiva === 'inventarios') {
@@ -650,6 +710,7 @@
       if (registrarHistorico) registrarAbaHistorico(abaAtiva, { substituir: substituirHistorico });
       abaAtual = abaAtiva;
       ativarPagina(abaAtiva);
+      document.getElementById('escopo-barra').classList.toggle('hidden', !['dashboard', 'lista'].includes(abaAtiva));
       fecharNavegacaoMovel();
 
       if (abaAtiva !== 'scanner' && controladorCamera.estaAtiva()) {
@@ -686,7 +747,7 @@
       }
     }
 
-    function aplicarNumerosDashboard(total, localizados, pendentes, aguardando) {
+    function aplicarNumerosDashboard(total, localizados, pendentes, aguardando, aguardandoGlobal = aguardando) {
       document.getElementById('dash-total').innerText = total;
       document.getElementById('dash-localizados').innerText = localizados;
       document.getElementById('dash-pendentes').innerText = pendentes;
@@ -697,11 +758,7 @@
       const progresso = document.querySelector('.progress-track');
       progresso?.setAttribute('aria-valuenow', String(percentual));
 
-      const badgeFila = document.getElementById('badge-fila-count');
-      if (aguardando > 0 && usuarioLogado.perfil !== 'conferente') {
-        badgeFila.innerText = aguardando;
-        badgeFila.classList.remove('hidden');
-      } else { badgeFila.classList.add('hidden'); }
+      aplicarBadgeTransferencias(aguardandoGlobal);
     }
 
     document.querySelectorAll('[data-dashboard-target]').forEach(card => {
@@ -725,8 +782,59 @@
 
     async function carregarDashboard() {
       if (!usuarioLogado) return;
+      const escopoDaConsulta = escopoVisualizacao;
+      const revisaoDaConsulta = revisaoEscopo;
       ['dash-total', 'dash-localizados', 'dash-pendentes', 'dash-aguardando']
         .forEach(id => document.getElementById(id).innerText = '…');
+
+      if (!escopoDaConsulta) {
+        ['dash-total', 'dash-localizados', 'dash-pendentes', 'dash-aguardando']
+          .forEach(id => document.getElementById(id).innerText = '—');
+        document.getElementById('dash-progress-text').innerText = 'Escolha uma divisão para começar';
+        document.getElementById('dash-progress-bar').style.width = '0%';
+        document.querySelector('.progress-track')?.setAttribute('aria-valuenow', '0');
+        return;
+      }
+
+      if (escopoDaConsulta !== 'todas') {
+        const patrimoniosRef = collection(db, 'patrimonios');
+        const filtroDivisao = or(
+          where('divisaoOrigem', '==', escopoDaConsulta),
+          where('divisao', '==', escopoDaConsulta),
+          where('localizacaoAtual', '==', escopoDaConsulta),
+          and(where('statusTransferencia', '==', 'pendente'),
+            where('divisaoDestinoSugerida', '==', escopoDaConsulta))
+        );
+        try {
+          const [totalSnap, localizadosSnap, aguardandoSnap, globalSnap] = await Promise.all([
+            getCountFromServer(query(patrimoniosRef, filtroDivisao)),
+            getCountFromServer(query(patrimoniosRef, and(filtroDivisao, where('localizado', '==', true)))),
+            getCountFromServer(query(patrimoniosRef, and(filtroDivisao, where('statusTransferencia', '==', 'pendente')))),
+            usuarioLogado.perfil === 'conferente'
+              ? Promise.resolve(null)
+              : getCountFromServer(query(patrimoniosRef, where('statusTransferencia', '==', 'pendente')))
+                .catch(erro => {
+                  console.warn('Contagem global da Fila indisponível.', erro);
+                  return null;
+                })
+          ]);
+          if (revisaoDaConsulta !== revisaoEscopo) return;
+          const total = totalSnap.data().count;
+          const aguardando = aguardandoSnap.data().count;
+          const localizados = Math.max(0, localizadosSnap.data().count - aguardando);
+          aplicarNumerosDashboard(total, localizados, Math.max(0, total - localizados - aguardando),
+            aguardando, globalSnap?.data().count ?? 0);
+        } catch (erro) {
+          if (revisaoDaConsulta !== revisaoEscopo) return;
+          console.error('Falha nas contagens da divisão selecionada:', erro);
+          ['dash-total', 'dash-localizados', 'dash-pendentes', 'dash-aguardando']
+            .forEach(id => document.getElementById(id).innerText = '—');
+          document.getElementById('dash-progress-text').innerText = 'Contagens indisponíveis para esta divisão';
+          document.getElementById('dash-progress-bar').style.width = '0%';
+          document.querySelector('.progress-track')?.setAttribute('aria-valuenow', '0');
+        }
+        return;
+      }
 
       if (usuarioLogado.perfil === 'admin' || usuarioLogado.perfil === 'gestor') {
         const patrimoniosRef = collection(db, "patrimonios");
@@ -735,6 +843,7 @@
           getCountFromServer(query(patrimoniosRef, where("localizado", "==", true))),
           getCountFromServer(query(patrimoniosRef, where("statusTransferencia", "==", "pendente")))
         ]);
+        if (revisaoDaConsulta !== revisaoEscopo) return;
 
         const total = totalSnap.data().count;
         const totalMarcadosLocalizados = localizadosSnap.data().count;
@@ -786,6 +895,7 @@
               ![item.divisaoOrigem, item.divisao, item.localizacaoAtual].some(divisao => divisoes.includes(divisao))
             ).length;
           }
+          if (revisaoDaConsulta !== revisaoEscopo) return;
           const total = totalSnap.data().count + extras;
           const totalMarcadosLocalizados = localizadosSnap.data().count;
           const aguardando = aguardandoSnap.data().count + extras;
@@ -813,6 +923,7 @@
       }
 
       const itens = await carregarPatrimoniosPermitidos();
+      if (revisaoDaConsulta !== revisaoEscopo) return;
       const contagens = contarSituacoesPatrimonio(itens);
       aplicarNumerosDashboard(contagens.total, contagens.localizados, contagens.pendentes, contagens.aguardando);
     }
@@ -1779,7 +1890,7 @@
       const patrimoniosRef = collection(db, "patrimonios");
       const termo = limparPlaqueta(document.getElementById('filtro-busca').value);
       const statusFiltro = document.getElementById('filtro-status').value;
-      const divisaoFiltro = document.getElementById('filtro-divisao').value;
+      const divisaoFiltro = escopoVisualizacao;
       const filtros = [];
       let relacaoFragmentada = false;
       let divisoesDoConferente = [];
@@ -1837,7 +1948,7 @@
       return {
         termo: limparPlaqueta(document.getElementById('filtro-busca').value),
         status: document.getElementById('filtro-status').value,
-        divisao: document.getElementById('filtro-divisao').value
+        divisao: escopoVisualizacao
       };
     }
 
@@ -1881,7 +1992,7 @@
             : `${bancoPatrimonio.length} de ${totalRelacao} item(ns) carregado(s)`;
       }
       if (botao) {
-        botao.classList.toggle('hidden', !relacaoTemMais || bancoPatrimonio.length === 0);
+        botao.classList.toggle('hidden', !relacaoTemMais);
         botao.disabled = relacaoCarregando;
         botao.innerText = relacaoCarregando ? 'Carregando…' : `Carregar mais ${TAMANHO_PAGINA_RELACAO}`;
       }
@@ -1889,6 +2000,14 @@
 
     async function carregarRelacaoPatrimonial({ reiniciar = false, carregarMais = false, forcarServidor = false } = {}) {
       if (relacaoCarregando) return;
+      const escopoDaConsulta = escopoVisualizacao;
+      const revisaoDaConsulta = revisaoEscopo;
+      if (!escopoDaConsulta) {
+        document.getElementById('container-accordions').innerHTML = '<div class="app-card">Escolha uma divisão em foco para consultar a Relação.</div>';
+        document.getElementById('relacao-paginacao-info').textContent = 'Aguardando escolha de divisão';
+        document.getElementById('btn-carregar-mais').classList.add('hidden');
+        return;
+      }
       if (reiniciar && !forcarServidor && aplicarFiltrosNaBaseCompleta()) return;
       if (relacaoCarregada && !reiniciar && !carregarMais) {
         renderizarRelaçãoBD();
@@ -1935,6 +2054,7 @@
             fontes: lotesRelacao,
             tamanhoPagina: TAMANHO_PAGINA_RELACAO,
             carregarLote: async fonte => {
+              if (revisaoDaConsulta !== revisaoEscopo) throw new Error('Escopo alterado durante a consulta.');
               const consulta = criarConsultaRelacao(fonte.cursor, false, { divisoesLote: fonte.divisoes, tamanhoPagina: tamanhoLote });
               const snapshot = await getDocs(consulta.consulta);
               return {
@@ -1947,6 +2067,7 @@
               normalizarPatrimonio(docSnap), document.getElementById('filtro-status').value
             )
           });
+          if (revisaoDaConsulta !== revisaoEscopo) return;
           const novosItens = pagina.map(normalizarPatrimonio);
           bancoPatrimonio.push(...novosItens);
           cachearPatrimonios(novosItens);
@@ -1959,6 +2080,7 @@
           }
           renderizarRelaçãoBD();
         } catch (erro) {
+          if (revisaoDaConsulta !== revisaoEscopo) return;
           console.error('Erro na consulta paginada por divisões:', erro);
           lotesRelacao = null;
           relacaoTemMais = false;
@@ -1966,7 +2088,9 @@
           container.innerHTML = `<div class="bg-red-950/40 p-5 rounded-xl border border-red-500/30 text-center text-xs text-red-300">Não foi possível carregar esta página. Verifique as regras e os índices do Firestore.</div>`;
         } finally {
           relacaoCarregando = false;
-          atualizarPaginacaoRelacao();
+          if (revisaoDaConsulta !== revisaoEscopo && abaAtual === 'lista') {
+            void carregarRelacaoPatrimonial({ reiniciar: true });
+          } else atualizarPaginacaoRelacao();
         }
         return;
       }
@@ -1977,6 +2101,7 @@
         if (reiniciar || !relacaoCarregada) {
           const configuracaoContagem = criarConsultaRelacao(null, true);
           const contagemSnap = await getCountFromServer(configuracaoContagem.consulta);
+          if (revisaoDaConsulta !== revisaoEscopo) return;
           totalRelacao = contagemSnap.data().count;
           if (configuracao.relacaoFragmentada && ['todos', 'aguardando'].includes(document.getElementById('filtro-status').value)) {
             const divisoes = configuracao.divisoesDoConferente;
@@ -1984,6 +2109,7 @@
               where('statusTransferencia', '==', 'pendente'),
               where('divisaoDestinoSugerida', 'in', divisoes)
             ));
+            if (revisaoDaConsulta !== revisaoEscopo) return;
             const filtros = obterFiltrosRelacao();
             const extras = pendenciasDestino.docs.map(normalizarPatrimonio).filter(item =>
               ![item.divisaoOrigem, item.divisao, item.localizacaoAtual].some(divisao => divisoes.includes(divisao))
@@ -1996,6 +2122,7 @@
         }
 
         const snapshot = await getDocs(configuracao.consulta);
+        if (revisaoDaConsulta !== revisaoEscopo) return;
         const novosItens = snapshot.docs.map(normalizarPatrimonio);
         const porPlaqueta = new Map(bancoPatrimonio.map(item => [item.plaqueta, item]));
         novosItens.forEach(item => porPlaqueta.set(item.plaqueta, item));
@@ -2012,12 +2139,15 @@
         }
         renderizarRelaçãoBD();
       } catch (erro) {
+        if (revisaoDaConsulta !== revisaoEscopo) return;
         console.error("Erro na consulta paginada da Relação:", erro);
         relacaoTemMais = false;
         container.innerHTML = `<div class="bg-red-950/40 p-5 rounded-xl border border-red-500/30 text-center text-xs text-red-300">Não foi possível carregar a consulta. Verifique as regras e os índices do Firestore.</div>`;
       } finally {
         relacaoCarregando = false;
-        atualizarPaginacaoRelacao();
+        if (revisaoDaConsulta !== revisaoEscopo && abaAtual === 'lista') {
+          void carregarRelacaoPatrimonial({ reiniciar: true });
+        } else atualizarPaginacaoRelacao();
       }
     }
 
@@ -2027,7 +2157,7 @@
 
       const termo = limparPlaqueta(document.getElementById('filtro-busca').value);
       const statusFiltro = document.getElementById('filtro-status').value;
-      const divisaoFiltro = document.getElementById('filtro-divisao').value;
+      const divisaoFiltro = escopoVisualizacao;
       const minhasDivs = usuarioLogado.divisoesAtribuidas || [];
 
       const itensPermitidos = bancoPatrimonio.filter(i => {
@@ -2037,7 +2167,8 @@
 
       const gruposTotal = {};
       itensPermitidos.forEach(i => {
-        const divAtual = i.localizacaoAtual || i.divisaoOrigem || i.divisao;
+        const divAtual = divisaoFiltro !== 'todas'
+          ? divisaoFiltro : (i.localizacaoAtual || i.divisaoOrigem || i.divisao);
         if (!gruposTotal[divAtual]) gruposTotal[divAtual] = [];
         gruposTotal[divAtual].push(i);
       });
@@ -2054,7 +2185,8 @@
 
       const gruposFiltrados = {};
       itensFiltrados.forEach(i => {
-        const divAtual = i.localizacaoAtual || i.divisaoOrigem || i.divisao;
+        const divAtual = divisaoFiltro !== 'todas'
+          ? divisaoFiltro : (i.localizacaoAtual || i.divisaoOrigem || i.divisao);
         if (!gruposFiltrados[divAtual]) gruposFiltrados[divAtual] = [];
         gruposFiltrados[divAtual].push(i);
       });
@@ -2127,7 +2259,6 @@
       filtroBuscaRelacao.focus();
     });
     document.getElementById('filtro-status').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
-    document.getElementById('filtro-divisao').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
     document.getElementById('btn-atualizar-relacao')?.addEventListener('click', () => {
       invalidarCacheRelacao();
       carregarRelacaoPatrimonial({ reiniciar: true, forcarServidor: true });
