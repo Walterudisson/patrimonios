@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "patrimonios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "divisaoOrigem", "order": "ASCENDING" },
+        { "fieldPath": "localizacaoAtual", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "patrimonios",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "divisao", "order": "ASCENDING" },
+        { "fieldPath": "localizacaoAtual", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
