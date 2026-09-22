@@ -32,3 +32,18 @@ export function descontarItensForaDoEscopo(contagens, itensFora) {
   const aguardando = Math.max(0, contagens.aguardando - saidas.aguardando);
   return { total, localizados, pendentes: Math.max(0, total - localizados - aguardando), aguardando };
 }
+
+export function resumirProgressoDivisao(contagens, entradasPendentes) {
+  const entradas = Math.max(0, entradasPendentes);
+  const total = Math.max(0, contagens.total - entradas);
+  const localizados = Math.min(total, contagens.localizados);
+  const aguardando = Math.max(0, contagens.aguardando - entradas);
+  return {
+    total,
+    localizados,
+    aguardando,
+    pendentes: Math.max(0, total - localizados - aguardando),
+    entradas,
+    percentual: total ? Math.round(localizados / total * 100) : 0
+  };
+}

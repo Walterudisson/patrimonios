@@ -4,7 +4,7 @@ const PAGINAS = {
   lista: { titulo: 'Relação', trilha: ['CM APP', 'Patrimônio', 'Relação'] },
   transferencias: { titulo: 'Fila de aprovação', trilha: ['CM APP', 'Movimentações', 'Fila'] },
   usuarios: { titulo: 'Gestão de usuários', trilha: ['CM APP', 'Gestão', 'Usuários'] },
-  inventarios: { titulo: 'Gestão de inventários', trilha: ['CM APP', 'Gestão', 'Inventários'] },
+  inventarios: { titulo: 'Inventários', trilha: ['CM APP', 'Patrimônio', 'Inventários'] },
   perfil: { titulo: 'Meu perfil', trilha: ['CM APP', 'Conta', 'Meu perfil'] }
 };
 

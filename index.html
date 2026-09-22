@@ -20,7 +20,7 @@
   <!-- Motor de OCR (Tesseract.js) -->
   <script src="https://unpkg.com/tesseract.js@v5.1.0/dist/tesseract.min.js"></script>
 
-  <link rel="stylesheet" href="./app.css?v=1.13.2">
+  <link rel="stylesheet" href="./app.css?v=1.13.3">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
@@ -52,7 +52,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.13.2 • Sprint 1.3A</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.13.3 • Sprint 1.3C</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -93,6 +93,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5V5Zm3 3h8M8 12h8M8 16h5"/></svg>
           <span class="sidebar-label">Relação</span>
         </button>
+        <button id="tab-btn-inventarios" type="button" class="nav-item" data-nav-page="inventarios">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4V7Zm2-3h12l2 3H4l2-3Zm3 7h6M9 15h6"/></svg>
+          <span class="sidebar-label">Inventários</span>
+        </button>
 
         <span class="sidebar-section-label sidebar-label" data-perfis="admin,gestor">Gestão</span>
         <button id="tab-btn-transferencias" type="button" class="nav-item" data-nav-page="transferencias" data-perfis="admin,gestor">
@@ -104,14 +108,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 8a7 7 0 0 0-14 0M19 8v6M16 11h6"/></svg>
           <span class="sidebar-label">Usuários</span>
         </button>
-        <button id="tab-btn-inventarios" type="button" class="nav-item" data-nav-page="inventarios" data-perfis="admin,gestor">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4V7Zm2-3h12l2 3H4l2-3Zm3 7h6M9 15h6"/></svg>
-          <span class="sidebar-label">Inventários</span>
-        </button>
       </nav>
 
       <div class="sidebar-footer sidebar-label">
-        <span>v1.13.2</span>
+        <span>v1.13.3</span>
         <button id="btn-logout-sidebar" type="button">SAIR</button>
       </div>
     </aside>
@@ -462,8 +462,19 @@
         </div>
       </section>
 
-      <!-- ABA 4: GESTÃO DE INVENTÁRIOS -->
+      <!-- ABA 4: INVENTÁRIO ATUAL E GESTÃO DO CICLO -->
       <section id="sec-inventarios" class="hidden space-y-5">
+        <article class="app-card space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div>
+              <span class="eyebrow">Inventário atual</span>
+              <h2 class="mt-1 text-sm font-bold text-white">Progresso por divisão</h2>
+              <p class="mt-1 text-xs text-slate-400">Localizados sobre os itens atualmente na divisão. Entradas aguardando aprovação aparecem à parte.</p>
+            </div>
+            <button id="btn-atualizar-inventarios" type="button" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-3 py-2 rounded-lg text-xs shrink-0">Atualizar progresso</button>
+          </div>
+          <div id="lista-progresso-inventarios" class="grid grid-cols-1 xl:grid-cols-2 gap-3" aria-live="polite"></div>
+        </article>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
           <article id="panel-gestao-ciclo" class="bg-slate-800 rounded-xl border border-amber-500/40 overflow-hidden shadow-lg">
             <div class="p-4 border-b border-slate-700/60">
@@ -556,7 +567,7 @@
 
       <footer class="app-footer">
         <span>CM APP · Patrimônio</span>
-        <span>v1.13.2 · Sprint 1.3A</span>
+        <span>v1.13.3 · Sprint 1.3C</span>
       </footer>
     </div>
   </div>
@@ -663,6 +674,6 @@
     </div>
   </div>
 
-    <script type="module" src="./app.js?v=1.13.2"></script>
+    <script type="module" src="./app.js?v=1.13.3"></script>
 </body>
 </html>

@@ -17,7 +17,7 @@
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { auth, db, authSecundario } from "./js/config/firebase.js";
     import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js?v=1.12.5";
-    import { situacaoPatrimonio, divisoesVisiveisPatrimonio, patrimonioVisivelParaDivisoes, correspondeSituacaoPatrimonio, contarSituacoesPatrimonio, descontarItensForaDoEscopo } from "./js/core/relacao.js?v=1.13.2";
+    import { situacaoPatrimonio, divisoesVisiveisPatrimonio, patrimonioVisivelParaDivisoes, correspondeSituacaoPatrimonio, contarSituacoesPatrimonio, descontarItensForaDoEscopo, resumirProgressoDivisao } from "./js/core/relacao.js?v=1.13.3";
     import { carregarPaginaIntercalada } from "./js/core/paginacao.js?v=1.12.4";
     import { divisoesDisponiveis, escopoInicial } from "./js/core/escopo.js?v=1.13.0";
     import { validarNovaSenha } from "./js/core/perfil.js";
@@ -65,8 +65,10 @@
     let fotoPerfilUrl = '';
     let escopoVisualizacao = '';
     let revisaoEscopo = 0;
+    let revisaoInventarios = 0;
 
     const TAMANHO_PAGINA_RELACAO = 50;
+    const VALIDADE_RESUMO_INVENTARIO_MS = 120000;
     const nomeMetodoLocalizacao = metodo => ({
       codigo_barras: 'Código de barras',
       ocr: 'OCR',
@@ -83,6 +85,7 @@
     auth.languageCode = 'pt-BR';
 
     const cachePatrimonios = new Map();
+    const cacheResumoInventarios = new Map();
     const cacheSugestoes = new Map();
     const catalogoDivisoes = new Set();
     const resolvedoresHistorico = [];
@@ -180,7 +183,7 @@
       remocoesProgramaticas.forEach(({ resolve }) => resolve());
     }
 
-    function invalidarCacheRelacao() {
+    function invalidarCacheRelacao({ preservarInventarios = false } = {}) {
       relacaoBaseCompleta = null;
       relacaoUsandoBaseCompleta = false;
       lotesRelacao = null;
@@ -188,6 +191,10 @@
       cursorRelacao = null;
       totalRelacao = 0;
       relacaoTemMais = true;
+      if (!preservarInventarios) {
+        revisaoInventarios++;
+        cacheResumoInventarios.clear();
+      }
     }
 
     function normalizarPatrimonio(docSnap) {
@@ -347,7 +354,7 @@
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
         btnUsuarios.classList.add('hidden');
-        btnInventarios.classList.add('hidden');
+        btnInventarios.classList.remove('hidden');
         if (boxExportacao) boxExportacao.classList.add('hidden');
         if (panelCiclo) panelCiclo.classList.add('hidden');
         if (btnSalvar) btnSalvar.innerText = '✅ Registrar Conferência';
@@ -691,7 +698,7 @@
       revisaoEscopo++;
       try { sessionStorage.setItem(`cmapp-escopo-${usuarioLogado.uid}`, valor); }
       catch (_) {}
-      invalidarCacheRelacao();
+      invalidarCacheRelacao({ preservarInventarios: true });
       bancoPatrimonio = [];
       itensFiltradosCache = [];
       atualizarSeletorEscopo();
@@ -701,7 +708,7 @@
 
     async function alternarAba(abaAtiva, { registrarHistorico = true, substituirHistorico = false } = {}) {
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
-        if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios' || abaAtiva === 'inventarios') {
+        if (abaAtiva === 'transferencias' || abaAtiva === 'usuarios') {
           return;
         }
       }
@@ -727,7 +734,6 @@
       if (usuarioLogado && usuarioLogado.perfil === 'conferente') {
         document.getElementById('tab-btn-transferencias').classList.add('hidden');
         document.getElementById('tab-btn-usuarios').classList.add('hidden');
-        document.getElementById('tab-btn-inventarios').classList.add('hidden');
       }
 
       try {
@@ -738,7 +744,10 @@
           await carregarUsuarios();
           await carregarCatalogoDivisoes();
         }
-        if (abaAtiva === 'inventarios') await carregarCatalogoDivisoes();
+        if (abaAtiva === 'inventarios') {
+          await carregarCatalogoDivisoes();
+          await carregarProgressoInventarios();
+        }
         if (abaAtiva === 'perfil') atualizarDadosTelaPerfil();
         if (abaAtiva === 'lista') await carregarRelacaoPatrimonial();
       } catch (erro) {
@@ -795,6 +804,150 @@
       return [...candidatos.values()].filter(item => !patrimonioVisivelParaDivisoes(item, divisoes));
     }
 
+    function criarFiltroDivisao(divisao) {
+      return or(
+        where('divisaoOrigem', '==', divisao),
+        where('divisao', '==', divisao),
+        where('localizacaoAtual', '==', divisao),
+        and(where('statusTransferencia', '==', 'pendente'),
+          where('divisaoDestinoSugerida', '==', divisao))
+      );
+    }
+
+    async function obterContagensDivisao(divisao, { incluirEntradas = false } = {}) {
+      const patrimoniosRef = collection(db, 'patrimonios');
+      const filtroDivisao = criarFiltroDivisao(divisao);
+      const [totalSnap, localizadosSnap, aguardandoSnap, movidosParaFora, entradasSnap] = await Promise.all([
+        getCountFromServer(query(patrimoniosRef, filtroDivisao)),
+        getCountFromServer(query(patrimoniosRef, and(filtroDivisao, where('localizado', '==', true)))),
+        getCountFromServer(query(patrimoniosRef, and(filtroDivisao, where('statusTransferencia', '==', 'pendente')))),
+        buscarItensHistoricosForaDoEscopo([divisao]),
+        incluirEntradas
+          ? getDocs(query(patrimoniosRef,
+            where('statusTransferencia', '==', 'pendente'),
+            where('divisaoDestinoSugerida', '==', divisao)))
+          : Promise.resolve(null)
+      ]);
+      const aguardandoInicial = aguardandoSnap.data().count;
+      const contagens = descontarItensForaDoEscopo({
+        total: totalSnap.data().count,
+        localizados: Math.max(0, localizadosSnap.data().count - aguardandoInicial),
+        aguardando: aguardandoInicial
+      }, movidosParaFora);
+      const entradas = entradasSnap?.docs.map(normalizarPatrimonio).filter(item =>
+        (item.localizacaoAtual || item.divisaoOrigem || item.divisao) !== divisao).length || 0;
+      return { contagens, entradas };
+    }
+
+    function criarCardProgressoInventario(divisao) {
+      const card = document.createElement('article');
+      card.className = 'inventario-card';
+      card.innerHTML = `
+        <div class="flex items-start justify-between gap-2">
+          <h3 class="inventario-nome font-bold text-white text-sm break-words"></h3>
+          <strong class="inventario-percentual text-emerald-300 text-sm whitespace-nowrap">…</strong>
+        </div>
+        <p class="inventario-resumo mt-1 text-xs text-slate-400" role="status">Consultando progresso…</p>
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span></span>
+        </div>
+        <div class="inventario-estatisticas hidden">
+          <span class="text-emerald-300"><strong class="inventario-localizados">0</strong> localizados</span>
+          <span class="text-red-300"><strong class="inventario-pendentes">0</strong> pendentes</span>
+          <span class="text-amber-300"><strong class="inventario-aguardando">0</strong> aguardando aprovação</span>
+        </div>
+        <p class="inventario-entradas hidden mt-2 text-[11px] text-amber-300"></p>
+        <button type="button" class="inventario-abrir mt-3 text-xs font-bold text-blue-300 hover:text-blue-200">Ver na Relação →</button>
+      `;
+      card.querySelector('.inventario-nome').textContent = divisao;
+      card.querySelector('.progress-track').setAttribute('aria-label', `Progresso do inventário: ${divisao}`);
+      card.querySelector('.inventario-abrir').addEventListener('click', async () => {
+        if (!usuarioLogado || !divisoesDisponiveis(usuarioLogado, [...catalogoDivisoes]).includes(divisao)) return;
+        escopoVisualizacao = divisao;
+        revisaoEscopo++;
+        try { sessionStorage.setItem(`cmapp-escopo-${usuarioLogado.uid}`, divisao); } catch (_) {}
+        invalidarCacheRelacao({ preservarInventarios: true });
+        bancoPatrimonio = [];
+        itensFiltradosCache = [];
+        atualizarSeletorEscopo();
+        document.getElementById('filtro-status').value = 'todos';
+        document.getElementById('filtro-busca').value = '';
+        await alternarAba('lista');
+      });
+      return card;
+    }
+
+    function mostrarResumoInventario(card, resumo) {
+      const { total, localizados, pendentes, aguardando, entradas, percentual } = resumo;
+      card.querySelector('.inventario-percentual').textContent = total ? `${percentual}%` : '—';
+      card.querySelector('.inventario-resumo').textContent = total
+        ? `${localizados} de ${total} itens localizados`
+        : 'Nenhum item atualmente nesta divisão';
+      const barra = card.querySelector('.progress-track');
+      barra.setAttribute('aria-valuenow', String(percentual));
+      barra.querySelector('span').style.width = `${percentual}%`;
+      card.querySelector('.inventario-localizados').textContent = localizados;
+      card.querySelector('.inventario-pendentes').textContent = pendentes;
+      card.querySelector('.inventario-aguardando').textContent = aguardando;
+      card.querySelector('.inventario-estatisticas').classList.remove('hidden');
+      const textoEntradas = card.querySelector('.inventario-entradas');
+      textoEntradas.textContent = `${entradas} ${entradas === 1 ? 'entrada' : 'entradas'} aguardando aprovação, fora do percentual`;
+      textoEntradas.classList.toggle('hidden', entradas === 0);
+    }
+
+    async function carregarProgressoInventarios({ forcar = false } = {}) {
+      if (!usuarioLogado) return;
+      const uid = usuarioLogado.uid;
+      const revisao = ++revisaoInventarios;
+      const divisoes = divisoesDisponiveis(usuarioLogado, [...catalogoDivisoes]);
+      const container = document.getElementById('lista-progresso-inventarios');
+      const botaoAtualizar = document.getElementById('btn-atualizar-inventarios');
+      if (forcar) cacheResumoInventarios.clear();
+      botaoAtualizar.disabled = true;
+      botaoAtualizar.classList.add('opacity-60');
+      const cards = new Map(divisoes.map(divisao => [divisao, criarCardProgressoInventario(divisao)]));
+      container.replaceChildren(...cards.values());
+      if (divisoes.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400">Nenhuma divisão disponível para acompanhar.</p>';
+        botaoAtualizar.disabled = false;
+        botaoAtualizar.classList.remove('opacity-60');
+        return;
+      }
+      const pendentes = [];
+      divisoes.forEach(divisao => {
+        const salvo = cacheResumoInventarios.get(divisao);
+        if (salvo && Date.now() - salvo.atualizadoEm < VALIDADE_RESUMO_INVENTARIO_MS) {
+          mostrarResumoInventario(cards.get(divisao), salvo.resumo);
+        } else pendentes.push(divisao);
+      });
+      const buscar = async () => {
+        while (pendentes.length && revisao === revisaoInventarios && abaAtual === 'inventarios') {
+          const divisao = pendentes.shift();
+          try {
+            const { contagens, entradas } = await obterContagensDivisao(divisao, { incluirEntradas: true });
+            if (revisao !== revisaoInventarios || usuarioLogado?.uid !== uid) return;
+            const resumo = resumirProgressoDivisao(contagens, entradas);
+            cacheResumoInventarios.set(divisao, { resumo, atualizadoEm: Date.now() });
+            mostrarResumoInventario(cards.get(divisao), resumo);
+          } catch (erro) {
+            console.error(`Falha ao consultar o inventário de ${divisao}:`, erro);
+            if (revisao !== revisaoInventarios || usuarioLogado?.uid !== uid) return;
+            cards.get(divisao).querySelector('.inventario-percentual').textContent = '—';
+            cards.get(divisao).querySelector('.inventario-resumo').textContent = 'Contagem indisponível. Tente atualizar.';
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(2, pendentes.length) }, () => buscar()));
+      if (revisao === revisaoInventarios && usuarioLogado?.uid === uid) {
+        botaoAtualizar.disabled = false;
+        botaoAtualizar.classList.remove('opacity-60');
+      }
+    }
+
+    document.getElementById('btn-atualizar-inventarios').addEventListener('click', () => {
+      void carregarProgressoInventarios({ forcar: true });
+    });
+
     async function carregarDashboard() {
       if (!usuarioLogado) return;
       const escopoDaConsulta = escopoVisualizacao;
@@ -813,34 +966,18 @@
 
       if (escopoDaConsulta !== 'todas') {
         const patrimoniosRef = collection(db, 'patrimonios');
-        const filtroDivisao = or(
-          where('divisaoOrigem', '==', escopoDaConsulta),
-          where('divisao', '==', escopoDaConsulta),
-          where('localizacaoAtual', '==', escopoDaConsulta),
-          and(where('statusTransferencia', '==', 'pendente'),
-            where('divisaoDestinoSugerida', '==', escopoDaConsulta))
-        );
         try {
-          const [totalSnap, localizadosSnap, aguardandoSnap, globalSnap, movidosParaFora] = await Promise.all([
-            getCountFromServer(query(patrimoniosRef, filtroDivisao)),
-            getCountFromServer(query(patrimoniosRef, and(filtroDivisao, where('localizado', '==', true)))),
-            getCountFromServer(query(patrimoniosRef, and(filtroDivisao, where('statusTransferencia', '==', 'pendente')))),
+          const [{ contagens }, globalSnap] = await Promise.all([
+            obterContagensDivisao(escopoDaConsulta),
             usuarioLogado.perfil === 'conferente'
               ? Promise.resolve(null)
               : getCountFromServer(query(patrimoniosRef, where('statusTransferencia', '==', 'pendente')))
                 .catch(erro => {
                   console.warn('Contagem global da Fila indisponível.', erro);
                   return null;
-                }),
-            buscarItensHistoricosForaDoEscopo([escopoDaConsulta])
+                })
           ]);
           if (revisaoDaConsulta !== revisaoEscopo) return;
-          const aguardandoInicial = aguardandoSnap.data().count;
-          const contagens = descontarItensForaDoEscopo({
-            total: totalSnap.data().count,
-            localizados: Math.max(0, localizadosSnap.data().count - aguardandoInicial),
-            aguardando: aguardandoInicial
-          }, movidosParaFora);
           aplicarNumerosDashboard(contagens.total, contagens.localizados,
             contagens.pendentes, contagens.aguardando, globalSnap?.data().count ?? 0);
         } catch (erro) {
@@ -1005,6 +1142,7 @@
         const ignorados = itensDaDivisao.length - itensAfetados.length;
         notificarMensagem(`${itensAfetados.length} itens da divisão ${divAlvo} retornados para pendentes.${ignorados ? ` ${ignorados} transferência(s) aguardam decisão na Fila.` : ''}`, 'sucesso');
         document.getElementById('select-divisao-reversao').value = "";
+        await carregarProgressoInventarios({ forcar: true });
       } catch (e) {
         notificarMensagem("Erro ao executar reversão setorial.", 'erro');
       }
@@ -1036,6 +1174,7 @@
         invalidarCacheRelacao();
         const ignorados = snapshot.size - itens.length;
         notificarMensagem(`${itens.length} itens reiniciados com sucesso.${ignorados ? ` ${ignorados} transferência(s) aguardam decisão na Fila.` : ''}`, 'sucesso');
+        await carregarProgressoInventarios({ forcar: true });
       } catch (e) {
         notificarMensagem("Erro ao reiniciar inventário geral.", 'erro');
       }
@@ -2293,7 +2432,7 @@
     });
     document.getElementById('filtro-status').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
     document.getElementById('btn-atualizar-relacao')?.addEventListener('click', () => {
-      invalidarCacheRelacao();
+      invalidarCacheRelacao({ preservarInventarios: true });
       carregarRelacaoPatrimonial({ reiniciar: true, forcarServidor: true });
     });
     document.getElementById('btn-carregar-mais')?.addEventListener('click', () => carregarRelacaoPatrimonial({ carregarMais: true }));
