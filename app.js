@@ -845,7 +845,7 @@
       card.innerHTML = `
         <div class="flex items-start justify-between gap-2">
           <h3 class="inventario-nome font-bold text-white text-sm break-words"></h3>
-          <strong class="inventario-percentual text-emerald-300 text-sm whitespace-nowrap">…</strong>
+          <strong class="inventario-percentual text-slate-300 text-sm whitespace-nowrap">…</strong>
         </div>
         <p class="inventario-resumo mt-1 text-xs text-slate-400" role="status">Consultando progresso…</p>
         <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -879,6 +879,14 @@
 
     function mostrarResumoInventario(card, resumo) {
       const { total, localizados, pendentes, aguardando, entradas, percentual } = resumo;
+      card.classList.toggle('com-progresso', total > 0);
+      if (total > 0) {
+        // Vermelho (0%), âmbar (50%) e verde (100%), com transição contínua.
+        const tom = percentual <= 50
+          ? 42 * percentual / 50
+          : 42 + 103 * (percentual - 50) / 50;
+        card.style.setProperty('--inventario-tom', String(Math.round(tom)));
+      } else card.style.removeProperty('--inventario-tom');
       card.querySelector('.inventario-percentual').textContent = total ? `${percentual}%` : '—';
       card.querySelector('.inventario-resumo').textContent = total
         ? `${localizados} de ${total} itens localizados`

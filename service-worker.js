@@ -1,4 +1,4 @@
-const VERSAO = 'v1.13.3';
+const VERSAO = 'v1.13.4';
 const CACHE_SHELL = `cmapp-shell-${VERSAO}`;
 const CACHE_RUNTIME = `cmapp-runtime-${VERSAO}`;
 const PREFIXO_CACHE = 'cmapp-';
