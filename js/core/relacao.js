@@ -4,7 +4,7 @@ export function situacaoPatrimonio(item) {
 }
 
 export function divisoesVisiveisPatrimonio(item) {
-  const divisoes = [item.divisaoOrigem, item.divisao, item.localizacaoAtual];
+  const divisoes = [item.localizacaoAtual || item.divisaoOrigem || item.divisao];
   if (situacaoPatrimonio(item) === 'aguardando') {
     divisoes.push(item.divisaoDestinoSugerida);
   }
@@ -23,4 +23,12 @@ export function contarSituacoesPatrimonio(itens) {
   const contagens = { total: itens.length, localizados: 0, pendentes: 0, aguardando: 0 };
   itens.forEach(item => { contagens[situacaoPatrimonio(item)] += 1; });
   return contagens;
+}
+
+export function descontarItensForaDoEscopo(contagens, itensFora) {
+  const saidas = contarSituacoesPatrimonio(itensFora);
+  const total = Math.max(0, contagens.total - saidas.total);
+  const localizados = Math.max(0, contagens.localizados - saidas.localizados);
+  const aguardando = Math.max(0, contagens.aguardando - saidas.aguardando);
+  return { total, localizados, pendentes: Math.max(0, total - localizados - aguardando), aguardando };
 }
