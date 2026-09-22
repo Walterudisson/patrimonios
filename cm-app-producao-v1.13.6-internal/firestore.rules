@@ -1,0 +1,423 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function usuarioAtual() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    function perfilAtual() {
+      return usuarioAtual().data.perfil;
+    }
+
+    function usuarioDoApp() {
+      return autenticado()
+        && perfilAtual() in ['admin', 'gestor', 'conferente'];
+    }
+
+    function admin() {
+      return autenticado() && perfilAtual() == 'admin';
+    }
+
+    function gestor() {
+      return autenticado() && perfilAtual() == 'gestor';
+    }
+
+    function conferente() {
+      return autenticado() && perfilAtual() == 'conferente';
+    }
+
+    function adminOuGestor() {
+      return admin() || gestor();
+    }
+
+    function minhasDivisoes() {
+      return usuarioAtual().data.divisoesAtribuidas;
+    }
+
+    function perfilValido(perfil) {
+      return perfil in ['admin', 'gestor', 'conferente'];
+    }
+
+    function cadastroUsuarioValido(dados) {
+      return dados.keys().hasAll(['nome', 'email', 'perfil', 'divisoesAtribuidas'])
+        && dados.keys().hasOnly(['nome', 'email', 'perfil', 'divisoesAtribuidas'])
+        && dados.nome is string
+        && dados.email is string
+        && perfilValido(dados.perfil)
+        && dados.divisoesAtribuidas is list
+        && (dados.perfil == 'conferente' || dados.divisoesAtribuidas.size() == 0);
+    }
+
+    function atualizacaoUsuarioValida() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['nome', 'perfil', 'divisoesAtribuidas'])
+        && request.resource.data.nome is string
+        && perfilValido(request.resource.data.perfil)
+        && request.resource.data.divisoesAtribuidas is list
+        && (request.resource.data.perfil == 'conferente'
+          || request.resource.data.divisoesAtribuidas.size() == 0);
+    }
+
+    function atualizacaoSomenteNomeValida() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome'])
+        && request.resource.data.nome is string;
+    }
+
+    function patrimonioNaAlcada(dados) {
+      return (dados.keys().hasAny(['divisaoOrigem'])
+          && dados.divisaoOrigem in minhasDivisoes())
+        || (dados.keys().hasAny(['divisao'])
+          && dados.divisao in minhasDivisoes())
+        || (dados.keys().hasAny(['localizacaoAtual'])
+          && dados.localizacaoAtual in minhasDivisoes())
+        || (dados.get('statusTransferencia', '') == 'pendente'
+          && dados.get('divisaoDestinoSugerida', '') in minhasDivisoes());
+    }
+
+    function camposPatrimonioPermitidos() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'localizado',
+        'divisaoOrigem',
+        'localizacaoAtual',
+        'divisaoDestinoSugerida',
+        'statusTransferencia',
+        'observacaoAtual',
+        'dataLocalizacao',
+        'conferidoPor',
+        'historico'
+      ]);
+    }
+
+    function origemPreservada() {
+      return (resource.data.keys().hasAny(['divisaoOrigem'])
+          && request.resource.data.divisaoOrigem == resource.data.divisaoOrigem)
+        || (!resource.data.keys().hasAny(['divisaoOrigem'])
+          && resource.data.keys().hasAny(['divisao'])
+          && request.resource.data.divisaoOrigem == resource.data.divisao);
+    }
+
+    function historicoAcrescentouUmRegistro() {
+      return request.resource.data.historico is list
+        && (
+          (resource.data.keys().hasAny(['historico'])
+            && resource.data.historico is list
+            && request.resource.data.historico.size() == resource.data.historico.size() + 1)
+          || (!resource.data.keys().hasAny(['historico'])
+            && request.resource.data.historico.size() == 1)
+        );
+    }
+
+    function localEfetivo(dados) {
+      return dados.get('localizacaoAtual', '') != ''
+        ? dados.get('localizacaoAtual', '')
+        : (dados.get('divisaoOrigem', '') != ''
+            ? dados.get('divisaoOrigem', '')
+            : dados.get('divisao', ''));
+    }
+
+    function chaveDivisao(divisao) {
+      return divisao.replace('%', '%25').replace('/', '%2F');
+    }
+
+    function caminhoInventario(divisao) {
+      let chave = chaveDivisao(divisao);
+      return /databases/$(database)/documents/inventarios/$(chave);
+    }
+
+    function caminhoInventarioId(divisaoId) {
+      return /databases/$(database)/documents/inventarios/$(divisaoId);
+    }
+
+    function divisaoAberta(divisao) {
+      return divisao is string
+        && (divisao == '' || (
+          !exists(caminhoInventario(divisao))
+            || get(caminhoInventario(divisao)).data.estado == 'aberto')
+        );
+    }
+
+    function divisaoEmReinicio(divisao) {
+      return divisao is string
+        && exists(caminhoInventario(divisao))
+        && get(caminhoInventario(divisao)).data.estado == 'reiniciando';
+    }
+
+    function leituraValida() {
+      return usuarioDoApp()
+        && resource.data.get('statusTransferencia', '') != 'pendente'
+        && divisaoAberta(localEfetivo(resource.data))
+        && divisaoAberta(request.resource.data.get('statusTransferencia', '') == 'pendente'
+          ? request.resource.data.get('divisaoDestinoSugerida', '')
+          : request.resource.data.get('localizacaoAtual', ''))
+        && camposPatrimonioPermitidos()
+        && origemPreservada()
+        && historicoAcrescentouUmRegistro()
+        && request.resource.data.localizado == true
+        && request.resource.data.conferidoPor == request.auth.token.email
+        && (
+          (request.resource.data.statusTransferencia == 'pendente'
+            && request.resource.data.divisaoDestinoSugerida is string
+            && request.resource.data.divisaoDestinoSugerida != localEfetivo(resource.data)
+            && request.resource.data.get('localizacaoAtual', '')
+              == resource.data.get('localizacaoAtual', ''))
+          || (request.resource.data.statusTransferencia == 'concluido'
+            && request.resource.data.localizacaoAtual == localEfetivo(resource.data)
+            && request.resource.data.divisaoDestinoSugerida == '')
+        );
+    }
+
+    function resolucaoValida() {
+      return adminOuGestor()
+        && divisaoAberta(localEfetivo(resource.data))
+        && divisaoAberta(resource.data.get('divisaoDestinoSugerida', ''))
+        && resource.data.get('statusTransferencia', '') == 'pendente'
+        && resource.data.get('divisaoDestinoSugerida', '') is string
+        && resource.data.divisaoDestinoSugerida != ''
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'localizacaoAtual', 'divisaoDestinoSugerida', 'statusTransferencia', 'historico'
+        ])
+        && historicoAcrescentouUmRegistro()
+        && request.resource.data.divisaoDestinoSugerida == ''
+        && (
+          (request.resource.data.statusTransferencia == 'aprovado'
+            && request.resource.data.localizacaoAtual == resource.data.divisaoDestinoSugerida)
+          || (request.resource.data.statusTransferencia == 'rejeitado'
+            && request.resource.data.localizacaoAtual == localEfetivo(resource.data))
+        );
+    }
+
+    function reinicioValido() {
+      return adminOuGestor()
+        && resource.data.get('statusTransferencia', '') != 'pendente'
+        && (
+          (request.resource.data.observacaoAtual == 'Item retornado manualmente para pendente'
+            && divisaoAberta(localEfetivo(resource.data)))
+          || (request.resource.data.observacaoAtual == 'Status revertido para pendente (Novo Ciclo)'
+            && divisaoEmReinicio(localEfetivo(resource.data)))
+        )
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'localizado', 'statusTransferencia', 'conferidoPor',
+          'observacaoAtual', 'dataLocalizacao'
+        ])
+        && request.resource.data.localizado == false
+        && request.resource.data.statusTransferencia == 'concluido'
+        && request.resource.data.conferidoPor == ''
+        && request.resource.data.dataLocalizacao == ''
+        && request.resource.data.observacaoAtual in [
+          'Status revertido para pendente (Novo Ciclo)',
+          'Item retornado manualmente para pendente'
+        ];
+    }
+
+    function destinoDaConferenciaPermitido() {
+      return (request.resource.data.statusTransferencia == 'pendente'
+          && request.resource.data.divisaoDestinoSugerida in minhasDivisoes())
+        || (request.resource.data.statusTransferencia == 'concluido'
+          && request.resource.data.localizacaoAtual in minhasDivisoes());
+    }
+
+    function conferenciaValida() {
+      return conferente()
+        && leituraValida()
+        && destinoDaConferenciaPermitido();
+    }
+
+    match /usuarios/{usuarioId} {
+      allow get: if autenticado()
+        && (request.auth.uid == usuarioId || adminOuGestor());
+
+      allow list: if admin()
+        || (gestor() && resource.data.perfil == 'conferente');
+
+      allow create: if cadastroUsuarioValido(request.resource.data)
+        && (
+          admin()
+          || (gestor() && request.resource.data.perfil == 'conferente')
+        );
+
+      allow update: if (request.auth.uid == usuarioId
+            && atualizacaoSomenteNomeValida())
+        || (admin() && atualizacaoUsuarioValida())
+        || (gestor()
+            && resource.data.perfil == 'conferente'
+            && request.resource.data.perfil == 'conferente'
+            && atualizacaoUsuarioValida());
+
+      allow delete: if autenticado()
+        && request.auth.uid != usuarioId
+        && (
+          (admin() && resource.data.perfil != 'admin')
+          || (gestor() && resource.data.perfil == 'conferente')
+        );
+    }
+
+    match /divisoes/{divisaoId} {
+      allow read: if usuarioDoApp();
+      allow write: if false;
+    }
+
+    match /inventarios/{divisaoId} {
+      function acessoInventario() {
+        return adminOuGestor()
+          || (conferente() && resource.data.divisao in minhasDivisoes());
+      }
+
+      function cabecalhoValido() {
+        return divisaoId == chaveDivisao(request.resource.data.divisao)
+          && request.resource.data.ciclo is int
+          && request.resource.data.ciclo >= 1
+          && request.resource.data.cicloChave is string
+          && (request.resource.data.iniciadoEm == null
+            || request.resource.data.iniciadoEm is timestamp)
+          && request.resource.data.fechamentoId is string
+          && request.resource.data.operadorUid == request.auth.uid
+          && request.resource.data.alteradoEm == request.time;
+      }
+
+      allow read: if acessoInventario();
+      allow create: if adminOuGestor() && cabecalhoValido()
+        && request.resource.data.estado == 'encerrando'
+        && request.resource.data.ciclo == 1
+        && request.resource.data.cicloChave == 'ciclo-1';
+      allow update: if adminOuGestor() && cabecalhoValido()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado', 'ciclo', 'cicloChave', 'iniciadoEm', 'fechamentoId', 'operadorUid', 'alteradoEm', 'ultimaReabertura'
+        ])
+        && (
+          (resource.data.estado == 'aberto'
+            && request.resource.data.estado == 'encerrando'
+            && request.resource.data.ciclo == resource.data.ciclo
+            && request.resource.data.cicloChave == resource.data.cicloChave)
+          || (resource.data.estado == 'encerrando'
+            && request.resource.data.estado == 'encerrando'
+            && request.resource.data.fechamentoId == resource.data.fechamentoId
+            && request.resource.data.ciclo == resource.data.ciclo
+            && request.resource.data.cicloChave == resource.data.cicloChave)
+          || (resource.data.estado == 'encerrando'
+            && request.resource.data.estado == 'aberto'
+            && request.resource.data.ciclo == resource.data.ciclo
+            && request.resource.data.cicloChave == resource.data.cicloChave)
+          || (resource.data.estado == 'encerrando'
+            && request.resource.data.estado == 'encerrado'
+            && request.resource.data.fechamentoId == resource.data.fechamentoId
+            && request.resource.data.ciclo == resource.data.ciclo
+            && request.resource.data.cicloChave == resource.data.cicloChave
+            && existsAfter(/databases/$(database)/documents/inventarios/$(divisaoId)/fechamentos/$(resource.data.fechamentoId)))
+          || (resource.data.estado == 'encerrado'
+            && request.resource.data.estado == 'aberto'
+            && request.resource.data.ciclo == resource.data.ciclo
+            && request.resource.data.cicloChave == resource.data.cicloChave
+            && !exists(/databases/$(database)/documents/inventariosGerais/$(resource.data.cicloChave))
+            && request.resource.data.ultimaReabertura.id is string
+            && request.resource.data.ultimaReabertura.motivo is string
+            && request.resource.data.ultimaReabertura.motivo.size() > 0
+            && request.resource.data.ultimaReabertura.usuarioUid == request.auth.uid
+            && existsAfter(/databases/$(database)/documents/inventarios/$(divisaoId)/eventos/$(request.resource.data.ultimaReabertura.id)))
+          || (resource.data.estado == 'encerrado'
+            && request.resource.data.estado == 'reiniciando'
+            && request.resource.data.ciclo == resource.data.ciclo
+            && request.resource.data.cicloChave == resource.data.cicloChave
+            && exists(/databases/$(database)/documents/inventariosGerais/$(resource.data.cicloChave)))
+          || (resource.data.estado == 'reiniciando'
+            && request.resource.data.estado == 'reiniciando'
+            && request.resource.data.ciclo == resource.data.ciclo
+            && request.resource.data.cicloChave == resource.data.cicloChave)
+          || (resource.data.estado == 'reiniciando'
+            && request.resource.data.estado == 'aberto'
+            && request.resource.data.ciclo == resource.data.ciclo + 1
+            && request.resource.data.fechamentoId == ''
+            && request.resource.data.iniciadoEm == request.time)
+        );
+      allow delete: if false;
+
+      match /fechamentos/{fechamentoId} {
+        function acessoFechamento() {
+          return adminOuGestor()
+            || (conferente()
+              && get(caminhoInventarioId(divisaoId)).data.divisao in minhasDivisoes());
+        }
+
+        allow read: if acessoFechamento();
+        allow create: if adminOuGestor()
+          && get(caminhoInventarioId(divisaoId)).data.estado == 'encerrando'
+          && get(caminhoInventarioId(divisaoId)).data.fechamentoId == fechamentoId
+          && getAfter(caminhoInventarioId(divisaoId)).data.estado == 'encerrado'
+          && request.resource.data.divisao == get(caminhoInventarioId(divisaoId)).data.divisao
+          && request.resource.data.fechamentoId == fechamentoId
+          && request.resource.data.ciclo == get(caminhoInventarioId(divisaoId)).data.ciclo
+          && request.resource.data.encerradoPorUid == request.auth.uid
+          && request.resource.data.encerradoEm == request.time
+          && request.resource.data.iniciadoEm == get(caminhoInventarioId(divisaoId)).data.iniciadoEm;
+        allow update, delete: if false;
+
+        match /itens/{itemId} {
+          allow read: if adminOuGestor()
+            || (conferente()
+              && get(caminhoInventarioId(divisaoId)).data.divisao in minhasDivisoes());
+          allow create: if adminOuGestor()
+            && get(caminhoInventarioId(divisaoId)).data.estado == 'encerrando'
+            && get(caminhoInventarioId(divisaoId)).data.fechamentoId == fechamentoId
+            && request.resource.data.plaqueta == itemId
+            && request.resource.data.localizacaoEfetivaNoEncerramento
+              == get(caminhoInventarioId(divisaoId)).data.divisao;
+          allow update, delete: if false;
+        }
+      }
+
+      match /eventos/{eventoId} {
+        allow read: if adminOuGestor()
+          || (conferente()
+            && get(caminhoInventarioId(divisaoId)).data.divisao in minhasDivisoes());
+        allow create: if adminOuGestor()
+          && request.resource.data.tipo == 'reabertura'
+          && request.resource.data.motivo is string
+          && request.resource.data.motivo.size() > 0
+          && request.resource.data.usuarioUid == request.auth.uid
+          && request.resource.data.registradoEm == request.time
+          && getAfter(caminhoInventarioId(divisaoId)).data.estado == 'aberto'
+          && getAfter(caminhoInventarioId(divisaoId)).data.ultimaReabertura.id == eventoId
+          && getAfter(caminhoInventarioId(divisaoId)).data.ultimaReabertura.motivo == request.resource.data.motivo;
+        allow update, delete: if false;
+      }
+    }
+
+    match /inventariosGerais/{cicloId} {
+      allow read: if adminOuGestor();
+      allow create: if adminOuGestor()
+        && cicloId.matches('^ciclo-[0-9]+$')
+        && request.resource.data.ciclo is int
+        && request.resource.data.divisoes is list
+        && request.resource.data.total is int
+        && request.resource.data.localizados is int
+        && request.resource.data.pendentes is int
+        && request.resource.data.encerradoPorUid == request.auth.uid
+        && request.resource.data.encerradoEm == request.time;
+      allow update, delete: if false;
+    }
+
+    match /patrimonios/{patrimonioId} {
+      // A leitura direta por plaqueta sustenta o fluxo de encontrar um bem
+      // de outra divisão; consultas continuam limitadas pela alçada.
+      allow get: if usuarioDoApp();
+      allow list: if adminOuGestor()
+        || (conferente() && patrimonioNaAlcada(resource.data));
+
+      allow update: if (adminOuGestor() && leituraValida())
+        || conferenciaValida()
+        || resolucaoValida()
+        || reinicioValido();
+
+      allow create, delete: if false;
+    }
+
+    // Qualquer coleção não descrita acima permanece bloqueada.
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -23,6 +23,13 @@
     import { validarNovaSenha } from "./js/core/perfil.js";
     import { criarControladorCamera } from "./js/controllers/camera.controller.js?v=1.12.0";
     import { listarDivisoesAtivas } from "./js/services/divisoes.service.js";
+    import {
+      consultarCicloDivisao, encerrarDivisao, reabrirDivisao,
+      listarFechamentos, listarEventosInventario, listarItensFechamento,
+      encerrarInventarioGeral, listarInventariosGerais,
+      reiniciarDivisaoEncerrada, reiniciarInventarioGeral, divisoesDoInventarioAtual,
+      consultarEncerramentoGeral
+    } from "./js/services/inventarios.service.js?v=1.13.6";
     import { obterUrlFotoPerfil, removerFotoPerfil, salvarFotoPerfil } from "./js/services/perfil.service.js";
     import {
       configurarHistoricoFeedback,
@@ -106,7 +113,39 @@
       aoFecharCamada: removerCamadaHistorico
     });
     inicializarPwa({ notificarMensagem });
+    inicializarAlternadoresSenha();
     window.addEventListener('popstate', tratarPopstate);
+
+    function iconeAlternadorSenha(visivel) {
+      return visivel
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 10.7a2 2 0 0 0 2.7 2.7M9.9 4.2A10.8 10.8 0 0 1 12 4c5.5 0 9 5 9 5a15.7 15.7 0 0 1-2.1 2.6M6.6 6.6A16.2 16.2 0 0 0 3 12s3.5 5 9 5a10.5 10.5 0 0 0 4.1-.8"/></svg>'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12s3.5-5 9-5 9 5 9 5-3.5 5-9 5-9-5-9-5Zm9 2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>';
+    }
+
+    function inicializarAlternadoresSenha() {
+      document.querySelectorAll('input[type="password"]').forEach(input => {
+        if (input.closest('.password-control')) return;
+        const controle = document.createElement('div');
+        controle.className = 'password-control';
+        input.parentNode.insertBefore(controle, input);
+        controle.appendChild(input);
+        const botao = document.createElement('button');
+        botao.type = 'button';
+        botao.className = 'password-toggle';
+        botao.setAttribute('aria-label', 'Mostrar senha');
+        botao.setAttribute('aria-pressed', 'false');
+        botao.innerHTML = iconeAlternadorSenha(false);
+        botao.addEventListener('click', () => {
+          const visivel = input.type === 'text';
+          input.type = visivel ? 'password' : 'text';
+          botao.setAttribute('aria-label', visivel ? 'Mostrar senha' : 'Ocultar senha');
+          botao.setAttribute('aria-pressed', String(!visivel));
+          botao.innerHTML = iconeAlternadorSenha(!visivel);
+          input.focus({ preventScroll: true });
+        });
+        controle.appendChild(botao);
+      });
+    }
 
     function urlDaAba(aba) {
       return `#${aba || 'dashboard'}`;
@@ -382,6 +421,7 @@
     function atualizarDadosTelaPerfil() {
       if (!usuarioLogado) return;
       document.getElementById('perfil-nome').textContent = usuarioLogado.nome || 'Usuário';
+      document.getElementById('perfil-editar-nome').value = usuarioLogado.nome || '';
       document.getElementById('perfil-email').textContent = usuarioLogado.email || 'Não informado';
       document.getElementById('perfil-papel').textContent = usuarioLogado.perfil || 'Não informado';
       const divisoes = usuarioLogado.perfil === 'conferente'
@@ -392,6 +432,32 @@
         : 'Abrangência global no módulo de patrimônio';
       document.getElementById('btn-remover-foto')?.classList.toggle('hidden', !fotoPerfilUrl);
     }
+
+    document.getElementById('form-meu-nome')?.addEventListener('submit', async evento => {
+      evento.preventDefault();
+      if (!usuarioLogado) return;
+      const nome = document.getElementById('perfil-editar-nome').value.trim();
+      if (nome.length < 3) return notificarMensagem('Informe um nome com pelo menos 3 caracteres.', 'aviso');
+      const botao = document.getElementById('btn-salvar-meu-nome');
+      botao.disabled = true;
+      botao.textContent = 'SALVANDO...';
+      try {
+        await updateDoc(doc(db, 'usuarios', usuarioLogado.uid), { nome });
+        if (auth.currentUser) {
+          try { await updateProfile(auth.currentUser, { displayName: nome }); }
+          catch (erroPerfil) { console.warn('Nome salvo, mas o perfil do Authentication não foi sincronizado.', erroPerfil); }
+        }
+        usuarioLogado = { ...usuarioLogado, nome };
+        atualizarCabecalhoUsuario();
+        notificarMensagem('Nome atualizado com sucesso.', 'sucesso');
+      } catch (erro) {
+        console.error('Erro ao atualizar o próprio nome:', erro);
+        notificarMensagem('Não foi possível atualizar seu nome.', 'erro');
+      } finally {
+        botao.disabled = false;
+        botao.textContent = 'SALVAR NOME';
+      }
+    });
 
     async function carregarFotoPerfilAtual() {
       if (!usuarioLogado) return;
@@ -522,9 +588,6 @@
         : collection(db, "usuarios");
       const snapshot = await getDocs(consultaUsuarios);
       bancoUsuarios = snapshot.docs.map(docSnap => ({ uid: docSnap.id, ...docSnap.data() }));
-      if (usuarioLogado?.perfil === 'gestor' && !bancoUsuarios.some(usuario => usuario.uid === usuarioLogado.uid)) {
-        bancoUsuarios.unshift({ ...usuarioLogado });
-      }
       usuariosCarregados = true;
 
       bancoUsuarios.forEach(usuario => {
@@ -601,6 +664,7 @@
     function popularSelectsDivisao() {
       const selectLocalizacao = document.getElementById('select-localizacao');
       const selectReversao = document.getElementById('select-divisao-reversao');
+      const selectHistorico = document.getElementById('select-divisao-historico');
       const checkContainer = document.getElementById('cad-divisoes-checkboxes');
       const editCheckContainer = document.getElementById('edit-divisoes-checkboxes');
       const comparadorPtBr = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
@@ -626,6 +690,7 @@
 
       reconstruirSelect(selectLocalizacao, usuarioTemAcessoDivisao);
       reconstruirSelect(selectReversao);
+      reconstruirSelect(selectHistorico, usuarioTemAcessoDivisao);
       atualizarSeletorEscopo();
 
       const marcadasCadastro = new Set([...document.querySelectorAll('input[name="divisao-check"]:checked')].map(cb => cb.value));
@@ -746,7 +811,8 @@
         }
         if (abaAtiva === 'inventarios') {
           await carregarCatalogoDivisoes();
-          await carregarProgressoInventarios();
+          await Promise.all([carregarProgressoInventarios(), carregarHistoricoInventarios(), carregarHistoricoGeral()]);
+          if (usuarioLogado.perfil !== 'conferente') await atualizarEstadoDivisaoInventario();
         }
         if (abaAtiva === 'perfil') atualizarDadosTelaPerfil();
         if (abaAtiva === 'lista') await carregarRelacaoPatrimonial();
@@ -843,10 +909,15 @@
       const card = document.createElement('article');
       card.className = 'inventario-card';
       card.innerHTML = `
-        <div class="flex items-start justify-between gap-2">
+        <span class="inventario-ribbon hidden" aria-label="Inventário encerrado">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.5 12.5 3.2 3.2 7.8-8.2"/></svg>
+          <span>ENCERRADO</span>
+        </span>
+        <div class="inventario-card-header">
           <h3 class="inventario-nome font-bold text-white text-sm break-words"></h3>
           <strong class="inventario-percentual text-slate-300 text-sm whitespace-nowrap">…</strong>
         </div>
+        <p class="inventario-ciclo mt-1 text-[11px] text-slate-300">Consultando ciclo…</p>
         <p class="inventario-resumo mt-1 text-xs text-slate-400" role="status">Consultando progresso…</p>
         <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <span></span>
@@ -945,7 +1016,31 @@
           }
         }
       };
-      await Promise.all(Array.from({ length: Math.min(2, pendentes.length) }, () => buscar()));
+      const estadosPendentes = [...divisoes];
+      const buscarEstados = async () => {
+        while (estadosPendentes.length && revisao === revisaoInventarios && abaAtual === 'inventarios') {
+          const divisao = estadosPendentes.shift();
+          try {
+            const estado = await consultarCicloDivisao(divisao);
+            if (revisao !== revisaoInventarios || usuarioLogado?.uid !== uid) return;
+            const card = cards.get(divisao);
+            card.querySelector('.inventario-ciclo').textContent = `Ciclo ${estado.ciclo} · ${({
+              aberto: 'Em andamento', encerrando: 'Encerramento em andamento',
+              encerrado: 'Encerrado', reiniciando: 'Reinício em andamento'
+            })[estado.estado] || 'Estado indisponível'}`;
+            const encerrado = estado.estado === 'encerrado';
+            card.classList.toggle('esta-encerrado', encerrado);
+            card.querySelector('.inventario-ribbon').classList.toggle('hidden', !encerrado);
+          } catch (_) {
+            if (revisao !== revisaoInventarios || usuarioLogado?.uid !== uid) return;
+            cards.get(divisao).querySelector('.inventario-ciclo').textContent = 'Estado indisponível';
+          }
+        }
+      };
+      await Promise.all([
+        ...Array.from({ length: Math.min(2, pendentes.length) }, () => buscar()),
+        ...Array.from({ length: Math.min(2, estadosPendentes.length) }, () => buscarEstados())
+      ]);
       if (revisao === revisaoInventarios && usuarioLogado?.uid === uid) {
         botaoAtualizar.disabled = false;
         botaoAtualizar.classList.remove('opacity-60');
@@ -1098,94 +1193,221 @@
       document.getElementById('badge-fila-count').classList.add('hidden');
     }
 
-    async function atualizarItensEmLotes(itens, dadosAtualizacao) {
-      for (let inicio = 0; inicio < itens.length; inicio += 450) {
-        const batch = writeBatch(db);
-        itens.slice(inicio, inicio + 450).forEach(item => {
-          batch.update(doc(db, "patrimonios", item.plaqueta), dadosAtualizacao);
-        });
-        await batch.commit();
+    const formatarDataInventario = valor => valor?.toDate?.().toLocaleString('pt-BR') || 'Data indisponível';
+    const botoesCiclo = [
+      'btn-encerrar-divisao', 'btn-reabrir-divisao', 'btn-reverter-divisao',
+      'btn-encerrar-geral', 'btn-reverter-geral'
+    ];
+
+    async function atualizarEstadoDivisaoInventario() {
+      const divisao = document.getElementById('select-divisao-reversao').value;
+      const texto = document.getElementById('estado-divisao-inventario');
+      const fechar = document.getElementById('btn-encerrar-divisao');
+      const reabrir = document.getElementById('bloco-reabertura-divisao');
+      const reiniciar = document.getElementById('btn-reverter-divisao');
+      fechar.classList.toggle('hidden', !divisao);
+      reabrir.classList.add('hidden');
+      reiniciar.classList.add('hidden');
+      if (!divisao) {
+        texto.textContent = 'Selecione uma divisão para consultar o ciclo.';
+        return;
+      }
+      try {
+        const estado = await consultarCicloDivisao(divisao);
+        const geral = estado.estado === 'encerrado'
+          ? await consultarEncerramentoGeral(estado.ciclo) : null;
+        if (document.getElementById('select-divisao-reversao').value !== divisao) return;
+        texto.textContent = `${divisao} · Ciclo ${estado.ciclo} · ${({
+          aberto: 'Em andamento', encerrando: 'Encerramento em andamento',
+          encerrado: 'Encerrado', reiniciando: 'Reinício em andamento'
+        })[estado.estado] || 'Estado indisponível'}${geral ? ' · Inventário geral consolidado' : ''}`;
+        fechar.classList.toggle('hidden', !['aberto', 'encerrando'].includes(estado.estado));
+        fechar.textContent = estado.estado === 'encerrando' ? 'Retomar encerramento' : 'Encerrar e registrar divisão';
+        reabrir.classList.toggle('hidden', estado.estado !== 'encerrado' || Boolean(geral));
+        reiniciar.classList.toggle('hidden', estado.estado !== 'reiniciando'
+          && (estado.estado !== 'encerrado' || !geral));
+        reiniciar.textContent = estado.estado === 'reiniciando'
+          ? 'Retomar início do próximo ciclo' : 'Iniciar próximo ciclo da divisão';
+      } catch (erro) {
+        texto.textContent = 'Estado indisponível. Verifique a conexão e as regras do Firestore.';
+        fechar.classList.add('hidden');
       }
     }
 
-    async function buscarItensDaDivisao(divisao) {
-      const consulta = query(collection(db, "patrimonios"), or(
-        where("divisaoOrigem", "==", divisao),
-        where("divisao", "==", divisao),
-        where("localizacaoAtual", "==", divisao)
-      ));
-      const snapshot = await getDocs(consulta);
-      return snapshot.docs.map(normalizarPatrimonio).filter(item =>
-        divisoesVisiveisPatrimonio(item).includes(divisao));
+    async function executarAcaoCiclo(acao) {
+      botoesCiclo.forEach(id => { document.getElementById(id).disabled = true; });
+      try {
+        const mensagem = await acao();
+        if (mensagem) notificarMensagem(mensagem, 'sucesso');
+        invalidarCacheRelacao();
+        await Promise.all([
+          carregarProgressoInventarios({ forcar: true }),
+          carregarHistoricoInventarios(), carregarHistoricoGeral(),
+          atualizarEstadoDivisaoInventario()
+        ]);
+      } catch (erro) {
+        console.error('Falha na gestão do inventário:', erro);
+        notificarMensagem(erro.message || 'Não foi possível concluir a operação. Você pode retomá-la nesta tela.', 'erro', { duracao: 11000 });
+        await atualizarEstadoDivisaoInventario();
+      } finally {
+        botoesCiclo.forEach(id => { document.getElementById(id).disabled = false; });
+      }
     }
+
+    async function carregarHistoricoInventarios() {
+      const divisao = document.getElementById('select-divisao-historico').value;
+      const lista = document.getElementById('lista-historico-inventarios');
+      if (!divisao) {
+        lista.textContent = 'Selecione uma divisão para consultar os encerramentos.';
+        return;
+      }
+      lista.textContent = 'Carregando o histórico…';
+      try {
+        const [fechamentos, eventos] = await Promise.all([
+          listarFechamentos(divisao), listarEventosInventario(divisao)
+        ]);
+        if (document.getElementById('select-divisao-historico').value !== divisao) return;
+        lista.replaceChildren();
+        if (!fechamentos.length) {
+          lista.textContent = 'Ainda não há encerramentos registrados nesta divisão.';
+          return;
+        }
+        for (const fechamento of fechamentos) {
+          const reaberturas = eventos.filter(evento => evento.fechamentoId === fechamento.id)
+            .sort((a, b) => (a.registradoEm?.toMillis?.() || 0) - (b.registradoEm?.toMillis?.() || 0));
+          const card = document.createElement('article');
+          card.className = 'rounded-lg border border-slate-700 bg-slate-900/70 p-3 space-y-2';
+          card.innerHTML = `
+            <div class="flex justify-between gap-2"><strong class="text-white">Ciclo ${escaparHtml(fechamento.ciclo)}</strong><span>${escaparHtml(formatarDataInventario(fechamento.encerradoEm))}</span></div>
+            <p>Início: ${fechamento.iniciadoEm ? escaparHtml(formatarDataInventario(fechamento.iniciadoEm)) : 'não registrado'}</p>
+            <p>${escaparHtml(fechamento.localizados)} localizados · ${escaparHtml(fechamento.pendentes)} pendentes · ${escaparHtml(fechamento.total)} no total</p>
+            <p>Encerrado por ${escaparHtml(fechamento.encerradoPorNome || fechamento.encerradoPorEmail || 'Não registrado')}</p>
+            ${reaberturas.map(evento => `<p class="text-amber-300">Reaberto em ${escaparHtml(formatarDataInventario(evento.registradoEm))} por ${escaparHtml(evento.usuarioNome || evento.usuarioEmail)} · Motivo: ${escaparHtml(evento.motivo)}</p>`).join('')}
+            <button type="button" class="text-blue-300 font-bold hover:text-blue-200">Ver itens desta fotografia</button>
+            <div class="hidden space-y-1 max-h-80 overflow-y-auto"></div>`;
+          const btn = card.querySelector('button');
+          const destino = card.lastElementChild;
+          btn.addEventListener('click', async () => {
+            if (!destino.classList.contains('hidden')) {
+              destino.classList.add('hidden'); btn.textContent = 'Ver itens desta fotografia'; return;
+            }
+            destino.classList.remove('hidden');
+            if (destino.dataset.carregado) { btn.textContent = 'Ocultar itens'; return; }
+            destino.textContent = 'Carregando itens…';
+            try {
+              const itens = await listarItensFechamento(divisao, fechamento.id);
+              destino.innerHTML = itens.length ? itens.map(item => {
+                const conferencia = item.localizado ? [...(item.historico || [])].reverse()
+                  .find(evento => ['conferencia', 'transferencia_solicitada'].includes(evento.acao)) : null;
+                const responsavel = item.localizado
+                  ? (conferencia?.responsavel || item.conferidoPor || 'Não registrada')
+                  : 'Não registrada neste ciclo';
+                return `<div class="rounded bg-slate-950/70 p-2 border border-slate-800">
+                  <strong class="text-white">${escaparHtml(item.plaqueta)}</strong> · ${escaparHtml(item.descricao || 'Sem descrição')}<br>
+                  ${item.localizado ? 'Localizado' : 'Pendente'} · ${escaparHtml(item.localizacaoEfetivaNoEncerramento)}<br>
+                  Conferência: ${escaparHtml(responsavel)} · ${item.localizado ? escaparHtml(nomeMetodoLocalizacao(conferencia?.metodoLocalizacao)) : '—'}
+                </div>`;
+              }).join('') : 'Nenhum item registrado nesta fotografia.';
+              destino.dataset.carregado = 'true';
+              btn.textContent = 'Ocultar itens';
+            } catch (erro) { destino.textContent = 'Não foi possível carregar os itens. Tente novamente.'; }
+          });
+          lista.appendChild(card);
+        }
+      } catch (erro) {
+        lista.textContent = 'Histórico indisponível. Verifique a conexão e as regras do Firestore.';
+      }
+    }
+
+    async function carregarHistoricoGeral() {
+      const lista = document.getElementById('lista-inventarios-gerais');
+      if (usuarioLogado?.perfil === 'conferente') { lista.classList.add('hidden'); return; }
+      lista.classList.remove('hidden');
+      try {
+        const fechamentos = await listarInventariosGerais();
+        lista.innerHTML = `<strong class="text-white">Consolidações gerais</strong>${fechamentos.length ? fechamentos.map(item => `
+          <p class="mt-2">Ciclo ${escaparHtml(item.ciclo)} · ${escaparHtml(formatarDataInventario(item.encerradoEm))}
+          · ${escaparHtml(item.localizados)} localizados, ${escaparHtml(item.pendentes)} pendentes
+          (${escaparHtml(item.total)} itens em ${escaparHtml(item.divisoes.length)} divisões). Encerrado por ${escaparHtml(item.encerradoPorNome || item.encerradoPorEmail)}.</p>
+        `).join('') : '<p class="mt-2">Nenhuma consolidação registrada.</p>'}`;
+      } catch (_) { lista.textContent = 'Consolidações indisponíveis. Verifique as regras do Firestore.'; }
+    }
+
+    document.getElementById('select-divisao-reversao').addEventListener('change', atualizarEstadoDivisaoInventario);
+    document.getElementById('select-divisao-historico').addEventListener('change', carregarHistoricoInventarios);
+
+    document.getElementById('btn-encerrar-divisao').addEventListener('click', async () => {
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return;
+      const divisao = document.getElementById('select-divisao-reversao').value;
+      if (!divisao) return notificarMensagem('Selecione uma divisão.', 'aviso');
+      const confirmado = await confirmarAcao({
+        titulo: 'Encerrar divisão',
+        mensagem: `Registrar uma fotografia de ${divisao} e bloquear novas conferências nesta divisão? Itens não localizados permanecerão como pendentes no resultado.`,
+        confirmarTexto: 'Encerrar divisão'
+      });
+      if (!confirmado) return;
+      await executarAcaoCiclo(async () => {
+        const resultado = await encerrarDivisao(divisao, usuarioLogado);
+        document.getElementById('select-divisao-historico').value = divisao;
+        return `Divisão ${divisao} encerrada: ${resultado.localizados} localizados e ${resultado.pendentes} pendentes.`;
+      });
+    });
+
+    document.getElementById('btn-reabrir-divisao').addEventListener('click', async () => {
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return;
+      const divisao = document.getElementById('select-divisao-reversao').value;
+      const motivo = document.getElementById('motivo-reabertura-divisao').value.trim();
+      if (!motivo) return notificarMensagem('Informe a justificativa da reabertura.', 'aviso');
+      const confirmado = await confirmarAcao({ titulo: 'Reabrir divisão',
+        mensagem: `Reabrir ${divisao} para correções? O encerramento anterior e a justificativa permanecerão no histórico.`,
+        confirmarTexto: 'Reabrir divisão' });
+      if (!confirmado) return;
+      await executarAcaoCiclo(async () => {
+        await reabrirDivisao(divisao, motivo, usuarioLogado);
+        document.getElementById('motivo-reabertura-divisao').value = '';
+        document.getElementById('select-divisao-historico').value = divisao;
+        return `Divisão ${divisao} reaberta com justificativa registrada.`;
+      });
+    });
+
+    document.getElementById('btn-encerrar-geral').addEventListener('click', async () => {
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return;
+      const confirmado = await confirmarAcao({ titulo: 'Consolidar inventário geral',
+        mensagem: 'Consolidar os resultados encerrados de todas as divisões? Depois disso, não será possível reabri-las neste ciclo.',
+        confirmarTexto: 'Consolidar resultado' });
+      if (!confirmado) return;
+      await executarAcaoCiclo(async () => {
+        const divisoes = await divisoesDoInventarioAtual();
+        const resultado = await encerrarInventarioGeral(divisoes, usuarioLogado);
+        return `Inventário geral do ciclo ${resultado.ciclo} registrado: ${resultado.total} itens.`;
+      });
+    });
 
     document.getElementById('btn-reverter-divisao').addEventListener('click', async () => {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.", 'erro');
-      const divAlvo = document.getElementById('select-divisao-reversao').value;
-      if (!divAlvo) return notificarMensagem("Selecione uma divisão para reverter.", 'aviso');
-
-      const confirmarReversao = await confirmarAcao({
-        titulo: 'Reverter divisão',
-        mensagem: `Todos os itens de ${divAlvo} voltarão ao status pendente e o progresso do setor será zerado.`,
-        confirmarTexto: 'Reverter divisão',
-        perigosa: true
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return;
+      const divisao = document.getElementById('select-divisao-reversao').value;
+      if (!divisao) return notificarMensagem('Selecione uma divisão.', 'aviso');
+      const confirmado = await confirmarAcao({ titulo: 'Iniciar próximo ciclo da divisão',
+        mensagem: `Reiniciar os itens de ${divisao} após o encerramento geral? O resultado histórico permanecerá salvo.`,
+        confirmarTexto: 'Iniciar próximo ciclo', perigosa: true });
+      if (!confirmado) return;
+      await executarAcaoCiclo(async () => {
+        const quantidade = await reiniciarDivisaoEncerrada(divisao, usuarioLogado);
+        return `Novo ciclo de ${divisao} iniciado: ${quantidade} itens retornaram a pendente.`;
       });
-      if (!confirmarReversao) return;
-
-      const itensDaDivisao = await buscarItensDaDivisao(divAlvo);
-      const itensAfetados = itensDaDivisao.filter(item => item.statusTransferencia !== 'pendente');
-      if (itensAfetados.length === 0) {
-        return notificarMensagem('Nenhum item disponível para reinício nesta divisão. Resolva as transferências pendentes na Fila.', 'aviso');
-      }
-
-      try {
-        await atualizarItensEmLotes(itensAfetados, {
-          localizado: false,
-          statusTransferencia: "concluido",
-          conferidoPor: "",
-          observacaoAtual: "Status revertido para pendente (Novo Ciclo)",
-          dataLocalizacao: ""
-        });
-        invalidarCacheRelacao();
-        const ignorados = itensDaDivisao.length - itensAfetados.length;
-        notificarMensagem(`${itensAfetados.length} itens da divisão ${divAlvo} retornados para pendentes.${ignorados ? ` ${ignorados} transferência(s) aguardam decisão na Fila.` : ''}`, 'sucesso');
-        document.getElementById('select-divisao-reversao').value = "";
-        await carregarProgressoInventarios({ forcar: true });
-      } catch (e) {
-        notificarMensagem("Erro ao executar reversão setorial.", 'erro');
-      }
     });
 
     document.getElementById('btn-reverter-geral').addEventListener('click', async () => {
-      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado.", 'erro');
-      const confirmarReinicio = await confirmarAcao({
-        titulo: 'Reiniciar inventário geral',
-        mensagem: 'Todos os patrimônios retornarão ao status pendente. Use esta ação somente ao iniciar um novo ciclo completo.',
-        confirmarTexto: 'Reiniciar inventário',
-        perigosa: true
+      if (!usuarioLogado || usuarioLogado.perfil === 'conferente') return;
+      const confirmado = await confirmarAcao({ titulo: 'Iniciar próximo ciclo geral',
+        mensagem: 'Reiniciar todas as divisões após o encerramento geral? O histórico ficará preservado. Uma falha poderá ser retomada nesta tela.',
+        confirmarTexto: 'Iniciar próximo ciclo', perigosa: true });
+      if (!confirmado) return;
+      await executarAcaoCiclo(async () => {
+        const divisoes = await divisoesDoInventarioAtual();
+        const quantidade = await reiniciarInventarioGeral(divisoes, usuarioLogado);
+        return `Novo ciclo geral iniciado: ${quantidade} itens reiniciados.`;
       });
-      if (!confirmarReinicio) return;
-
-      try {
-        const snapshot = await getDocs(collection(db, "patrimonios"));
-        const itens = snapshot.docs.map(normalizarPatrimonio).filter(item => item.statusTransferencia !== 'pendente');
-        if (itens.length === 0) {
-          return notificarMensagem('Nenhum item disponível para reinício. Resolva as transferências pendentes na Fila.', 'aviso');
-        }
-        await atualizarItensEmLotes(itens, {
-          localizado: false,
-          statusTransferencia: "concluido",
-          conferidoPor: "",
-          observacaoAtual: "Inventário reiniciado para novo ciclo",
-          dataLocalizacao: ""
-        });
-        invalidarCacheRelacao();
-        const ignorados = snapshot.size - itens.length;
-        notificarMensagem(`${itens.length} itens reiniciados com sucesso.${ignorados ? ` ${ignorados} transferência(s) aguardam decisão na Fila.` : ''}`, 'sucesso');
-        await carregarProgressoInventarios({ forcar: true });
-      } catch (e) {
-        notificarMensagem("Erro ao reiniciar inventário geral.", 'erro');
-      }
     });
 
     window.reverterItemIndividual = async function(plaqueta) {
@@ -1217,7 +1439,9 @@
         notificarMensagem("Item retornado para pendente com sucesso.", 'sucesso');
         await fecharModalHistorico('modal-detalhes-item', 'detalhes-item');
       } catch (e) {
-        notificarMensagem("Erro ao reverter item.", 'erro');
+        notificarMensagem(e?.code === 'permission-denied'
+          ? 'Item bloqueado: a divisão pode estar encerrada ou em processamento. Consulte Inventários.'
+          : 'Erro ao reverter item.', 'erro');
       }
     };
 
@@ -1284,9 +1508,10 @@
       if (!container || !usuarioLogado) return;
 
       const usuariosFiltradosPorPermissao = bancoUsuarios.filter(u => {
+        if (u.uid === usuarioLogado.uid) return false;
         if (usuarioLogado.perfil === 'admin') return true;
         if (usuarioLogado.perfil === 'gestor') {
-          return u.uid === usuarioLogado.uid || u.perfil === 'conferente';
+          return u.perfil === 'conferente';
         }
         return false;
       });
@@ -1329,8 +1554,7 @@
           `;
 
           listaGrupo.forEach(u => {
-            const ehProprio = u.uid === usuarioLogado.uid;
-            const podeExcluir = !ehProprio && (
+            const podeExcluir = (
               (usuarioLogado.perfil === 'admin' && u.perfil !== 'admin') ||
               (usuarioLogado.perfil === 'gestor' && u.perfil === 'conferente')
             );
@@ -1338,7 +1562,7 @@
             htmlConsolidado += `
               <div class="bg-slate-800 p-3 rounded-lg border border-slate-700/60 space-y-2 text-xs">
                 <div class="space-y-0.5">
-                  <div class="font-bold text-white">${u.nome} ${ehProprio ? '(Você)' : ''}</div>
+                  <div class="font-bold text-white">${u.nome}</div>
                   <div class="text-[10px] text-slate-400">${u.email}</div>
                   <div class="text-[10px] text-emerald-400">${u.perfil === 'conferente'
                     ? `Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}`
@@ -1444,6 +1668,9 @@
     window.abrirModalEdicao = function(uid) {
       const user = bancoUsuarios.find(u => u.uid === uid);
       if (!user) return;
+      if (user.uid === usuarioLogado.uid) {
+        return notificarMensagem('Altere seus próprios dados na tela Meu perfil.', 'aviso');
+      }
 
       if (usuarioLogado.perfil === 'gestor') {
         if (user.uid !== usuarioLogado.uid && user.perfil !== 'conferente') {
@@ -1496,6 +1723,9 @@
       const targetUser = bancoUsuarios.find(u => u.uid === uid);
 
       if (!targetUser) return;
+      if (targetUser.uid === usuarioLogado.uid) {
+        return notificarMensagem('Altere seus próprios dados na tela Meu perfil.', 'aviso');
+      }
 
       if (usuarioLogado.perfil === 'gestor') {
         if (targetUser.uid !== usuarioLogado.uid && targetUser.perfil !== 'conferente') {
@@ -1512,15 +1742,8 @@
       const divisoes = perfilNovo === 'conferente' ? Array.from(checkboxes).map(cb => cb.value) : [];
 
       try {
-        const gestorEditandoProprioPerfil = usuarioLogado.perfil === 'gestor' && targetUser.uid === usuarioLogado.uid;
-        const dadosAtualizacao = gestorEditandoProprioPerfil
-          ? { nome }
-          : { nome, perfil: perfilNovo, divisoesAtribuidas: divisoes };
+        const dadosAtualizacao = { nome, perfil: perfilNovo, divisoesAtribuidas: divisoes };
         await updateDoc(doc(db, "usuarios", uid), dadosAtualizacao);
-        if (uid === usuarioLogado.uid) {
-          usuarioLogado = { ...usuarioLogado, ...dadosAtualizacao };
-          atualizarCabecalhoUsuario();
-        }
         notificarMensagem("Dados atualizados com sucesso.", 'sucesso');
         await fecharModalHistorico('modal-edicao-usuario', 'edicao-usuario');
         await carregarUsuarios(true);
@@ -1832,7 +2055,7 @@
           }
         }
         notificarMensagem(erro?.code === 'permission-denied'
-          ? 'Leitura não autorizada. Confira se já existe uma transferência pendente e se as regras atualizadas do Firestore foram publicadas.'
+          ? 'Leitura não autorizada. Verifique se a divisão de origem ou destino está encerrada, se há transferência pendente e se as regras atualizadas foram publicadas.'
           : (erro?.message || 'Não foi possível registrar a leitura.'), 'erro');
       } finally {
         if (itemAtualSelecionado?.statusTransferencia !== 'pendente') btnSalvar.disabled = false;
@@ -1980,7 +2203,9 @@
         notificarMensagem(decisao === 'aprovar' ? "Transferência aprovada com sucesso." : "Transferência rejeitada; localização anterior mantida.", 'sucesso');
       } catch (erro) {
         console.error("Erro ao resolver transferência:", erro);
-        notificarMensagem(erro.message || "Não foi possível resolver a transferência.", 'erro');
+        notificarMensagem(erro?.code === 'permission-denied'
+          ? 'A divisão de origem ou destino está bloqueada, ou as regras atualizadas ainda não foram publicadas.'
+          : (erro.message || "Não foi possível resolver a transferência."), 'erro');
       }
     }
 

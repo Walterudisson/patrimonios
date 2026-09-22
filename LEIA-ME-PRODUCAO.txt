@@ -1,0 +1,9 @@
+CM APP v1.13.6 — produção
+
+Projeto Firebase: patrimonioscm
+Publicação: repositório GitHub Pages de produção
+
+Antes de publicar os arquivos do site, publique o firestore.rules da entrega interna v1.13.6 no projeto patrimonioscm.
+Depois, substitua o conteúdo do repositório de produção pelos arquivos desta pasta.
+
+Esta é a distribuição pública aprovada da versão v1.13.6, configurada exclusivamente para produção.
