@@ -113,3 +113,81 @@ export function prepararResolucaoTransferencia({ item, usuario, decisao, dataHor
     acao
   };
 }
+
+export function prepararSugestaoDestino({ item, destino, usuario, observacao = '', dataHora }) {
+  if (!item || !destino || !usuario || !dataHora) {
+    throw new Error('Dados insuficientes para sugerir o destino.');
+  }
+  if (usuario.perfil !== 'conferente') {
+    throw new Error('Somente Conferentes podem utilizar este fluxo.');
+  }
+  if (item.localizado === true) {
+    throw new Error('O item já foi localizado. Utilize o fluxo normal de transferência.');
+  }
+  if (item.statusTransferencia === 'pendente' || item.sugestaoDestinoStatus === 'pendente') {
+    throw new Error('Este patrimônio já possui uma solicitação aguardando aprovação.');
+  }
+  const origem = item.localizacaoAtual || item.divisaoOrigem || item.divisao || '';
+  if (!origem || destino === origem) {
+    throw new Error('Escolha uma divisão de destino diferente da localização atual.');
+  }
+  const responsavel = `${usuario.nome} (${usuario.email})`;
+  const obs = observacao.trim();
+  const historico = [
+    ...(item.historico || []),
+    {
+      local: origem,
+      destinoSugerido: destino,
+      data: dataHora,
+      responsavel,
+      obs: obs || `Destino sugerido por: ${usuario.nome}`,
+      acao: 'destino_sugerido'
+    }
+  ];
+  return {
+    sugestaoDestinoStatus: 'pendente',
+    sugestaoDestinoDivisao: destino,
+    sugestaoDestinoPor: { uid: usuario.uid, nome: usuario.nome, email: usuario.email },
+    sugestaoDestinoEm: dataHora,
+    sugestaoDestinoObservacao: obs,
+    observacaoAtual: `Destino sugerido por: ${usuario.nome}${obs ? ` — ${obs}` : ''}`,
+    historico
+  };
+}
+
+export function prepararResolucaoSugestaoDestino({ item, usuario, decisao, dataHora }) {
+  if (!item || !usuario || !dataHora || !['aprovar', 'rejeitar'].includes(decisao)) {
+    throw new Error('Dados insuficientes para analisar a sugestão de destino.');
+  }
+  if (!ehPerfilValidador(usuario.perfil)) {
+    throw new Error('Somente Gestores e Administradores podem analisar sugestões.');
+  }
+  if (item.sugestaoDestinoStatus !== 'pendente' || !item.sugestaoDestinoDivisao) {
+    throw new Error('A sugestão de destino não está mais pendente.');
+  }
+  const origem = item.localizacaoAtual || item.divisaoOrigem || item.divisao || '';
+  const destino = item.sugestaoDestinoDivisao;
+  const aprovada = decisao === 'aprovar';
+  const historico = [
+    ...(item.historico || []),
+    {
+      local: aprovada ? destino : origem,
+      destinoSugerido: destino,
+      data: dataHora,
+      responsavel: `${usuario.nome} (${usuario.email})`,
+      obs: aprovada
+        ? `Sugestão aprovada. O item permanece pendente de conferência física em ${destino}.`
+        : `Sugestão de destino para ${destino} rejeitada; localização anterior mantida.`,
+      acao: aprovada ? 'sugestao_destino_aprovada' : 'sugestao_destino_rejeitada'
+    }
+  ];
+  return {
+    localizado: false,
+    ...(aprovada ? { localizacaoAtual: destino } : {}),
+    sugestaoDestinoStatus: aprovada ? 'aprovada' : 'rejeitada',
+    observacaoAtual: aprovada
+      ? `Destino sugerido aprovado por ${usuario.nome}; aguardando conferência física.`
+      : `Sugestão de destino rejeitada por ${usuario.nome}.`,
+    historico
+  };
+}
