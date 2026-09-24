@@ -3208,8 +3208,8 @@
               <div onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')" class="patrimonio-card patrimonio-card--${situacaoPatrimonio(item)} bg-slate-800/90 p-3 rounded-lg border text-xs space-y-1.5 cursor-pointer transition-colors shadow-sm">
                 <div class="flex justify-between items-center">
                   <span class="font-bold text-white text-sm">Plaqueta: ${item.plaqueta}</span>
-                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${situacaoPatrimonio(item) === 'aguardando' ? 'bg-amber-900 text-amber-300' : situacaoPatrimonio(item) === 'localizados' ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">
-                    ${situacaoPatrimonio(item) === 'aguardando' ? '⏳ AGUARDANDO APROVAÇÃO' : situacaoPatrimonio(item) === 'localizados' ? '🟢 LOCALIZADO' : '🔴 PENDENTE'}
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${item.sugestaoDestinoStatus === 'pendente' || situacaoPatrimonio(item) === 'aguardando' ? 'bg-amber-900 text-amber-300' : situacaoPatrimonio(item) === 'localizados' ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-slate-400'}">
+                    ${item.sugestaoDestinoStatus === 'pendente' ? '📍 PENDENTE · DESTINO SUGERIDO' : situacaoPatrimonio(item) === 'aguardando' ? '⏳ AGUARDANDO APROVAÇÃO' : situacaoPatrimonio(item) === 'localizados' ? '🟢 LOCALIZADO' : '🔴 PENDENTE'}
                   </span>
                 </div>
                 <p class="text-slate-300 text-xs">${item.descricao}</p>
