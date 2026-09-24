@@ -12,6 +12,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
   <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.5.0/dist/driver.css">
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -20,9 +21,10 @@
   <!-- Motor de OCR (Tesseract.js) -->
   <script src="https://unpkg.com/tesseract.js@v5.1.0/dist/tesseract.min.js"></script>
 
-  <link rel="stylesheet" href="./app.css?v=1.13.6">
+  <link rel="stylesheet" href="./app.css?v=1.13.9">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
   <!-- TELA DE LOGIN -->
   <div id="view-login" class="fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center p-4">
     <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-6 rounded-2xl shadow-2xl space-y-5">
@@ -51,7 +53,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.13.6</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.13.9</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -110,7 +112,7 @@
       </nav>
 
       <div class="sidebar-footer sidebar-label">
-        <span>v1.13.6</span>
+        <span>v1.13.9</span>
         <button id="btn-logout-sidebar" type="button">SAIR</button>
       </div>
     </aside>
@@ -316,6 +318,7 @@
             </div>
             <div><strong class="text-slate-400">Descrição:</strong> <span id="det-descricao" class="text-slate-200">---</span></div>
             <div><strong class="text-slate-400">🏷️ Divisão Anterior:</strong> <span id="det-divisao" class="text-amber-400 font-semibold">---</span></div>
+            <button id="btn-sugerir-destino" type="button" class="hidden suggestion-destination-button">📍 Sugerir destino</button>
             
             <div id="det-historico-box" class="hidden mt-2 pt-2 border-t border-slate-700/60 space-y-1">
               <strong class="text-blue-400 text-[11px] block">📜 Linha do Tempo (Histórico):</strong>
@@ -431,6 +434,14 @@
             </div>
             <button id="btn-instalar-app" type="button" class="profile-action profile-action-primary hidden">INSTALAR CM APP</button>
           </article>
+          <article id="tutorial-conferente-card" class="hidden app-card tutorial-profile-card">
+            <div>
+              <span class="eyebrow">Ajuda guiada</span>
+              <h2>Tutorial do Conferente</h2>
+              <p id="tutorial-conferente-status">Conheça o fluxo de leitura e conferência sem alterar dados patrimoniais.</p>
+            </div>
+            <button id="btn-iniciar-tutorial" type="button" class="profile-action profile-action-primary">INICIAR TUTORIAL</button>
+          </article>
         </div>
       </section>
 
@@ -438,7 +449,7 @@
       <section id="sec-transferencias" class="hidden space-y-4">
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-2 shadow-md">
           <div class="flex justify-between items-center">
-            <h2 class="text-xs md:text-sm font-bold text-amber-400 uppercase">🔄 Fila de Aprovação de Transferências</h2>
+            <h2 class="text-xs md:text-sm font-bold text-amber-400 uppercase">🔄 Fila de Aprovação de Movimentações</h2>
             <span id="transf-contador" class="bg-slate-900 text-slate-300 text-xs font-bold px-2.5 py-1 rounded">0 pendentes</span>
           </div>
         </div>
@@ -447,24 +458,66 @@
 
       <!-- ABA 3: GESTÃO DE USUÁRIOS -->
       <section id="sec-usuarios" class="hidden space-y-5">
-        <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
-          <div class="p-4 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <span class="eyebrow">Controle de acesso</span>
-              <h2 class="mt-1 text-sm font-bold text-white">Usuários e permissões</h2>
-              <p class="mt-1 text-xs text-slate-400">Cadastre colaboradores e mantenha perfis e divisões de atuação.</p>
-            </div>
-            <button onclick="abrirModalCriacaoUsuario()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 transition-colors">
-              ➕ Novo Usuário
-            </button>
+        <div class="users-heading">
+          <div>
+            <span class="eyebrow">Controle de acesso</span>
+            <h2>Usuários e permissões</h2>
+            <p>Consulte colaboradores, perfis, divisões de atuação e situação do acesso.</p>
           </div>
-          <div class="p-4 space-y-3 bg-slate-900/40">
-            <div class="search-field">
-              <input type="text" id="filtro-busca-usuarios" placeholder="Pesquisar por nome ou e-mail..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 pr-10 text-xs text-white focus:outline-none focus:border-blue-500">
-              <button id="btn-limpar-busca-usuarios" type="button" class="search-clear hidden" aria-label="Limpar pesquisa de usuários">×</button>
+          <button id="btn-novo-usuario" type="button" onclick="abrirModalCriacaoUsuario()" class="users-primary-action">
+            <span aria-hidden="true">＋</span> Cadastrar usuário
+          </button>
+        </div>
+
+        <div class="users-stats" aria-label="Resumo dos usuários">
+          <button type="button" class="is-selected" data-users-card="todos" aria-pressed="true"><span class="users-stat-icon stat-blue" aria-hidden="true">◎</span><div><strong id="usuarios-total">0</strong><small>Total de usuários</small></div></button>
+          <button type="button" data-users-card="ativos" aria-pressed="false"><span class="users-stat-icon stat-green" aria-hidden="true">✓</span><div><strong id="usuarios-ativos">0</strong><small>Ativos</small></div></button>
+          <button type="button" data-users-card="inativos" aria-pressed="false"><span class="users-stat-icon stat-red" aria-hidden="true">—</span><div><strong id="usuarios-inativos">0</strong><small>Inativos</small></div></button>
+          <button type="button" data-users-card="conferentes" aria-pressed="false"><span class="users-stat-icon stat-amber" aria-hidden="true">◇</span><div><strong id="usuarios-conferentes">0</strong><small>Conferentes</small></div></button>
+        </div>
+
+        <div class="users-panel">
+          <div class="users-toolbar">
+            <div class="users-tabs" role="tablist" aria-label="Situação do acesso">
+              <button type="button" class="active" data-users-status="todos">Todos <span id="usuarios-tab-todos-contagem">0</span></button>
+              <button type="button" data-users-status="ativos">Ativos <span id="usuarios-tab-ativos-contagem">0</span></button>
+              <button type="button" data-users-status="inativos">Inativos <span id="usuarios-tab-inativos-contagem">0</span></button>
             </div>
-            <div id="lista-usuarios-container" class="space-y-3 max-h-[65vh] overflow-y-auto pr-1"></div>
+            <div class="users-filters">
+              <div class="search-field">
+                <input type="text" id="filtro-busca-usuarios" placeholder="Pesquisar nome ou e-mail..." aria-label="Pesquisar usuários">
+                <button id="btn-limpar-busca-usuarios" type="button" class="search-clear hidden" aria-label="Limpar pesquisa de usuários">×</button>
+              </div>
+              <select id="filtro-perfil-usuarios" aria-label="Filtrar usuários por perfil">
+                <option value="todos">Todos os perfis</option>
+                <option value="admin">Administradores</option>
+                <option value="gestor">Gestores</option>
+                <option value="conferente">Conferentes</option>
+              </select>
+            </div>
           </div>
+          <div class="users-mobile-sort">
+            <label for="ordenacao-usuarios">Ordenar por</label>
+            <select id="ordenacao-usuarios">
+              <option value="nome:asc">Nome (A–Z)</option>
+              <option value="nome:desc">Nome (Z–A)</option>
+              <option value="perfil:asc">Perfil</option>
+              <option value="divisoes:asc">Divisão</option>
+              <option value="ativo:asc">Status</option>
+              <option value="criadoEm:desc">Cadastro mais recente</option>
+              <option value="criadoEm:asc">Cadastro mais antigo</option>
+            </select>
+          </div>
+          <div class="users-table-header">
+            <button type="button" data-users-sort="nome">Usuário <span aria-hidden="true"></span></button>
+            <button type="button" data-users-sort="perfil">Perfil <span aria-hidden="true"></span></button>
+            <button type="button" data-users-sort="divisoes">Divisões <span aria-hidden="true"></span></button>
+            <button type="button" data-users-sort="ativo">Status <span aria-hidden="true"></span></button>
+            <button type="button" data-users-sort="criadoEm">Cadastro <span aria-hidden="true"></span></button>
+            <span>Detalhes</span>
+          </div>
+          <div id="lista-usuarios-container" class="users-list" aria-live="polite"></div>
+          <div id="usuarios-paginacao" class="users-pagination"></div>
         </div>
       </section>
 
@@ -562,9 +615,13 @@
           </div>
 
           <div class="pt-2 border-t border-slate-700/60">
-            <button id="btn-atualizar-relacao" class="w-full bg-blue-900/50 hover:bg-blue-800 text-blue-200 font-bold py-2 rounded-lg text-xs border border-blue-500/30 transition-colors">
-              🔄 Atualizar dados da relação
-            </button>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button id="btn-expandir-divisoes" type="button" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-2 rounded-lg text-xs transition-colors">Expandir tudo</button>
+              <button id="btn-recolher-divisoes" type="button" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold py-2 rounded-lg text-xs transition-colors">Recolher tudo</button>
+              <button id="btn-atualizar-relacao" class="bg-blue-900/50 hover:bg-blue-800 text-blue-200 font-bold py-2 rounded-lg text-xs border border-blue-500/30 transition-colors">
+                🔄 Atualizar dados
+              </button>
+            </div>
           </div>
           <div id="container-botoes-exportacao" class="space-y-2.5">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -589,7 +646,7 @@
 
       <footer class="app-footer">
         <span>CM APP · Patrimônio</span>
-        <span>v1.13.6</span>
+        <span>v1.13.9</span>
       </footer>
     </div>
   </div>
@@ -612,7 +669,7 @@
         </div>
         <div>
           <label class="text-[11px] text-slate-400 block mb-1">Senha Inicial</label>
-          <input type="password" id="cad-senha" required placeholder="Mínimo de 6 caracteres" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
+          <input type="password" id="cad-senha" required minlength="8" placeholder="Mínimo de 8 caracteres" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white">
         </div>
         <div id="campo-perfil-container">
           <label class="text-[11px] text-slate-400 block mb-1">Perfil de Acesso</label>
@@ -669,6 +726,60 @@
     </div>
   </div>
 
+  <!-- MODAL DE DETALHES DO USUÁRIO -->
+  <div id="modal-detalhes-usuario" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
+    <div class="user-details-dialog" role="dialog" aria-modal="true" aria-labelledby="detalhes-usuario-titulo">
+      <div class="user-details-heading">
+        <h3 id="detalhes-usuario-titulo">Detalhes do usuário</h3>
+        <button id="btn-fechar-detalhes-usuario" type="button" aria-label="Fechar detalhes do usuário">✕</button>
+      </div>
+      <div class="user-details-profile">
+        <span id="detalhes-usuario-avatar" class="user-avatar user-avatar-large">US</span>
+        <div><strong id="detalhes-usuario-nome"></strong><small id="detalhes-usuario-email"></small></div>
+      </div>
+      <dl class="user-details-grid">
+        <div><dt>Perfil</dt><dd id="detalhes-usuario-perfil"></dd></div>
+        <div><dt>Status</dt><dd id="detalhes-usuario-status"></dd></div>
+        <div class="user-details-wide"><dt>Divisões atribuídas</dt><dd id="detalhes-usuario-divisoes"></dd></div>
+        <div><dt>Cadastro</dt><dd id="detalhes-usuario-cadastro"></dd></div>
+      </dl>
+      <div id="detalhes-usuario-acoes" class="user-details-actions"></div>
+    </div>
+  </div>
+
+  <!-- MODAL DE DETALHES E HISTÓRICO DO ITEM -->
+  <div id="modal-sugerir-destino" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
+    <div class="suggestion-dialog" role="dialog" aria-modal="true" aria-labelledby="sugestao-destino-titulo">
+      <div class="suggestion-heading">
+        <div><span class="eyebrow">Indicação administrativa</span><h3 id="sugestao-destino-titulo">Sugerir destino</h3></div>
+        <button id="btn-fechar-sugestao-destino" type="button" aria-label="Fechar sugestão de destino">✕</button>
+      </div>
+      <div class="suggestion-item-summary">
+        <strong id="sugestao-destino-plaqueta">Plaqueta ---</strong>
+        <span id="sugestao-destino-descricao">---</span>
+        <small>Localização atual: <b id="sugestao-destino-origem">---</b></small>
+      </div>
+      <form id="form-sugerir-destino" class="space-y-3">
+        <label class="profile-field">
+          <span>Divisão de destino sugerida</span>
+          <select id="sugestao-destino-divisao" required><option value="">Selecione a divisão</option></select>
+        </label>
+        <label class="profile-field">
+          <span>Justificativa ou informação recebida (opcional)</span>
+          <textarea id="sugestao-destino-observacao" rows="3" maxlength="500" placeholder="Ex.: informação recebida do responsável pelo setor"></textarea>
+        </label>
+        <div class="suggestion-warning">
+          <strong>Esta ação não localiza o patrimônio.</strong>
+          <p>A divisão oficial somente será alterada após aprovação, e o item continuará pendente de conferência física.</p>
+        </div>
+        <div class="suggestion-actions">
+          <button id="btn-cancelar-sugestao-destino" type="button">Cancelar</button>
+          <button type="submit">Enviar para aprovação</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- MODAL DE DETALHES E HISTÓRICO DO ITEM -->
   <div id="modal-detalhes-item" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
     <div class="bg-slate-800 border border-slate-700 w-full max-w-md p-5 rounded-2xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -696,6 +807,7 @@
     </div>
   </div>
 
-    <script type="module" src="./app.js?v=1.13.6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.5.0/dist/driver.js.iife.js"></script>
+    <script type="module" src="./app.js?v=1.13.9"></script>
 </body>
 </html>

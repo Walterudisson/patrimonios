@@ -1,9 +1,12 @@
-CM APP v1.13.6 — produção
+CM APP v1.13.9 — PRODUÇÃO
 
-Projeto Firebase: patrimonioscm
-Publicação: repositório GitHub Pages de produção
+Projeto Firebase exclusivo: patrimonioscm
+Hospedagem: GitHub Pages
 
-Antes de publicar os arquivos do site, publique o firestore.rules da entrega interna v1.13.6 no projeto patrimonioscm.
-Depois, substitua o conteúdo do repositório de produção pelos arquivos desta pasta.
+IMPORTANTE
+1. Não publique esta pasta antes de concluir com sucesso o deploy do pacote interno v1.13.9.
+2. Depois do backend, substitua no repositório de produção somente os arquivos públicos desta pasta.
+3. Faça commit/push e aguarde o GitHub Pages concluir.
+4. No app, aceite ATUALIZAR AGORA e confirme v1.13.9 no rodapé.
 
-Esta é a distribuição pública aprovada da versão v1.13.6, configurada exclusivamente para produção.
+Esta entrega consolida as versões homologadas v1.13.7-H, v1.13.8-H e v1.13.9-H.

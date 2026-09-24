@@ -1,4 +1,4 @@
-const VERSAO = 'v1.13.6';
+const VERSAO = 'v1.13.9';
 const CACHE_SHELL = `cmapp-shell-${VERSAO}`;
 const CACHE_RUNTIME = `cmapp-runtime-${VERSAO}`;
 const PREFIXO_CACHE = 'cmapp-';
@@ -27,6 +27,7 @@ const ARQUIVOS_SHELL = [
   './js/services/divisoes.service.js',
   './js/services/inventarios.service.js',
   './js/services/perfil.service.js',
+  './js/services/usuarios.service.js',
   './js/ui/feedback.js',
   './js/ui/navigation.js',
   './js/pwa.js'
@@ -39,10 +40,13 @@ const DEPENDENCIAS_EXTERNAS = [
   'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js',
-  'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js'
+  'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js',
+  'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js',
+  'https://cdn.jsdelivr.net/npm/driver.js@1.5.0/dist/driver.js.iife.js',
+  'https://cdn.jsdelivr.net/npm/driver.js@1.5.0/dist/driver.css'
 ];
 
-const HOSTS_ESTATICOS = new Set(['cdn.tailwindcss.com', 'unpkg.com', 'www.gstatic.com']);
+const HOSTS_ESTATICOS = new Set(['cdn.tailwindcss.com', 'cdn.jsdelivr.net', 'unpkg.com', 'www.gstatic.com']);
 
 async function armazenarDependenciasExternas() {
   const cache = await caches.open(CACHE_RUNTIME);

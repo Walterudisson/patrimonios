@@ -1,6 +1,5 @@
     import {
       EmailAuthProvider,
-      createUserWithEmailAndPassword,
       onAuthStateChanged,
       reauthenticateWithCredential,
       sendPasswordResetEmail,
@@ -10,13 +9,19 @@
       updateProfile
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import {
-      doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc,
+      doc, getDoc, getDocFromServer, setDoc, updateDoc,
       collection, getDocs, onSnapshot, writeBatch, query, where,
       and, or, orderBy, startAt, startAfter, endAt, limit, documentId,
       getCountFromServer
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { auth, db, authSecundario } from "./js/config/firebase.js";
-    import { ehPerfilValidador, prepararAtualizacaoPatrimonio, prepararResolucaoTransferencia } from "./js/core/movimentacao.js?v=1.12.5";
+    import { auth, db } from "./js/config/firebase.js";
+    import {
+      ehPerfilValidador,
+      prepararAtualizacaoPatrimonio,
+      prepararResolucaoSugestaoDestino,
+      prepararResolucaoTransferencia,
+      prepararSugestaoDestino
+    } from "./js/core/movimentacao.js?v=1.13.9";
     import { situacaoPatrimonio, divisoesVisiveisPatrimonio, patrimonioVisivelParaDivisoes, correspondeSituacaoPatrimonio, contarSituacoesPatrimonio, descontarItensForaDoEscopo, resumirProgressoDivisao } from "./js/core/relacao.js?v=1.13.3";
     import { carregarPaginaIntercalada } from "./js/core/paginacao.js?v=1.12.4";
     import { divisoesDisponiveis, escopoInicial } from "./js/core/escopo.js?v=1.13.0";
@@ -31,6 +36,7 @@
       consultarEncerramentoGeral
     } from "./js/services/inventarios.service.js?v=1.13.6";
     import { obterUrlFotoPerfil, removerFotoPerfil, salvarFotoPerfil } from "./js/services/perfil.service.js";
+    import { alterarEstadoUsuario, atualizarUsuarioSeguro, criarUsuarioSeguro } from "./js/services/usuarios.service.js?v=1.13.7";
     import {
       configurarHistoricoFeedback,
       confirmarAcao,
@@ -52,10 +58,12 @@
     let bancoPatrimonio = [];
     let bancoUsuarios = [];
     let bancoTransferencias = [];
+    let filaTransferenciasFisicas = [];
+    let filaSugestoesDestino = [];
     let itemAtualSelecionado = null;
     let metodoLocalizacaoSelecionado = 'digitacao';
     let itensFiltradosCache = [];
-    let unsubscribeTransferencias = null;
+    let unsubscribeTransferencias = [];
     let abaAtual = 'dashboard';
     let usuariosCarregados = false;
     let relacaoCarregada = false;
@@ -73,6 +81,16 @@
     let escopoVisualizacao = '';
     let revisaoEscopo = 0;
     let revisaoInventarios = 0;
+    let filtroStatusUsuarios = 'todos';
+    let filtroPerfilUsuarios = 'todos';
+    let paginaUsuarios = 1;
+    let ordenacaoUsuarios = { campo: 'nome', direcao: 'asc' };
+    let usuarioDetalhadoUid = '';
+    const cacheFotosUsuarios = new Map();
+    let tutorialConferente = null;
+    let tutorialFinalizado = false;
+    let tutorialEraRevisao = false;
+    let filaSalvamentoTutorial = Promise.resolve();
 
     const TAMANHO_PAGINA_RELACAO = 50;
     const VALIDADE_RESUMO_INVENTARIO_MS = 120000;
@@ -198,7 +216,9 @@
     function fecharCamadaSobreposta() {
       if (fecharConfirmacaoAtiva()) return true;
       const camadas = [
+        ['modal-sugerir-destino', 'sugerir-destino'],
         ['modal-detalhes-item', 'detalhes-item'],
+        ['modal-detalhes-usuario', 'detalhes-usuario'],
         ['modal-edicao-usuario', 'edicao-usuario'],
         ['modal-criacao-usuario', 'criacao-usuario']
       ];
@@ -298,6 +318,209 @@
       atualizarCarrossel();
     }, 18000);
 
+    function atualizarEstadoTutorialConferente() {
+      const ehConferente = usuarioLogado?.perfil === 'conferente';
+      document.getElementById('tutorial-conferente-card')?.classList.toggle('hidden', !ehConferente);
+      if (!ehConferente) return;
+      const concluido = usuarioLogado.tutorialConferenteV1Concluido === true;
+      const adiado = usuarioLogado.tutorialConferenteV1Adiado === true;
+      const status = document.getElementById('tutorial-conferente-status');
+      const botao = document.getElementById('btn-iniciar-tutorial');
+      if (status) status.textContent = concluido
+        ? 'Tutorial concluído. Você pode revê-lo sempre que precisar.'
+        : (adiado ? 'Tutorial pausado. Continue a partir da última orientação.' : 'Conheça o fluxo de leitura e conferência sem alterar dados patrimoniais.');
+      if (botao) botao.textContent = concluido ? 'REVER TUTORIAL' : (adiado ? 'CONTINUAR TUTORIAL' : 'INICIAR TUTORIAL');
+    }
+
+    async function salvarEstadoTutorialConferente({ etapa, concluido, adiado }) {
+      if (!usuarioLogado || usuarioLogado.perfil !== 'conferente') return;
+      const dados = {
+        tutorialConferenteV1Etapa: Math.max(0, Number(etapa) || 0),
+        tutorialConferenteV1Concluido: Boolean(concluido),
+        tutorialConferenteV1Adiado: Boolean(adiado)
+      };
+      Object.assign(usuarioLogado, dados);
+      atualizarEstadoTutorialConferente();
+      filaSalvamentoTutorial = filaSalvamentoTutorial
+        .catch(() => {})
+        .then(() => updateDoc(doc(db, 'usuarios', usuarioLogado.uid), dados));
+      try { await filaSalvamentoTutorial; }
+      catch (erro) { console.warn('Não foi possível salvar o progresso do tutorial.', erro); }
+    }
+
+    function adicionarBotaoPularTutorial(popover) {
+      const rodape = popover?.footerButtons || document.querySelector('.driver-popover-footer');
+      if (!rodape || rodape.querySelector('.tutorial-skip-button')) return;
+      const botao = document.createElement('button');
+      botao.type = 'button';
+      botao.className = 'driver-popover-footer-btn tutorial-skip-button';
+      botao.textContent = 'Pular';
+      botao.addEventListener('click', () => {
+        const etapa = tutorialConferente?.getActiveIndex?.() || 0;
+        void salvarEstadoTutorialConferente({
+          etapa,
+          concluido: tutorialEraRevisao,
+          adiado: !tutorialEraRevisao
+        });
+        tutorialConferente?.destroy();
+      });
+      rodape.prepend(botao);
+    }
+
+    function passosTutorialConferente() {
+      return [
+        {
+          element: '.app-topbar',
+          popover: {
+            title: 'Bem-vindo ao CM APP',
+            description: 'Este guia apresenta o fluxo do Conferente. Nenhum patrimônio será alterado durante o tutorial.'
+          }
+        },
+        {
+          element: '#escopo-barra',
+          popover: {
+            title: 'Sua divisão de trabalho',
+            description: 'Quando houver mais de uma divisão atribuída sob sua responsabilidade, escolha aqui qual deseja visualizar e operar no sistema. Quando necessário, você poderá alternar entre elas.',
+            onNextClick: async () => {
+              await alternarAba('scanner');
+              tutorialConferente.moveNext();
+            }
+          }
+        },
+        {
+          element: '#scanner-camera-card',
+          popover: {
+            title: 'Leitura pela câmera',
+            description: 'Ligue a câmera quando quiser ler o código de barras. Caso necessário, lembre-se de que a leitura dos números por OCR e a digitação manual também estão disponíveis como alternativas.',
+            onPrevClick: async () => {
+              await alternarAba('dashboard');
+              tutorialConferente.movePrevious();
+            }
+          }
+        },
+        {
+          element: '#input-plaqueta',
+          popover: {
+            title: 'Digitação manual',
+            description: 'Se a etiqueta não puder ser lida, digite somente os números da plaqueta e use Buscar.'
+          }
+        },
+        {
+          element: '#scanner-form-card',
+          popover: {
+            title: 'Consulta da plaqueta',
+            description: 'Toda leitura chega a este formulário. Aqui você confere o patrimônio antes de registrar qualquer informação.'
+          }
+        },
+        {
+          element: '#scanner-form-card',
+          popover: {
+            title: 'Resultado encontrado',
+            description: 'O aplicativo mostrará a descrição, a divisão anterior e o histórico. Leia <strong>atentamente</strong> esses dados antes de continuar.'
+          }
+        },
+        {
+          element: '#select-localizacao',
+          popover: {
+            title: 'Local onde o item foi encontrado',
+            description: 'Informe a divisão real em que o patrimônio está. Se estiver na mesma divisão, a conferência será concluída diretamente quando você clicar em <strong>Registrar conferência</strong>.'
+          }
+        },
+        {
+          element: '#btn-salvar',
+          popover: {
+            title: 'Registrar conferência',
+            description: 'Este botão grava a conferência real. Ele está bloqueado durante o tutorial e nenhum dado será enviado.'
+          }
+        },
+        {
+          element: '#patrimonio-atualizacao-form',
+          popover: {
+            title: 'Transferência para aprovação',
+            description: 'Se a divisão informada for diferente da atual, o sistema criará uma solicitação para a Seção de Patrimônio analisar.'
+          }
+        },
+        {
+          element: '#scanner-form-card',
+          popover: {
+            title: 'Sugerir destino',
+            description: 'Se um item pendente estiver em outra divisão, utilize <strong>Sugerir destino</strong>. A informação será enviada para análise e não marcará o patrimônio como localizado.'
+          }
+        },
+        {
+          element: '#scanner-form-card',
+          popover: {
+            title: 'Plaqueta não encontrada',
+            description: 'Confira <strong>atentamente</strong> o número. Se estiver correto e o patrimônio ainda não for localizado, ele pode não existir na base ou pertencer a outro órgão. Comunique a Seção de Patrimônio para análise.'
+          }
+        },
+        {
+          element: '#btn-profile-menu',
+          popover: {
+            title: 'Tutorial concluído',
+            description: 'Parabéns! Você concluiu o guia e já conhece o fluxo essencial para conferir seus patrimônios. Você poderá rever este guia a qualquer momento em <strong>Meu perfil</strong>.'
+          }
+        }
+      ];
+    }
+
+    async function iniciarTutorialConferente({ automatico = false } = {}) {
+      if (usuarioLogado?.perfil !== 'conferente') return;
+      const criarDriver = window.driver?.js?.driver;
+      if (typeof criarDriver !== 'function') {
+        if (!automatico) notificarMensagem('O tutorial não pôde ser carregado. Verifique a conexão e tente novamente.', 'aviso');
+        return;
+      }
+      tutorialConferente?.destroy?.();
+      tutorialFinalizado = false;
+      tutorialEraRevisao = usuarioLogado.tutorialConferenteV1Concluido === true;
+      await alternarAba('dashboard');
+      tutorialConferente = criarDriver({
+        popoverClass: 'cmapp-tutorial',
+        showProgress: true,
+        progressText: '{{current}} de {{total}}',
+        nextBtnText: 'Próximo',
+        prevBtnText: 'Anterior',
+        doneBtnText: 'Concluir',
+        showButtons: ['next', 'previous'],
+        allowClose: false,
+        overlayClickBehavior: 'none',
+        disableActiveInteraction: true,
+        smoothScroll: true,
+        steps: passosTutorialConferente(),
+        onPopoverRender: adicionarBotaoPularTutorial,
+        onHighlighted: (_elemento, _passo, opcoes) => {
+          const etapa = opcoes?.state?.activeIndex ?? tutorialConferente?.getActiveIndex?.() ?? 0;
+          salvarEstadoTutorialConferente({ etapa, concluido: tutorialEraRevisao, adiado: false });
+        },
+        onDoneClick: () => {
+          tutorialFinalizado = true;
+          void salvarEstadoTutorialConferente({ etapa: 0, concluido: true, adiado: false });
+          tutorialConferente.destroy();
+          notificarMensagem('Tutorial do Conferente concluído.', 'sucesso');
+        },
+        onDestroyed: () => {
+          tutorialConferente = null;
+          if (tutorialFinalizado) atualizarEstadoTutorialConferente();
+        }
+      });
+      const etapaSalva = usuarioLogado.tutorialConferenteV1Adiado === true
+        ? Math.min(Number(usuarioLogado.tutorialConferenteV1Etapa) || 0, passosTutorialConferente().length - 1)
+        : 0;
+      if (etapaSalva >= 2) await alternarAba('scanner');
+      tutorialConferente.drive(etapaSalva);
+    }
+
+    function agendarTutorialConferente() {
+      atualizarEstadoTutorialConferente();
+      if (usuarioLogado?.perfil !== 'conferente'
+        || usuarioLogado.tutorialConferenteV1Concluido === true
+        || usuarioLogado.tutorialConferenteV1Adiado === true) return;
+      window.setTimeout(() => iniciarTutorialConferente({ automatico: true }), 700);
+    }
+
+    document.getElementById('btn-iniciar-tutorial')?.addEventListener('click', () => iniciarTutorialConferente());
+
     document.getElementById('form-login').addEventListener('submit', async (e) => {
       e.preventDefault();
       const loginErro = document.getElementById('login-erro');
@@ -316,6 +539,8 @@
         let mensagemAmigavel = "Erro ao realizar autenticação. Verifique suas credenciais.";
         if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
           mensagemAmigavel = "E-mail ou senha incorretos. Por favor, tente novamente.";
+        } else if (err.code === 'auth/user-disabled') {
+          mensagemAmigavel = "Este acesso está desativado. Procure um Administrador do CM APP para solicitar a reativação.";
         } else if (err.code === 'auth/too-many-requests') {
           mensagemAmigavel = "Muitas tentativas falhas. O acesso foi temporariamente bloqueado por segurança.";
         } else if (err.message) {
@@ -338,6 +563,11 @@
           return;
         }
         usuarioLogado = { uid: user.uid, email: user.email, ...userDoc.data() };
+        if (usuarioLogado.ativo === false) {
+          await signOut(auth);
+          notificarMensagem('Este acesso está desativado. Procure um Administrador.', 'erro');
+          return;
+        }
         
         document.getElementById('view-login').classList.add('hidden');
         document.getElementById('view-app').classList.remove('hidden');
@@ -347,7 +577,9 @@
         inicializarEscopoVisualizacao();
         await carregarFotoPerfilAtual();
         atualizarCarrossel();
+        if (usuarioLogado.perfil !== 'conferente') iniciarOuvinteTransferencias();
         await alternarAba('dashboard', { substituirHistorico: true });
+        agendarTutorialConferente();
       } else {
         encerrarOuvinteTransferencias();
         if (controladorCamera.estaAtiva()) await controladorCamera.desligar({ limparResultado: true });
@@ -376,12 +608,14 @@
     function atualizarCabecalhoUsuario() {
       atualizarUsuarioNavegacao(usuarioLogado, fotoPerfilUrl);
       atualizarAcessoNavegacao(usuarioLogado.perfil);
+      atualizarEstadoTutorialConferente();
       document.getElementById('profile-menu-name').innerText = usuarioLogado.nome;
       atualizarDadosTelaPerfil();
       
       const btnTransf = document.getElementById('tab-btn-transferencias');
       const btnUsuarios = document.getElementById('tab-btn-usuarios');
       const btnInventarios = document.getElementById('tab-btn-inventarios');
+      const btnNovoUsuario = document.getElementById('btn-novo-usuario');
       const campoPerfil = document.getElementById('campo-perfil-container');
       const tituloCad = document.getElementById('titulo-cad-usuario');
       const boxExportacao = document.getElementById('container-botoes-exportacao');
@@ -389,6 +623,7 @@
       const btnSalvar = document.getElementById('btn-salvar');
       document.getElementById('dash-aguardando-acao').innerText = usuarioLogado.perfil === 'conferente'
         ? 'Ver na relação →' : 'Abrir fila geral →';
+      btnNovoUsuario?.classList.toggle('hidden', usuarioLogado.perfil !== 'admin');
 
       if (usuarioLogado.perfil === 'conferente') {
         btnTransf.classList.add('hidden');
@@ -778,7 +1013,6 @@
         }
       }
 
-      if (abaAtiva !== 'transferencias') encerrarOuvinteTransferencias();
       if (registrarHistorico) registrarAbaHistorico(abaAtiva, { substituir: substituirHistorico });
       abaAtual = abaAtiva;
       ativarPagina(abaAtiva);
@@ -804,7 +1038,7 @@
       try {
         if (abaAtiva === 'dashboard') await carregarDashboard();
         if (abaAtiva === 'scanner') await carregarCatalogoDivisoes();
-        if (abaAtiva === 'transferencias') iniciarOuvinteTransferencias();
+        if (abaAtiva === 'transferencias' && unsubscribeTransferencias.length === 0) iniciarOuvinteTransferencias();
         if (abaAtiva === 'usuarios') {
           await carregarUsuarios();
           await carregarCatalogoDivisoes();
@@ -833,7 +1067,8 @@
       const progresso = document.querySelector('.progress-track');
       progresso?.setAttribute('aria-valuenow', String(percentual));
 
-      aplicarBadgeTransferencias(aguardandoGlobal);
+      // O badge da fila é mantido pelos listeners em tempo real, incluindo
+      // transferências físicas e sugestões de destino.
     }
 
     document.querySelectorAll('[data-dashboard-target]').forEach(card => {
@@ -1469,19 +1704,17 @@
 
     document.getElementById('form-cad-usuario').addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (usuarioLogado.perfil === 'conferente') return notificarMensagem("Acesso negado para esta operação.", 'erro');
+      if (usuarioLogado.perfil !== 'admin') return notificarMensagem("Apenas Administradores podem cadastrar usuários.", 'erro');
 
       const nome = document.getElementById('cad-nome').value.trim();
       const email = document.getElementById('cad-email').value.trim();
       const senha = document.getElementById('cad-senha').value;
-      let perfil = usuarioLogado.perfil === 'gestor' ? 'conferente' : document.getElementById('cad-perfil').value;
+      const perfil = document.getElementById('cad-perfil').value;
       const checkboxes = document.querySelectorAll('input[name="divisao-check"]:checked');
       const divisoes = perfil === 'conferente' ? Array.from(checkboxes).map(cb => cb.value) : [];
 
       try {
-        const cred = await createUserWithEmailAndPassword(authSecundario, email, senha);
-        await setDoc(doc(db, "usuarios", cred.user.uid), { nome, email, perfil, divisoesAtribuidas: divisoes });
-        await signOut(authSecundario);
+        await criarUsuarioSeguro({ nome, email, senha, perfil, divisoesAtribuidas: divisoes });
 
         notificarMensagem(`Colaborador ${nome} cadastrado com sucesso.`, 'sucesso');
         document.getElementById('form-cad-usuario').reset();
@@ -1491,16 +1724,110 @@
       } catch (err) {
         let msg = "Não foi possível concluir o cadastro.";
         let tipo = 'erro';
-        if (err.code === 'auth/email-already-in-use') {
+        if (err.code === 'functions/already-exists') {
           msg = "Este e-mail já está cadastrado no sistema.";
           tipo = 'aviso';
-        } else if (err.code === 'auth/weak-password') {
-          msg = "A senha deve conter pelo menos 6 caracteres.";
+        } else if (err.code === 'functions/invalid-argument') {
+          msg = err.message || "Confira os dados informados.";
           tipo = 'aviso';
         }
         notificarMensagem(msg, tipo);
       }
     });
+
+    function iniciaisUsuario(nome = '') {
+      return nome.split(/\s+/).filter(Boolean).slice(0, 2).map(parte => parte[0]).join('').toUpperCase() || 'US';
+    }
+
+    function formatarDataUsuario(valor) {
+      const data = valor?.toDate?.() || (valor ? new Date(valor) : null);
+      return data && !Number.isNaN(data.getTime()) ? data.toLocaleDateString('pt-BR') : 'Legado';
+    }
+
+    function valorOrdenacaoUsuario(usuario, campo) {
+      const divisoes = usuario.divisoesAtribuidas || usuario.divisaoAtribuidas || [];
+      if (campo === 'criadoEm') {
+        const data = usuario.criadoEm?.toDate?.() || (usuario.criadoEm ? new Date(usuario.criadoEm) : null);
+        return data && !Number.isNaN(data.getTime()) ? data.getTime() : 0;
+      }
+      if (campo === 'ativo') return usuario.ativo === false ? 'inativo' : 'ativo';
+      if (campo === 'divisoes') return divisoes.join(' ');
+      return usuario[campo] || '';
+    }
+
+    function compararUsuarios(a, b) {
+      const valorA = valorOrdenacaoUsuario(a, ordenacaoUsuarios.campo);
+      const valorB = valorOrdenacaoUsuario(b, ordenacaoUsuarios.campo);
+      const resultado = typeof valorA === 'number'
+        ? valorA - valorB
+        : String(valorA).localeCompare(String(valorB), 'pt-BR', { sensitivity: 'base', numeric: true });
+      return ordenacaoUsuarios.direcao === 'desc' ? -resultado : resultado;
+    }
+
+    function atualizarControlesOrdenacaoUsuarios() {
+      document.querySelectorAll('[data-users-sort]').forEach(botao => {
+        const selecionado = botao.dataset.usersSort === ordenacaoUsuarios.campo;
+        botao.classList.toggle('is-sorted', selecionado);
+        botao.setAttribute('aria-sort', selecionado
+          ? (ordenacaoUsuarios.direcao === 'asc' ? 'ascending' : 'descending')
+          : 'none');
+        const indicador = botao.querySelector('span');
+        if (indicador) indicador.textContent = selecionado ? (ordenacaoUsuarios.direcao === 'asc' ? '↑' : '↓') : '';
+      });
+      const seletor = document.getElementById('ordenacao-usuarios');
+      if (seletor) seletor.value = `${ordenacaoUsuarios.campo}:${ordenacaoUsuarios.direcao}`;
+    }
+
+    function cardUsuarioCorrespondente() {
+      if (filtroStatusUsuarios === 'ativos' && filtroPerfilUsuarios === 'todos') return 'ativos';
+      if (filtroStatusUsuarios === 'inativos' && filtroPerfilUsuarios === 'todos') return 'inativos';
+      if (filtroStatusUsuarios === 'todos' && filtroPerfilUsuarios === 'conferente') return 'conferentes';
+      if (filtroStatusUsuarios === 'todos' && filtroPerfilUsuarios === 'todos') return 'todos';
+      return '';
+    }
+
+    function sincronizarFiltrosUsuarios() {
+      document.querySelectorAll('[data-users-status]').forEach(item => {
+        item.classList.toggle('active', item.dataset.usersStatus === filtroStatusUsuarios);
+      });
+      const seletorPerfil = document.getElementById('filtro-perfil-usuarios');
+      if (seletorPerfil) seletorPerfil.value = filtroPerfilUsuarios;
+      const cardAtual = cardUsuarioCorrespondente();
+      document.querySelectorAll('[data-users-card]').forEach(card => {
+        const selecionado = card.dataset.usersCard === cardAtual;
+        card.classList.toggle('is-selected', selecionado);
+        card.setAttribute('aria-pressed', String(selecionado));
+      });
+    }
+
+    function aplicarFiltroCardUsuarios(card) {
+      const repetido = card !== 'todos' && cardUsuarioCorrespondente() === card;
+      const destino = repetido ? 'todos' : card;
+      filtroStatusUsuarios = ['ativos', 'inativos'].includes(destino) ? destino : 'todos';
+      filtroPerfilUsuarios = destino === 'conferentes' ? 'conferente' : 'todos';
+      paginaUsuarios = 1;
+      sincronizarFiltrosUsuarios();
+      renderizarListaUsuarios();
+    }
+
+    async function obterFotoUsuarioCache(uid) {
+      if (!cacheFotosUsuarios.has(uid)) {
+        cacheFotosUsuarios.set(uid, obterUrlFotoPerfil(uid).catch(() => ''));
+      }
+      return cacheFotosUsuarios.get(uid);
+    }
+
+    async function carregarAvataresUsuarios(usuarios) {
+      await Promise.all(usuarios.map(async usuario => {
+        const url = await obterFotoUsuarioCache(usuario.uid);
+        if (!url) return;
+        document.querySelectorAll('[data-user-avatar]').forEach(avatar => {
+          if (avatar.dataset.userAvatar === usuario.uid) {
+            avatar.innerHTML = `<img src="${escaparHtml(url)}" alt="Foto de ${escaparHtml(usuario.nome)}">`;
+          }
+        });
+      }));
+    }
 
     function renderizarListaUsuarios() {
       const container = document.getElementById('lista-usuarios-container');
@@ -1519,85 +1846,63 @@
       const usuariosFinais = usuariosFiltradosPorPermissao.filter(u => {
         const nomeMatch = (u.nome || "").toLowerCase().includes(termoBusca);
         const emailMatch = (u.email || "").toLowerCase().includes(termoBusca);
-        return nomeMatch || emailMatch;
-      });
+        const statusMatch = filtroStatusUsuarios === 'todos'
+          || (filtroStatusUsuarios === 'ativos' && u.ativo !== false)
+          || (filtroStatusUsuarios === 'inativos' && u.ativo === false);
+        const perfilMatch = filtroPerfilUsuarios === 'todos' || u.perfil === filtroPerfilUsuarios;
+        return (nomeMatch || emailMatch) && statusMatch && perfilMatch;
+      }).sort(compararUsuarios);
+
+      const total = usuariosFiltradosPorPermissao.length;
+      const ativos = usuariosFiltradosPorPermissao.filter(u => u.ativo !== false).length;
+      const inativos = total - ativos;
+      const conferentes = usuariosFiltradosPorPermissao.filter(u => u.perfil === 'conferente').length;
+      document.getElementById('usuarios-total').textContent = total;
+      document.getElementById('usuarios-ativos').textContent = ativos;
+      document.getElementById('usuarios-inativos').textContent = inativos;
+      document.getElementById('usuarios-conferentes').textContent = conferentes;
+      document.getElementById('usuarios-tab-todos-contagem').textContent = total;
+      document.getElementById('usuarios-tab-ativos-contagem').textContent = ativos;
+      document.getElementById('usuarios-tab-inativos-contagem').textContent = inativos;
+      sincronizarFiltrosUsuarios();
 
       if (usuariosFinais.length === 0) {
-        container.innerHTML = `<div class="text-xs text-slate-400 text-center py-4 bg-slate-900 rounded-lg border border-slate-700/60">Nenhum usuário encontrado.</div>`;
+        container.innerHTML = `<div class="users-empty">Nenhum usuário encontrado com os filtros selecionados.</div>`;
+        document.getElementById('usuarios-paginacao').innerHTML = '';
         return;
       }
-
-      const grupos = {
-        admin: usuariosFinais.filter(u => u.perfil === 'admin').sort((a, b) => a.nome.localeCompare(b.nome)),
-        gestor: usuariosFinais.filter(u => u.perfil === 'gestor').sort((a, b) => a.nome.localeCompare(b.nome)),
-        conferente: usuariosFinais.filter(u => u.perfil === 'conferente').sort((a, b) => a.nome.localeCompare(b.nome))
-      };
-
-      const titulosGrupos = {
-        admin: "🛡️ Administradores",
-        gestor: "⭐ Gestores",
-        conferente: "👤 Conferentes"
-      };
-
-      let htmlConsolidado = "";
-
-      ['admin', 'gestor', 'conferente'].forEach((tipo, idx) => {
-        const listaGrupo = grupos[tipo];
-        if (listaGrupo.length > 0) {
-          htmlConsolidado += `
-            <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
-              <button onclick="document.getElementById('acc-user-${idx}').classList.toggle('collapsed')" class="w-full flex justify-between items-center p-3 text-left font-bold text-xs bg-slate-800 border-b border-slate-700/50">
-                <span class="text-blue-400 font-semibold">${titulosGrupos[tipo]} (${listaGrupo.length})</span>
-                <span class="text-[10px] text-slate-400">▼ Expandir/Recolher</span>
-              </button>
-              <div id="acc-user-${idx}" class="accordion-content p-2 space-y-2 bg-slate-900/50">
-          `;
-
-          listaGrupo.forEach(u => {
-            const podeExcluir = (
-              (usuarioLogado.perfil === 'admin' && u.perfil !== 'admin') ||
-              (usuarioLogado.perfil === 'gestor' && u.perfil === 'conferente')
-            );
-
-            htmlConsolidado += `
-              <div class="bg-slate-800 p-3 rounded-lg border border-slate-700/60 space-y-2 text-xs">
-                <div class="space-y-0.5">
-                  <div class="font-bold text-white">${u.nome}</div>
-                  <div class="text-[10px] text-slate-400">${u.email}</div>
-                  <div class="text-[10px] text-emerald-400">${u.perfil === 'conferente'
-                    ? `Setores: ${(u.divisaoAtribuidas || u.divisoesAtribuidas || []).join(', ') || 'Nenhum'}`
-                    : 'Abrangência: acesso global'}</div>
-                </div>
-                <div class="flex flex-wrap gap-2 pt-1 border-t border-slate-700">
-                  <button onclick="abrirModalEdicao('${u.uid}')" class="flex-1 bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white py-1.5 rounded text-[11px] font-bold transition-colors text-center">
-                    ✏️ Editar
-                  </button>
-                  ${usuarioLogado.perfil === 'admin' ? `
-                    <button onclick="enviarRedefinicaoSenha('${u.uid}')" class="flex-1 bg-amber-950/60 hover:bg-amber-900 text-amber-200 py-1.5 px-3 rounded text-[11px] font-bold transition-colors text-center border border-amber-500/30" title="Enviar e-mail de redefinição para ${u.email}">
-                      ✉️ Redefinir senha
-                    </button>
-                  ` : ''}
-                  ${podeExcluir ? `
-                    <button onclick="excluirUsuario('${u.uid}', '${u.nome}')" class="bg-red-950/60 hover:bg-red-900 text-red-300 py-1.5 px-3 rounded text-[11px] font-bold transition-colors text-center border border-red-500/30">
-                      🗑️ Excluir
-                    </button>
-                  ` : ''}
-                </div>
-              </div>
-            `;
-          });
-
-          htmlConsolidado += `</div></div>`;
-        }
-      });
-
-      container.innerHTML = htmlConsolidado;
+      const porPagina = 10;
+      const totalPaginas = Math.max(1, Math.ceil(usuariosFinais.length / porPagina));
+      paginaUsuarios = Math.min(paginaUsuarios, totalPaginas);
+      const inicio = (paginaUsuarios - 1) * porPagina;
+      const pagina = usuariosFinais.slice(inicio, inicio + porPagina);
+      const rotuloPerfil = { admin: 'Administrador', gestor: 'Gestor', conferente: 'Conferente' };
+      container.innerHTML = pagina.map(u => {
+        const ativo = u.ativo !== false;
+        const divisoes = u.divisoesAtribuidas || u.divisaoAtribuidas || [];
+        return `<article class="user-row ${ativo ? '' : 'is-inactive'}" role="button" tabindex="0" data-user-details="${escaparHtml(u.uid)}" aria-label="Abrir detalhes de ${escaparHtml(u.nome)}">
+          <div class="user-identity"><span class="user-avatar" data-user-avatar="${escaparHtml(u.uid)}">${escaparHtml(iniciaisUsuario(u.nome))}</span><div><strong>${escaparHtml(u.nome)}</strong><small>${escaparHtml(u.email)}</small></div></div>
+          <div data-label="Perfil"><span class="user-role role-${u.perfil}">${escaparHtml(rotuloPerfil[u.perfil] || u.perfil)}</span></div>
+          <div data-label="Divisões" class="user-divisions">${u.perfil === 'conferente' ? escaparHtml(divisoes.join(', ') || 'Nenhuma') : 'Acesso global'}</div>
+          <div data-label="Status"><span class="user-status ${ativo ? 'active' : 'inactive'}">${ativo ? 'Ativo' : 'Inativo'}</span></div>
+          <div data-label="Cadastro" class="user-date">${formatarDataUsuario(u.criadoEm)}</div>
+          <div data-label="Detalhes"><span class="user-open-details">Abrir perfil →</span></div>
+        </article>`;
+      }).join('');
+      document.getElementById('usuarios-paginacao').innerHTML = `
+        <span>Exibindo ${inicio + 1}–${Math.min(inicio + porPagina, usuariosFinais.length)} de ${usuariosFinais.length}</span>
+        <div><button ${paginaUsuarios === 1 ? 'disabled' : ''} onclick="mudarPaginaUsuarios(-1)" aria-label="Página anterior">‹</button><strong>${paginaUsuarios}/${totalPaginas}</strong><button ${paginaUsuarios === totalPaginas ? 'disabled' : ''} onclick="mudarPaginaUsuarios(1)" aria-label="Próxima página">›</button></div>`;
+      atualizarControlesOrdenacaoUsuarios();
+      carregarAvataresUsuarios(pagina);
     }
+
+    window.mudarPaginaUsuarios = deslocamento => { paginaUsuarios += deslocamento; renderizarListaUsuarios(); };
 
     const filtroBuscaUsuarios = document.getElementById('filtro-busca-usuarios');
     const btnLimparBuscaUsuarios = document.getElementById('btn-limpar-busca-usuarios');
     filtroBuscaUsuarios?.addEventListener('input', () => {
       btnLimparBuscaUsuarios?.classList.toggle('hidden', !filtroBuscaUsuarios.value);
+      paginaUsuarios = 1;
       renderizarListaUsuarios();
     });
     btnLimparBuscaUsuarios?.addEventListener('click', () => {
@@ -1607,30 +1912,128 @@
       filtroBuscaUsuarios.focus();
     });
 
-    window.excluirUsuario = async function(uid, nome) {
-      const userAlvo = bancoUsuarios.find(u => u.uid === uid);
-      if (!userAlvo) return;
+    document.querySelectorAll('[data-users-status]').forEach(botao => botao.addEventListener('click', () => {
+      filtroStatusUsuarios = botao.dataset.usersStatus;
+      paginaUsuarios = 1;
+      sincronizarFiltrosUsuarios();
+      renderizarListaUsuarios();
+    }));
+    document.getElementById('filtro-perfil-usuarios')?.addEventListener('change', evento => {
+      filtroPerfilUsuarios = evento.target.value;
+      paginaUsuarios = 1;
+      sincronizarFiltrosUsuarios();
+      renderizarListaUsuarios();
+    });
 
-      if (usuarioLogado.perfil === 'gestor' && userAlvo.perfil !== 'conferente') {
-        return notificarMensagem("Operação não permitida: Gestores só podem remover usuários com perfil conferente.", 'erro');
+    document.querySelectorAll('[data-users-card]').forEach(card => card.addEventListener('click', () => {
+      aplicarFiltroCardUsuarios(card.dataset.usersCard);
+    }));
+
+    document.querySelectorAll('[data-users-sort]').forEach(botao => botao.addEventListener('click', () => {
+      const campo = botao.dataset.usersSort;
+      ordenacaoUsuarios = {
+        campo,
+        direcao: ordenacaoUsuarios.campo === campo && ordenacaoUsuarios.direcao === 'asc' ? 'desc' : 'asc'
+      };
+      paginaUsuarios = 1;
+      renderizarListaUsuarios();
+    }));
+
+    document.getElementById('ordenacao-usuarios')?.addEventListener('change', evento => {
+      const [campo, direcao] = evento.target.value.split(':');
+      ordenacaoUsuarios = { campo, direcao };
+      paginaUsuarios = 1;
+      renderizarListaUsuarios();
+    });
+
+    document.getElementById('lista-usuarios-container')?.addEventListener('click', evento => {
+      const linha = evento.target.closest('[data-user-details]');
+      if (linha) window.abrirDetalhesUsuario(linha.dataset.userDetails);
+    });
+
+    document.getElementById('lista-usuarios-container')?.addEventListener('keydown', evento => {
+      if (!['Enter', ' '].includes(evento.key)) return;
+      const linha = evento.target.closest('[data-user-details]');
+      if (!linha) return;
+      evento.preventDefault();
+      window.abrirDetalhesUsuario(linha.dataset.userDetails);
+    });
+
+    window.abrirDetalhesUsuario = async function(uid) {
+      const usuario = bancoUsuarios.find(item => item.uid === uid);
+      if (!usuario || !['admin', 'gestor'].includes(usuarioLogado?.perfil)) return;
+      usuarioDetalhadoUid = uid;
+      const ativo = usuario.ativo !== false;
+      const divisoes = usuario.divisoesAtribuidas || usuario.divisaoAtribuidas || [];
+      const rotuloPerfil = { admin: 'Administrador', gestor: 'Gestor', conferente: 'Conferente' };
+      const avatar = document.getElementById('detalhes-usuario-avatar');
+      avatar.textContent = iniciaisUsuario(usuario.nome);
+      document.getElementById('detalhes-usuario-nome').textContent = usuario.nome || 'Sem nome';
+      document.getElementById('detalhes-usuario-email').textContent = usuario.email || 'Sem e-mail';
+      document.getElementById('detalhes-usuario-perfil').textContent = rotuloPerfil[usuario.perfil] || usuario.perfil;
+      document.getElementById('detalhes-usuario-status').innerHTML = `<span class="user-status ${ativo ? 'active' : 'inactive'}">${ativo ? 'Ativo' : 'Inativo'}</span>`;
+      document.getElementById('detalhes-usuario-divisoes').textContent = usuario.perfil === 'conferente'
+        ? (divisoes.join(', ') || 'Nenhuma divisão atribuída')
+        : 'Acesso global';
+      document.getElementById('detalhes-usuario-cadastro').textContent = formatarDataUsuario(usuario.criadoEm);
+      const acoes = document.getElementById('detalhes-usuario-acoes');
+      acoes.innerHTML = usuarioLogado.perfil === 'admin'
+        ? (ativo ? `
+          <button type="button" data-user-action="editar">Editar dados</button>
+          <button type="button" data-user-action="senha">Redefinir senha</button>
+          <button type="button" class="danger" data-user-action="acesso">Desativar acesso</button>`
+          : `<button type="button" class="success" data-user-action="acesso">Reativar acesso</button>`)
+        : '<span class="users-readonly">Visualização disponível; alterações são exclusivas de Administradores.</span>';
+      abrirModalHistorico('modal-detalhes-usuario', 'detalhes-usuario');
+      const url = await obterFotoUsuarioCache(uid);
+      if (url && usuarioDetalhadoUid === uid) {
+        avatar.innerHTML = `<img src="${escaparHtml(url)}" alt="Foto de ${escaparHtml(usuario.nome)}">`;
       }
+    };
 
-      const confirmarExclusao = await confirmarAcao({
-        titulo: 'Remover acesso',
-        mensagem: `O acesso de ${nome} será removido. Esta ação não pode ser desfeita.`,
-        confirmarTexto: 'Remover usuário',
-        perigosa: true
+    window.fecharDetalhesUsuario = function() {
+      usuarioDetalhadoUid = '';
+      return fecharModalHistorico('modal-detalhes-usuario', 'detalhes-usuario');
+    };
+
+    document.getElementById('btn-fechar-detalhes-usuario')?.addEventListener('click', () => window.fecharDetalhesUsuario());
+    document.getElementById('detalhes-usuario-acoes')?.addEventListener('click', async evento => {
+      const acao = evento.target.closest('[data-user-action]')?.dataset.userAction;
+      const uid = usuarioDetalhadoUid;
+      if (!acao || !uid) return;
+      if (acao === 'editar') {
+        await window.fecharDetalhesUsuario();
+        window.abrirModalEdicao(uid);
+      } else if (acao === 'senha') {
+        await window.enviarRedefinicaoSenha(uid);
+      } else if (acao === 'acesso') {
+        await window.alterarAcessoUsuario(uid);
+      }
+    });
+
+    window.alterarAcessoUsuario = async function(uid) {
+      if (usuarioLogado?.perfil !== 'admin') return notificarMensagem('Apenas Administradores podem alterar acessos.', 'erro');
+      const alvo = bancoUsuarios.find(u => u.uid === uid);
+      if (!alvo) return;
+      const reativar = alvo.ativo === false;
+      const confirmado = await confirmarAcao({
+        titulo: reativar ? 'Reativar acesso' : 'Desativar acesso',
+        mensagem: reativar
+          ? `${alvo.nome} poderá voltar a entrar no CM APP com a mesma conta.`
+          : `${alvo.nome} perderá o acesso, mas seu cadastro e todo o histórico serão preservados.`,
+        confirmarTexto: reativar ? 'Reativar acesso' : 'Desativar acesso',
+        perigosa: !reativar
       });
-      if (!confirmarExclusao) return;
-
+      if (!confirmado) return;
       try {
-        await deleteDoc(doc(db, "usuarios", uid));
-        notificarMensagem("Usuário removido com sucesso.", 'sucesso');
+        await alterarEstadoUsuario(uid, reativar);
+        notificarMensagem(reativar ? 'Acesso reativado com sucesso.' : 'Acesso desativado e sessões revogadas.', 'sucesso');
+        await window.fecharDetalhesUsuario();
         await carregarUsuarios(true);
-      } catch (err) {
-        notificarMensagem("Erro ao remover o usuário. Tente novamente.", 'erro');
+      } catch (erro) {
+        notificarMensagem(erro?.message || 'Não foi possível alterar o acesso.', 'erro');
       }
-    }
+    };
 
     window.enviarRedefinicaoSenha = async function(uid) {
       if (usuarioLogado?.perfil !== 'admin') {
@@ -1668,14 +2071,9 @@
     window.abrirModalEdicao = function(uid) {
       const user = bancoUsuarios.find(u => u.uid === uid);
       if (!user) return;
+      if (usuarioLogado?.perfil !== 'admin') return notificarMensagem('Apenas Administradores podem editar usuários.', 'erro');
       if (user.uid === usuarioLogado.uid) {
         return notificarMensagem('Altere seus próprios dados na tela Meu perfil.', 'aviso');
-      }
-
-      if (usuarioLogado.perfil === 'gestor') {
-        if (user.uid !== usuarioLogado.uid && user.perfil !== 'conferente') {
-          return notificarMensagem("Acesso restrito: Gestores não possuem permissão para editar outros gestores ou administradores.", 'erro');
-        }
       }
 
       document.getElementById('edit-uid').value = user.uid;
@@ -1686,20 +2084,15 @@
       const campoPerfilEdit = document.getElementById('edit-campo-perfil-container');
       const campoDivisoesEdit = document.getElementById('edit-divisoes-container');
       
-      if (usuarioLogado.perfil === 'gestor') {
-        campoPerfilEdit.classList.add('hidden');
-      } else {
-        campoPerfilEdit.classList.remove('hidden');
-        perfilSelect.value = user.perfil || 'conferente';
-      }
+      campoPerfilEdit.classList.remove('hidden');
+      perfilSelect.value = user.perfil || 'conferente';
 
       const atribuidas = user.divisaoAtribuidas || user.divisoesAtribuidas || [];
       document.querySelectorAll('input[name="edit-divisao-check"]').forEach(cb => {
         cb.checked = atribuidas.includes(cb.value);
       });
 
-      const gestorEditandoProprioPerfil = usuarioLogado.perfil === 'gestor' && user.uid === usuarioLogado.uid;
-      campoDivisoesEdit.classList.toggle('hidden', gestorEditandoProprioPerfil || user.perfil !== 'conferente');
+      campoDivisoesEdit.classList.toggle('hidden', user.perfil !== 'conferente');
 
       abrirModalHistorico('modal-edicao-usuario', 'edicao-usuario');
     }
@@ -1727,23 +2120,14 @@
         return notificarMensagem('Altere seus próprios dados na tela Meu perfil.', 'aviso');
       }
 
-      if (usuarioLogado.perfil === 'gestor') {
-        if (targetUser.uid !== usuarioLogado.uid && targetUser.perfil !== 'conferente') {
-          return notificarMensagem("Operação negada pelas diretrizes de hierarquia.", 'erro');
-        }
-      }
-
-      let perfilNovo = targetUser.perfil;
-      if (usuarioLogado.perfil === 'admin') {
-        perfilNovo = document.getElementById('edit-perfil').value;
-      }
+      if (usuarioLogado.perfil !== 'admin') return notificarMensagem('Apenas Administradores podem editar usuários.', 'erro');
+      const perfilNovo = document.getElementById('edit-perfil').value;
 
       const checkboxes = document.querySelectorAll('input[name="edit-divisao-check"]:checked');
       const divisoes = perfilNovo === 'conferente' ? Array.from(checkboxes).map(cb => cb.value) : [];
 
       try {
-        const dadosAtualizacao = { nome, perfil: perfilNovo, divisoesAtribuidas: divisoes };
-        await updateDoc(doc(db, "usuarios", uid), dadosAtualizacao);
+        await atualizarUsuarioSeguro({ uid, nome, perfil: perfilNovo, divisoesAtribuidas: divisoes });
         notificarMensagem("Dados atualizados com sucesso.", 'sucesso');
         await fecharModalHistorico('modal-edicao-usuario', 'edicao-usuario');
         await carregarUsuarios(true);
@@ -1791,7 +2175,7 @@
       metodoLocalizacaoSelecionado = 'digitacao';
       inputPlaqueta.value = '';
       btnLimparPlaqueta?.classList.add('hidden');
-      suggestionsBox.classList.add('hidden');
+      ocultarSugestoesPlaqueta();
       document.getElementById('select-localizacao').value = '';
       document.getElementById('input-observacao').value = '';
       document.getElementById('item-details').classList.add('hidden');
@@ -1879,10 +2263,16 @@
 
     suggestionsBox.addEventListener('click', (e) => {
       const item = e.target.closest('[data-plaqueta]');
-      if (item) { preencherEConsultarPlaqueta(item.getAttribute('data-plaqueta')); suggestionsBox.classList.add('hidden'); }
+      if (item) {
+        ocultarSugestoesPlaqueta();
+        preencherEConsultarPlaqueta(item.getAttribute('data-plaqueta'));
+      }
     });
 
-    document.getElementById('btn-buscar').addEventListener('click', () => buscarEExibirItem(limparPlaqueta(inputPlaqueta.value), 'digitacao'));
+    document.getElementById('btn-buscar').addEventListener('click', () => {
+      ocultarSugestoesPlaqueta();
+      buscarEExibirItem(limparPlaqueta(inputPlaqueta.value), 'digitacao');
+    });
     btnLimparPlaqueta?.addEventListener('click', () => {
       limparFormularioLeitura();
       inputPlaqueta.focus();
@@ -1895,10 +2285,12 @@
     inputPlaqueta.addEventListener('keydown', event => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
+      ocultarSugestoesPlaqueta();
       buscarEExibirItem(limparPlaqueta(inputPlaqueta.value), 'digitacao');
     });
 
     async function buscarEExibirItem(plaquetaCod, origem = 'digitacao') {
+      ocultarSugestoesPlaqueta();
       if (!plaquetaCod) return false;
       metodoLocalizacaoSelecionado = origem === 'codigo' ? 'codigo_barras' : origem === 'ocr' ? 'ocr' : 'digitacao';
       const itemLocal = cachePatrimonios.get(plaquetaCod);
@@ -1936,15 +2328,19 @@
 
       const badgeStatus = document.getElementById('det-status');
       const btnSalvar = document.getElementById('btn-salvar');
-      const pendenteBloqueado = item.statusTransferencia === 'pendente';
+      const sugestaoPendente = item.sugestaoDestinoStatus === 'pendente';
+      const pendenteBloqueado = item.statusTransferencia === 'pendente' || sugestaoPendente;
       btnSalvar.disabled = pendenteBloqueado;
       btnSalvar.classList.toggle('opacity-50', pendenteBloqueado);
       btnSalvar.classList.toggle('cursor-not-allowed', pendenteBloqueado);
       btnSalvar.innerText = pendenteBloqueado
-        ? '⏳ Aguardando aprovação'
+        ? (sugestaoPendente ? '⏳ Destino sugerido em análise' : '⏳ Aguardando aprovação')
         : (ehPerfilValidador(usuarioLogado?.perfil) ? '✅ Atualizar Patrimônio' : '✅ Registrar Conferência');
       if (item.statusTransferencia === 'pendente') {
         badgeStatus.innerText = "⏳ AGUARDANDO TRANSF.";
+        badgeStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-900 text-amber-300 border border-amber-500/30";
+      } else if (sugestaoPendente) {
+        badgeStatus.innerText = "📍 DESTINO SUGERIDO";
         badgeStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-900 text-amber-300 border border-amber-500/30";
       } else if (item.localizado) {
         badgeStatus.innerText = "🟢 LOCALIZADO";
@@ -1971,7 +2367,86 @@
       const selectLoc = document.getElementById('select-localizacao');
       selectLoc.value = item.localizacaoAtual || divisaoOriginal;
       verificarAlertaTransferencia(item.localizacaoAtual || divisaoOriginal, selectLoc.value);
+      const localEfetivo = item.localizacaoAtual || divisaoOriginal;
+      const podeSugerir = usuarioLogado?.perfil === 'conferente'
+        && item.localizado !== true
+        && item.statusTransferencia !== 'pendente'
+        && item.sugestaoDestinoStatus !== 'pendente'
+        && (usuarioLogado.divisoesAtribuidas || []).includes(localEfetivo);
+      document.getElementById('btn-sugerir-destino')?.classList.toggle('hidden', !podeSugerir);
     }
+
+    function fecharModalSugestaoDestino() {
+      return fecharModalHistorico('modal-sugerir-destino', 'sugerir-destino');
+    }
+
+    function abrirModalSugestaoDestino() {
+      const item = itemAtualSelecionado;
+      if (!item || usuarioLogado?.perfil !== 'conferente') return;
+      const origem = item.localizacaoAtual || item.divisaoOrigem || item.divisao || '';
+      if (item.localizado === true) {
+        return notificarMensagem('O item já foi localizado. Utilize o fluxo normal de transferência.', 'aviso');
+      }
+      if (item.statusTransferencia === 'pendente' || item.sugestaoDestinoStatus === 'pendente') {
+        return notificarMensagem('Este patrimônio já possui uma solicitação aguardando aprovação.', 'aviso');
+      }
+      if (!(usuarioLogado.divisoesAtribuidas || []).includes(origem)) {
+        return notificarMensagem('Você só pode sugerir destino para itens de suas divisões atribuídas.', 'erro');
+      }
+      document.getElementById('sugestao-destino-plaqueta').textContent = `Plaqueta ${item.plaqueta}`;
+      document.getElementById('sugestao-destino-descricao').textContent = item.descricao || 'Descrição não informada';
+      document.getElementById('sugestao-destino-origem').textContent = origem;
+      const seletor = document.getElementById('sugestao-destino-divisao');
+      seletor.innerHTML = '<option value="">Selecione a divisão</option>'
+        + [...catalogoDivisoes]
+          .filter(divisao => divisao && divisao !== origem)
+          .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+          .map(divisao => `<option value="${escaparHtml(divisao)}">${escaparHtml(divisao)}</option>`)
+          .join('');
+      document.getElementById('sugestao-destino-observacao').value = '';
+      abrirModalHistorico('modal-sugerir-destino', 'sugerir-destino');
+    }
+
+    document.getElementById('btn-sugerir-destino')?.addEventListener('click', abrirModalSugestaoDestino);
+    document.getElementById('btn-fechar-sugestao-destino')?.addEventListener('click', fecharModalSugestaoDestino);
+    document.getElementById('btn-cancelar-sugestao-destino')?.addEventListener('click', fecharModalSugestaoDestino);
+    document.getElementById('form-sugerir-destino')?.addEventListener('submit', async evento => {
+      evento.preventDefault();
+      const item = itemAtualSelecionado;
+      if (!item) return;
+      const destino = document.getElementById('sugestao-destino-divisao').value;
+      const observacao = document.getElementById('sugestao-destino-observacao').value.trim();
+      if (!destino) return notificarMensagem('Selecione a divisão de destino sugerida.', 'aviso');
+      const confirmado = await confirmarAcao({
+        titulo: 'Confirmar sugestão de destino',
+        mensagem: `Sugerir ${destino} para o patrimônio ${item.plaqueta}? O item continuará não localizado até uma conferência física.`,
+        confirmarTexto: 'Enviar sugestão'
+      });
+      if (!confirmado) return;
+      try {
+        const dadosAtualizacao = prepararSugestaoDestino({
+          item,
+          destino,
+          usuario: usuarioLogado,
+          observacao,
+          dataHora: new Date().toLocaleString('pt-BR')
+        });
+        await updateDoc(doc(db, 'patrimonios', item.plaqueta), dadosAtualizacao);
+        itemAtualSelecionado = { ...item, ...dadosAtualizacao };
+        cachePatrimonios.set(item.plaqueta, itemAtualSelecionado);
+        const indice = bancoPatrimonio.findIndex(registro => registro.plaqueta === item.plaqueta);
+        if (indice >= 0) bancoPatrimonio[indice] = itemAtualSelecionado;
+        invalidarCacheRelacao();
+        await fecharModalSugestaoDestino();
+        exibirDetalhes(itemAtualSelecionado);
+        notificarMensagem('Sugestão de destino enviada para aprovação. O item permanece não localizado.', 'sucesso');
+      } catch (erro) {
+        console.error('Erro ao sugerir destino:', erro);
+        notificarMensagem(erro?.code === 'permission-denied'
+          ? 'Sugestão não autorizada. Verifique sua divisão, o estado do inventário e as regras publicadas.'
+          : (erro?.message || 'Não foi possível enviar a sugestão.'), 'erro');
+      }
+    });
 
     document.getElementById('select-localizacao').addEventListener('change', (e) => {
       if (!itemAtualSelecionado) return;
@@ -1998,7 +2473,8 @@
 
     document.getElementById('btn-salvar').addEventListener('click', async () => {
       if (!itemAtualSelecionado) return notificarMensagem("Selecione um patrimônio válido antes de salvar.", 'aviso');
-      if (itemAtualSelecionado.statusTransferencia === 'pendente') {
+      if (itemAtualSelecionado.statusTransferencia === 'pendente'
+        || itemAtualSelecionado.sugestaoDestinoStatus === 'pendente') {
         return notificarMensagem("Este patrimônio já está aguardando aprovação. Conclua a movimentação na Fila antes de registrar outra leitura.", 'aviso');
       }
       const locAtual = document.getElementById('select-localizacao').value;
@@ -2058,32 +2534,46 @@
           ? 'Leitura não autorizada. Verifique se a divisão de origem ou destino está encerrada, se há transferência pendente e se as regras atualizadas foram publicadas.'
           : (erro?.message || 'Não foi possível registrar a leitura.'), 'erro');
       } finally {
-        if (itemAtualSelecionado?.statusTransferencia !== 'pendente') btnSalvar.disabled = false;
+        if (itemAtualSelecionado?.statusTransferencia !== 'pendente'
+          && itemAtualSelecionado?.sugestaoDestinoStatus !== 'pendente') btnSalvar.disabled = false;
       }
     });
 
     function encerrarOuvinteTransferencias() {
-      if (unsubscribeTransferencias) {
-        unsubscribeTransferencias();
-        unsubscribeTransferencias = null;
-      }
+      unsubscribeTransferencias.forEach(cancelar => cancelar());
+      unsubscribeTransferencias = [];
+      filaTransferenciasFisicas = [];
+      filaSugestoesDestino = [];
+    }
+
+    function consolidarFilaAprovacao() {
+      bancoTransferencias = [
+        ...filaTransferenciasFisicas.map(item => ({ ...item, tipoSolicitacaoFila: 'transferencia' })),
+        ...filaSugestoesDestino.map(item => ({ ...item, tipoSolicitacaoFila: 'sugestao_destino' }))
+      ];
+      cachearPatrimonios(bancoTransferencias);
+      renderizarFilaTransferencias();
+      aplicarBadgeTransferencias(bancoTransferencias.length);
     }
 
     function iniciarOuvinteTransferencias() {
       encerrarOuvinteTransferencias();
-      const consulta = query(collection(db, "patrimonios"), where("statusTransferencia", "==", "pendente"));
-      unsubscribeTransferencias = onSnapshot(consulta, snapshot => {
-        snapshot.docChanges()
-          .filter(alteracao => alteracao.type === 'removed')
-          .forEach(alteracao => cachePatrimonios.delete(alteracao.doc.id));
-        bancoTransferencias = snapshot.docs.map(normalizarPatrimonio);
-        cachearPatrimonios(bancoTransferencias);
-        renderizarFilaTransferencias();
-        aplicarBadgeTransferencias(bancoTransferencias.length);
-      }, erro => {
+      const tratarErro = erro => {
         console.error("Erro no listener de transferências:", erro);
         document.getElementById('container-transferencias').innerHTML = `<div class="bg-red-950/40 p-4 rounded-xl border border-red-500/30 text-center text-xs text-red-300 md:col-span-2">Não foi possível acompanhar a fila em tempo real.</div>`;
-      });
+      };
+      const consultaTransferencias = query(collection(db, "patrimonios"), where("statusTransferencia", "==", "pendente"));
+      const consultaSugestoes = query(collection(db, "patrimonios"), where("sugestaoDestinoStatus", "==", "pendente"));
+      unsubscribeTransferencias.push(
+        onSnapshot(consultaTransferencias, snapshot => {
+          filaTransferenciasFisicas = snapshot.docs.map(normalizarPatrimonio);
+          consolidarFilaAprovacao();
+        }, tratarErro),
+        onSnapshot(consultaSugestoes, snapshot => {
+          filaSugestoesDestino = snapshot.docs.map(normalizarPatrimonio);
+          consolidarFilaAprovacao();
+        }, tratarErro)
+      );
     }
 
     function aplicarBadgeTransferencias(quantidade) {
@@ -2105,14 +2595,17 @@
       contador.innerText = `${pendentes.length} ${pendentes.length === 1 ? 'pendente' : 'pendentes'}`;
 
       if (pendentes.length === 0) {
-        container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400 md:col-span-2">✨ Nenhuma transferência pendente no momento.</div>`;
+        container.innerHTML = `<div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-center text-xs text-slate-400 md:col-span-2">✨ Nenhuma movimentação pendente no momento.</div>`;
         return;
       }
 
       const grupos = pendentes.reduce((acumulador, item) => {
-        const divisao = item.divisaoDestinoSugerida || 'Divisão não informada';
-        if (!acumulador.has(divisao)) acumulador.set(divisao, []);
-        acumulador.get(divisao).push(item);
+        const divisao = item.tipoSolicitacaoFila === 'sugestao_destino'
+          ? item.sugestaoDestinoDivisao
+          : item.divisaoDestinoSugerida;
+        const grupo = divisao || 'Divisão não informada';
+        if (!acumulador.has(grupo)) acumulador.set(grupo, []);
+        acumulador.get(grupo).push(item);
         return acumulador;
       }, new Map());
 
@@ -2132,6 +2625,9 @@
                 .sort((itemA, itemB) => String(itemA.plaqueta).localeCompare(String(itemB.plaqueta), 'pt-BR', { numeric: true }))
                 .map(item => `
                   <article class="transfer-card">
+                    <span class="transfer-type ${item.tipoSolicitacaoFila === 'sugestao_destino' ? 'suggestion' : 'physical'}">
+                      ${item.tipoSolicitacaoFila === 'sugestao_destino' ? 'Sugestão de destino' : 'Transferência após leitura'}
+                    </span>
                     <button type="button" class="transfer-card-link" onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')">
                       <span>Plaqueta ${item.plaqueta}</span>
                       <span class="transfer-status">Aguardando</span>
@@ -2144,16 +2640,18 @@
                       </div>
                       <div>
                         <dt>Destino</dt>
-                        <dd>${item.divisaoDestinoSugerida || 'Não informado'}</dd>
+                        <dd>${item.tipoSolicitacaoFila === 'sugestao_destino' ? item.sugestaoDestinoDivisao : item.divisaoDestinoSugerida || 'Não informado'}</dd>
                       </div>
                     </dl>
                     <div class="transfer-note">
-                      <strong>💬 Observação da conferência</strong>
-                      <p>${escaparHtml(item.observacaoAtual || 'Nenhuma observação informada.')}</p>
+                      <strong>💬 ${item.tipoSolicitacaoFila === 'sugestao_destino' ? 'Informação da sugestão' : 'Observação da conferência'}</strong>
+                      <p>${escaparHtml(item.tipoSolicitacaoFila === 'sugestao_destino'
+                        ? `Destino sugerido por: ${item.sugestaoDestinoPor?.nome || 'Não informado'}${item.sugestaoDestinoObservacao ? ` — ${item.sugestaoDestinoObservacao}` : ''}`
+                        : (item.observacaoAtual || 'Nenhuma observação informada.'))}</p>
                     </div>
                     <div class="transfer-actions">
-                      <button type="button" onclick="aprovarTransferencia('${item.plaqueta}')" class="transfer-approve">Aprovar</button>
-                      <button type="button" onclick="rejeitarTransferencia('${item.plaqueta}')" class="transfer-reject">Rejeitar</button>
+                      <button type="button" onclick="${item.tipoSolicitacaoFila === 'sugestao_destino' ? 'aprovarSugestaoDestino' : 'aprovarTransferencia'}('${item.plaqueta}')" class="transfer-approve">Aprovar</button>
+                      <button type="button" onclick="${item.tipoSolicitacaoFila === 'sugestao_destino' ? 'rejeitarSugestaoDestino' : 'rejeitarTransferencia'}('${item.plaqueta}')" class="transfer-reject">Rejeitar</button>
                     </div>
                   </article>
                 `).join('')}
@@ -2211,6 +2709,43 @@
 
     window.aprovarTransferencia = plaqueta => resolverTransferencia(plaqueta, 'aprovar');
     window.rejeitarTransferencia = plaqueta => resolverTransferencia(plaqueta, 'rejeitar');
+
+    async function resolverSugestaoDestino(plaqueta, decisao) {
+      if (usuarioLogado.perfil === 'conferente') return notificarMensagem('Acesso negado para esta operação.', 'erro');
+      try {
+        const item = await obterTransferenciaPendente(plaqueta);
+        const destino = item.sugestaoDestinoDivisao || 'destino não informado';
+        const aprovando = decisao === 'aprovar';
+        const confirmado = await confirmarAcao({
+          titulo: `${aprovando ? 'Aprovar' : 'Rejeitar'} sugestão de destino`,
+          mensagem: aprovando
+            ? `Vincular o patrimônio ${plaqueta} a ${destino}? Ele continuará pendente até ser fisicamente conferido nessa divisão.`
+            : `Rejeitar a sugestão de ${destino} para o patrimônio ${plaqueta}? A localização anterior será mantida.`,
+          confirmarTexto: aprovando ? 'Aprovar sugestão' : 'Rejeitar sugestão',
+          perigosa: !aprovando
+        });
+        if (!confirmado) return;
+        const dadosAtualizacao = prepararResolucaoSugestaoDestino({
+          item,
+          usuario: usuarioLogado,
+          decisao,
+          dataHora: new Date().toLocaleString('pt-BR')
+        });
+        await updateDoc(doc(db, 'patrimonios', plaqueta), dadosAtualizacao);
+        atualizarCachesAposResolucao({ ...item, ...dadosAtualizacao });
+        notificarMensagem(aprovando
+          ? `Destino atualizado para ${destino}. O item permanece pendente de conferência física.`
+          : 'Sugestão rejeitada; localização anterior mantida.', 'sucesso');
+      } catch (erro) {
+        console.error('Erro ao resolver sugestão de destino:', erro);
+        notificarMensagem(erro?.code === 'permission-denied'
+          ? 'A sugestão não pôde ser analisada. Verifique o estado das divisões e as regras publicadas.'
+          : (erro.message || 'Não foi possível analisar a sugestão.'), 'erro');
+      }
+    }
+
+    window.aprovarSugestaoDestino = plaqueta => resolverSugestaoDestino(plaqueta, 'aprovar');
+    window.rejeitarSugestaoDestino = plaqueta => resolverSugestaoDestino(plaqueta, 'rejeitar');
 
     window.abrirModalItemPorPlaqueta = async function(plaqueta) {
       let item = bancoPatrimonio.find(patrimonio => patrimonio.plaqueta === plaqueta)
@@ -2614,7 +3149,7 @@
             <span class="text-blue-400 font-semibold">📁 ${divNome} (${totalCount} carregados)</span>
             <span class="text-xs ${locCount === totalCount ? 'text-emerald-400' : 'text-amber-400'}">${locCount}/${totalCount} nesta página</span>
           </button>
-          <div id="acc-${idx}" class="accordion-content collapsed p-3 grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-900/50">
+          <div id="acc-${idx}" class="accordion-content p-3 grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-900/50">
             ${visiveisDaDiv.map(item => `
               <div onclick="abrirModalItemPorPlaqueta('${item.plaqueta}')" class="patrimonio-card patrimonio-card--${situacaoPatrimonio(item)} bg-slate-800/90 p-3 rounded-lg border text-xs space-y-1.5 cursor-pointer transition-colors shadow-sm">
                 <div class="flex justify-between items-center">
@@ -2628,6 +3163,7 @@
                   <div>🏷️ Divisão Anterior: ${item.divisaoOrigem || item.divisao}</div>
                   <div>📍 Local Atual: <span class="text-emerald-400 font-bold">${item.localizacaoAtual || item.divisaoOrigem || item.divisao}</span></div>
                   ${situacaoPatrimonio(item) === 'aguardando' ? `<div>➡️ Local sugerido: <span class="text-amber-300 font-bold">${item.divisaoDestinoSugerida}</span></div>` : ''}
+                  ${item.sugestaoDestinoStatus === 'pendente' ? `<div>📍 Destino indicado: <span class="text-amber-300 font-bold">${escaparHtml(item.sugestaoDestinoDivisao)}</span> · aguardando análise, sem conferência física</div>` : ''}
                 </div>
               </div>
             `).join('')}
@@ -2664,6 +3200,12 @@
       filtroBuscaRelacao.focus();
     });
     document.getElementById('filtro-status').addEventListener('change', () => carregarRelacaoPatrimonial({ reiniciar: true }));
+    document.getElementById('btn-expandir-divisoes')?.addEventListener('click', () => {
+      document.querySelectorAll('#container-accordions .accordion-content').forEach(elemento => elemento.classList.remove('collapsed'));
+    });
+    document.getElementById('btn-recolher-divisoes')?.addEventListener('click', () => {
+      document.querySelectorAll('#container-accordions .accordion-content').forEach(elemento => elemento.classList.add('collapsed'));
+    });
     document.getElementById('btn-atualizar-relacao')?.addEventListener('click', () => {
       invalidarCacheRelacao({ preservarInventarios: true });
       carregarRelacaoPatrimonial({ reiniciar: true, forcarServidor: true });
@@ -2686,4 +3228,9 @@
       const a = document.createElement('a'); a.href = url;
       a.download = `${nomeArquivo}_${new Date().toISOString().slice(0,10)}.csv`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    function ocultarSugestoesPlaqueta() {
+      clearTimeout(timerAutocomplete);
+      suggestionsBox.innerHTML = '';
+      suggestionsBox.classList.add('hidden');
     }

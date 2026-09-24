@@ -2,7 +2,7 @@
   "id": "./",
   "name": "CM APP",
   "short_name": "CM APP",
-  "description": "Aplicativo institucional da Casa Militar — módulo de patrimônio.",
+  "description": "Gestão e conferência de patrimônio da Casa Militar.",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",
