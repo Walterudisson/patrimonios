@@ -91,6 +91,7 @@
     let tutorialFinalizado = false;
     let tutorialEraRevisao = false;
     let filaSalvamentoTutorial = Promise.resolve();
+    let tutorialEncerrando = false;
 
     const TAMANHO_PAGINA_RELACAO = 50;
     const VALIDADE_RESUMO_INVENTARIO_MS = 120000;
@@ -332,8 +333,39 @@
       if (botao) botao.textContent = concluido ? 'REVER TUTORIAL' : (adiado ? 'CONTINUAR TUTORIAL' : 'INICIAR TUTORIAL');
     }
 
+    function chavePausaTutorial(uid = usuarioLogado?.uid) {
+      return uid ? `cmapp-tutorial-conferente-v1-${uid}` : '';
+    }
+
+    function salvarPausaTutorialLocal(etapa) {
+      const chave = chavePausaTutorial();
+      if (!chave) return;
+      try { localStorage.setItem(chave, JSON.stringify({ adiado: true, etapa, salvoEm: Date.now() })); }
+      catch (_) {}
+    }
+
+    function limparPausaTutorialLocal() {
+      const chave = chavePausaTutorial();
+      if (!chave) return;
+      try { localStorage.removeItem(chave); }
+      catch (_) {}
+    }
+
+    function restaurarPausaTutorialLocal() {
+      const chave = chavePausaTutorial();
+      if (!chave || usuarioLogado?.tutorialConferenteV1Concluido === true) return;
+      try {
+        const pausa = JSON.parse(localStorage.getItem(chave) || 'null');
+        if (pausa?.adiado === true) {
+          usuarioLogado.tutorialConferenteV1Adiado = true;
+          usuarioLogado.tutorialConferenteV1Etapa = Math.max(0, Number(pausa.etapa) || 0);
+        }
+      } catch (_) {}
+    }
+
     async function salvarEstadoTutorialConferente({ etapa, concluido, adiado }) {
       if (!usuarioLogado || usuarioLogado.perfil !== 'conferente') return;
+      const uid = usuarioLogado.uid;
       const dados = {
         tutorialConferenteV1Etapa: Math.max(0, Number(etapa) || 0),
         tutorialConferenteV1Concluido: Boolean(concluido),
@@ -343,10 +375,37 @@
       atualizarEstadoTutorialConferente();
       filaSalvamentoTutorial = filaSalvamentoTutorial
         .catch(() => {})
-        .then(() => updateDoc(doc(db, 'usuarios', usuarioLogado.uid), dados));
+        .then(() => updateDoc(doc(db, 'usuarios', uid), dados));
       try { await filaSalvamentoTutorial; }
       catch (erro) { console.warn('Não foi possível salvar o progresso do tutorial.', erro); }
     }
+
+    function pularTutorialConferente(evento) {
+      if (tutorialEncerrando || !tutorialConferente) return;
+      evento?.preventDefault?.();
+      evento?.stopPropagation?.();
+      evento?.stopImmediatePropagation?.();
+      tutorialEncerrando = true;
+      const etapa = tutorialConferente.getActiveIndex?.() || 0;
+      const instancia = tutorialConferente;
+      if (tutorialEraRevisao) limparPausaTutorialLocal();
+      else salvarPausaTutorialLocal(etapa);
+      Object.assign(usuarioLogado, {
+        tutorialConferenteV1Etapa: etapa,
+        tutorialConferenteV1Concluido: Boolean(tutorialEraRevisao),
+        tutorialConferenteV1Adiado: !tutorialEraRevisao
+      });
+      instancia.destroy();
+      void salvarEstadoTutorialConferente({
+        etapa,
+        concluido: tutorialEraRevisao,
+        adiado: !tutorialEraRevisao
+      }).finally(() => { tutorialEncerrando = false; });
+    }
+
+    document.addEventListener('click', evento => {
+      if (evento.target.closest('.tutorial-skip-button')) pularTutorialConferente(evento);
+    }, true);
 
     function adicionarBotaoPularTutorial(popover) {
       const rodape = popover?.footerButtons || document.querySelector('.driver-popover-footer');
@@ -355,15 +414,7 @@
       botao.type = 'button';
       botao.className = 'driver-popover-footer-btn tutorial-skip-button';
       botao.textContent = 'Pular';
-      botao.addEventListener('click', () => {
-        const etapa = tutorialConferente?.getActiveIndex?.() || 0;
-        void salvarEstadoTutorialConferente({
-          etapa,
-          concluido: tutorialEraRevisao,
-          adiado: !tutorialEraRevisao
-        });
-        tutorialConferente?.destroy();
-      });
+      botao.setAttribute('aria-label', 'Pular e pausar o tutorial');
       rodape.prepend(botao);
     }
 
@@ -472,6 +523,7 @@
         return;
       }
       tutorialConferente?.destroy?.();
+      tutorialEncerrando = false;
       tutorialFinalizado = false;
       tutorialEraRevisao = usuarioLogado.tutorialConferenteV1Concluido === true;
       await alternarAba('dashboard');
@@ -495,6 +547,7 @@
         },
         onDoneClick: () => {
           tutorialFinalizado = true;
+          limparPausaTutorialLocal();
           void salvarEstadoTutorialConferente({ etapa: 0, concluido: true, adiado: false });
           tutorialConferente.destroy();
           notificarMensagem('Tutorial do Conferente concluído.', 'sucesso');
@@ -563,6 +616,7 @@
           return;
         }
         usuarioLogado = { uid: user.uid, email: user.email, ...userDoc.data() };
+        restaurarPausaTutorialLocal();
         if (usuarioLogado.ativo === false) {
           await signOut(auth);
           notificarMensagem('Este acesso está desativado. Procure um Administrador.', 'erro');
