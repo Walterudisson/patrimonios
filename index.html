@@ -21,7 +21,7 @@
   <!-- Motor de OCR (Tesseract.js) -->
   <script src="https://unpkg.com/tesseract.js@v5.1.0/dist/tesseract.min.js"></script>
 
-  <link rel="stylesheet" href="./app.css?v=1.13.9.2">
+  <link rel="stylesheet" href="./app.css?v=1.13.10">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
@@ -53,7 +53,7 @@
 
       <div id="login-erro" class="hidden text-xs text-red-400 text-center font-semibold bg-red-950/40 p-2 rounded border border-red-500/30"></div>
     </div>
-    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.13.9.2</div>
+    <div class="mt-4 text-[11px] text-slate-500 font-medium">v1.13.10</div>
   </div>
 
   <!-- APLICAÇÃO PRINCIPAL -->
@@ -109,10 +109,14 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 8a7 7 0 0 0-14 0M19 8v6M16 11h6"/></svg>
           <span class="sidebar-label">Usuários</span>
         </button>
+        <button id="tab-btn-divisoes" type="button" class="nav-item" data-nav-page="divisoes" data-perfis="admin,gestor">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V7l8-4 8 4v13M8 10h2M14 10h2M8 14h2M14 14h2M10 20v-3h4v3"/></svg>
+          <span class="sidebar-label">Divisões</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer sidebar-label">
-        <span>v1.13.9.2</span>
+        <span>v1.13.10</span>
         <button id="btn-logout-sidebar" type="button">SAIR</button>
       </div>
     </aside>
@@ -521,6 +525,40 @@
         </div>
       </section>
 
+      <!-- GESTÃO DE DIVISÕES -->
+      <section id="sec-divisoes" class="hidden space-y-5">
+        <div class="users-heading">
+          <div>
+            <span class="eyebrow">Estrutura organizacional</span>
+            <h2>Divisões e responsáveis</h2>
+            <p>Consulte a estrutura, defina responsáveis e mantenha as divisões disponíveis no aplicativo.</p>
+          </div>
+          <button id="btn-nova-divisao" type="button" class="users-primary-action"><span aria-hidden="true">＋</span> Nova divisão</button>
+        </div>
+        <div class="division-stats users-stats" aria-label="Resumo das divisões">
+          <button type="button" class="is-selected" data-divisions-card="todas" aria-pressed="true"><span class="users-stat-icon stat-blue">▦</span><p><strong id="divisoes-total">0</strong><small>Total</small></p></button>
+          <button type="button" data-divisions-card="ativas" aria-pressed="false"><span class="users-stat-icon stat-green">✓</span><p><strong id="divisoes-ativas">0</strong><small>Ativas</small></p></button>
+          <button type="button" data-divisions-card="inativas" aria-pressed="false"><span class="users-stat-icon stat-red">—</span><p><strong id="divisoes-inativas">0</strong><small>Inativas</small></p></button>
+          <button type="button" data-divisions-card="responsavel" aria-pressed="false"><span class="users-stat-icon stat-amber">♙</span><p><strong id="divisoes-com-responsavel">0</strong><small>Com responsável</small></p></button>
+        </div>
+        <div class="divisions-panel">
+          <div class="divisions-toolbar">
+            <div class="users-tabs" role="tablist" aria-label="Situação das divisões">
+              <button type="button" class="active" data-divisions-status="todas">Todas <span id="divisoes-tab-todas-contagem">0</span></button>
+              <button type="button" data-divisions-status="ativas">Ativas <span id="divisoes-tab-ativas-contagem">0</span></button>
+              <button type="button" data-divisions-status="inativas">Inativas <span id="divisoes-tab-inativas-contagem">0</span></button>
+            </div>
+            <div class="divisions-filters">
+            <div class="search-field"><input id="filtro-busca-divisoes" type="search" placeholder="Pesquisar divisão ou responsável..." aria-label="Pesquisar divisões"></div>
+            </div>
+          </div>
+          <div class="users-mobile-sort divisions-mobile-sort"><label for="ordenacao-divisoes">Ordenar por</label><select id="ordenacao-divisoes"><option value="nome:asc">Divisão (A–Z)</option><option value="nome:desc">Divisão (Z–A)</option><option value="principal:asc">Responsável principal</option><option value="substituto:asc">Substituto</option><option value="ativo:asc">Status</option><option value="atualizadoEm:desc">Alteração mais recente</option></select></div>
+          <div class="divisions-table-header"><button type="button" data-divisions-sort="nome">Divisão <span></span></button><button type="button" data-divisions-sort="principal">Responsável principal <span></span></button><button type="button" data-divisions-sort="substituto">Substituto <span></span></button><button type="button" data-divisions-sort="ativo">Status <span></span></button><span>Ações</span></div>
+          <div id="lista-divisoes-container" class="divisions-list" aria-live="polite"></div>
+          <div id="divisoes-paginacao" class="users-pagination"></div>
+        </div>
+      </section>
+
       <!-- ABA 4: INVENTÁRIO ATUAL E GESTÃO DO CICLO -->
       <section id="sec-inventarios" class="hidden space-y-5">
         <article class="app-card space-y-4">
@@ -646,7 +684,7 @@
 
       <footer class="app-footer">
         <span>CM APP · Patrimônio</span>
-        <span>v1.13.9.2</span>
+        <span>v1.13.10</span>
       </footer>
     </div>
   </div>
@@ -748,6 +786,22 @@
   </div>
 
   <!-- MODAL DE DETALHES E HISTÓRICO DO ITEM -->
+  <div id="modal-divisao" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
+    <div class="division-dialog" role="dialog" aria-modal="true" aria-labelledby="titulo-modal-divisao">
+      <div class="user-details-heading"><h3 id="titulo-modal-divisao">Nova divisão</h3><button id="btn-fechar-modal-divisao" type="button" aria-label="Fechar">✕</button></div>
+      <form id="form-divisao" class="space-y-3 mt-4">
+        <input id="divisao-id" type="hidden">
+        <label class="profile-field"><span>Nome da divisão</span><input id="divisao-nome" type="text" minlength="3" maxlength="160" required placeholder="Ex.: CM - DTA"></label>
+        <label class="profile-field"><span>Responsável principal</span><select id="divisao-responsavel-principal"><option value="">Não definido</option></select></label>
+        <label class="profile-field"><span>Responsável substituto</span><select id="divisao-responsavel-substituto"><option value="">Não definido</option></select></label>
+        <label class="division-active-control"><input id="divisao-ativa" type="checkbox" checked><span>Divisão ativa e disponível para operação</span></label>
+        <p id="divisao-modal-aviso" class="division-modal-note">O nome passa a identificar a divisão em patrimônios e inventários e não poderá ser alterado posteriormente.</p>
+        <div class="suggestion-actions"><button id="btn-cancelar-modal-divisao" type="button">Cancelar</button><button id="btn-salvar-divisao" type="submit">Salvar divisão</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL DE DETALHES E HISTÓRICO DO ITEM -->
   <div id="modal-sugerir-destino" class="hidden fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
     <div class="suggestion-dialog" role="dialog" aria-modal="true" aria-labelledby="sugestao-destino-titulo">
       <div class="suggestion-heading">
@@ -808,6 +862,6 @@
   </div>
 
     <script src="https://cdn.jsdelivr.net/npm/driver.js@1.5.0/dist/driver.js.iife.js"></script>
-    <script type="module" src="./app.js?v=1.13.9.2"></script>
+    <script type="module" src="./app.js?v=1.13.10"></script>
 </body>
 </html>

@@ -1,0 +1,22 @@
+CM APP v1.13.10-H.2 — ambiente de homologação
+
+Projeto Firebase: cm-app-homologacao
+Firestore: (default)
+Este pacote contém apenas dados de configuração públicos do aplicativo Web. Não concede acesso ao projeto sem as credenciais e regras publicadas.
+
+Antes dos arquivos do site, publique firestore.rules da entrega interna v1.13.10 no projeto cm-app-homologacao.
+Depois, publique o conteúdo desta pasta no repositório GitHub Pages exclusivo de homologação. Não substitua os arquivos do repositório de produção.
+Cloud Functions e Storage permanecem inalterados e não precisam de novo deploy.
+Crie usuários e dados fictícios antes dos testes operacionais.
+
+Escopo v1.13.10-H:
+- nova tela Gestão de Divisões para Administradores e Gestores;
+- cadastro de divisão e manutenção de situação ativa/inativa;
+- definição de responsável principal e substituto a partir dos usuários ativos;
+- pesquisa, filtro e indicadores gerenciais das divisões;
+- cards e abas sincronizados como filtros, ordenação desktop/mobile e paginação;
+- Administrador altera; Gestor possui acesso somente para consulta;
+- nome de divisão existente é imutável para preservar patrimônios e históricos;
+- trilha de auditoria registrada no próprio documento da divisão;
+- catálogo inicial de permissões para futura Matriz de Funções e Permissões;
+- manutenção integral das funcionalidades homologadas até a v1.13.9-H.2.

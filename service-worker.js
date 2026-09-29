@@ -1,4 +1,4 @@
-const VERSAO = 'v1.13.9.2';
+const VERSAO = 'v1.13.10';
 const CACHE_SHELL = `cmapp-shell-${VERSAO}`;
 const CACHE_RUNTIME = `cmapp-runtime-${VERSAO}`;
 const PREFIXO_CACHE = 'cmapp-';
@@ -24,6 +24,7 @@ const ARQUIVOS_SHELL = [
   './js/core/relacao.js',
   './js/core/perfil.js',
   './js/core/inventario-id.js',
+  './js/core/permissoes.js',
   './js/services/divisoes.service.js',
   './js/services/inventarios.service.js',
   './js/services/perfil.service.js',

@@ -1,12 +1,21 @@
-CM APP v1.13.9 — PRODUÇÃO
+CM APP v1.13.10 — PRODUÇÃO
 
 Projeto Firebase exclusivo: patrimonioscm
 Hospedagem: GitHub Pages
 
 IMPORTANTE
-1. Não publique esta pasta antes de concluir com sucesso o deploy do pacote interno v1.13.9.
-2. Depois do backend, substitua no repositório de produção somente os arquivos públicos desta pasta.
-3. Faça commit/push e aguarde o GitHub Pages concluir.
-4. No app, aceite ATUALIZAR AGORA e confirme v1.13.9 no rodapé.
+1. Antes do site, publique somente firestore.rules do pacote interno v1.13.10 no projeto patrimonioscm.
+2. Não é necessário republicar Functions ou Storage nesta versão.
+3. Depois do sucesso das regras, substitua no repositório de produção somente os arquivos públicos desta pasta.
+4. Faça commit/push, aguarde o GitHub Pages e aceite ATUALIZAR AGORA no aplicativo.
+5. Confirme v1.13.10 no rodapé e execute a verificação rápida descrita no pacote interno.
 
-Esta entrega consolida as versões homologadas v1.13.7-H, v1.13.8-H e v1.13.9-H.
+Escopo promovido da v1.13.10-H.2:
+- Gestão de Divisões para Administradores e Gestores;
+- cadastro, pesquisa, filtros, cards, ordenação e paginação;
+- responsável principal e substituto vinculados a usuários ativos;
+- ativação e inativação por botão, sem exclusão do documento;
+- Administrador altera; Gestor possui acesso somente para consulta;
+- nome da divisão existente permanece imutável;
+- auditoria registrada no documento da divisão;
+- manutenção integral das funcionalidades homologadas até a v1.13.9.2.
